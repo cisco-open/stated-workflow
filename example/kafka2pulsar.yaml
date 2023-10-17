@@ -1,0 +1,46 @@
+# to run this locally you need to have pulsar running in standalone mode
+
+# client configuration. type can be pulsar or kafka
+PulsarClientParams:
+  type: 'pulsar'
+  params:
+    serviceUrl: 'pulsar://localhost:6650'
+
+KafkaClientParams:
+  type: 'kafka'
+  
+# starts producer function
+send$: $setInterval(function(){$publish(produceParams, KafkaClientParams)}, 1000)
+dispatch$: $subscribe(subscribeDispatcherParams, KafkaClientParams)
+
+subscribeDispatcherParams:
+  source: cloudEvent
+  type: "domain-event-bus"
+  to: | 
+    /${ function($e){(
+      $console.log('received - ' & $string($e) & ' from "' & 'domain-event-bus' & '"');
+      $publish({'type': $e.dataType & $string($e.rando), 'data': dataToParams($e)}, PulsarClientParams);
+      $console.log('publised - ' & $e.dataType & $string($e.rando) & ', message - ' & $string($e));
+      $subscribe({'source': 'cloudEvent', 'type': $e.dataType & $string($e.rando), 'to': toFunc}, PulsarClientParams);
+      $console.log('started subscriber from - ' & $e.dataType & $string($e.rando) & ' using ' & $string(PulsarClientParams));
+    )}  }
+  subscriberId: dingus
+  initialPosition: latest
+
+dataToParams: "${ function($e){ $e } }"
+
+# producer will be sending data function output to the "type" topic
+produceParams:
+  type: "domain-event-bus"
+  data: "${ function(){  {'dataType': 'myType', 'name': 'nozzleTime', 'rando': $round($random() * 10)}}  }"
+
+toFunc: |
+  /${ function($e){(
+    $console.log('received in toFunc - ' & $string($e) );
+    $set('/rxLog', rxLog~>$append($e));
+  )}  }
+
+rxLog: []
+
+# this is a function that will stop the producer after 20 events have been received
+stop$: $count(rxLog)=20?$clearInterval(send$):'still going'

@@ -1,0 +1,49 @@
+{
+  "name": "stated-workflow",
+  "version": "0.0.1",
+  "license": "Apache-2.0",
+  "description": "Lightweight and scalable event-driven workflow engine built on Stated",
+  "main": "./dist/src/TemplateProcessor.js",
+  "module": "./dist/src/TemplateProcessor.js",
+  "exports": {},
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "stated-workflow": "node --experimental-vm-modules dist/stated.js --xf src/workflow/StatedWorkflow.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cisco-open/stated-workflow"
+  },
+  "keywords": [
+    "jsonata",
+    "json",
+    "config",
+    "state",
+    "dag",
+    "workflow"
+  ],
+  "author": "Geoff Hendrey <ghendreyl@cisco.com>, Sergey Sergeev <sesergee@cisco.com>",
+  "dependencies": {
+    "stated-js": "^0.0.71",
+    "express": "^4.18.2",
+    "kafkajs": "^2.2.4",
+    "pulsar-client": "^1.9.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "files": [
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "package.json",
+    "README.md",
+    "README.test.js",
+    "yarn.lock",
+    "src/",
+    "dist/",
+    "example/**/*",
+    "!**/.idea",
+    "!**/.github"
+  ],
+  "type": "module"
+}
