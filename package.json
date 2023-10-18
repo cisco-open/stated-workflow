@@ -3,12 +3,14 @@
   "version": "0.0.1",
   "license": "Apache-2.0",
   "description": "Lightweight and scalable event-driven workflow engine built on Stated",
-  "main": "./dist/src/TemplateProcessor.js",
-  "module": "./dist/src/TemplateProcessor.js",
-  "exports": {},
+  "main": "./src/workflow/StatedWorkflow.js",
+  "module": "./src/workflow/StatedWorkflow.js",
+  "bin": "./stated-workflow.js",
+  "exports": {
+    ".": "./src/workflow/StatedWorkflow.js"
+  },
   "scripts": {
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "stated-workflow": "node --experimental-vm-modules dist/stated.js --xf src/workflow/StatedWorkflow.js"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
   "repository": {
     "type": "git",

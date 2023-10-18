@@ -1,5 +1,6 @@
 # stated-workflow
-Stated Workflow is a collection of functions for a lightweight and scalable event-driven workflow engine using Stated template engine.
+Stated Workflow is a collection of functions for a lightweight and scalable event-driven workflow engine using [Stated](https://github.com/cisco-open/stated) template engine.
+![Stated-Workflows](https://github.com/geoffhendrey/jsonataplay/blob/7a3fe15a2f5486ee6208d6333c06ade27dc291d3/stated-workflows.png?raw=true)
 
 ## Example Workflow
 Example workflow demonstrating of producing events to and consuming events from an Apache Pulsar. 
