@@ -39,18 +39,20 @@ export class StatedWorkflow {
         level: "debug",
     });
 
+    static FUNCTIONS = {
+        "id": StatedWorkflow.generateDateAndTimeBasedID.bind(this),
+        "serial": StatedWorkflow.serial.bind(this),
+        "parallel": StatedWorkflow.parallel.bind(this),
+        "nextCloudEvent": StatedWorkflow.nextCloudEvent.bind(this),
+        "onHttp": StatedWorkflow.onHttp.bind(this),
+        "subscribe": StatedWorkflow.subscribe.bind(this),
+        "publish": StatedWorkflow.publish.bind(this),
+        "logFunctionInvocation": StatedWorkflow.logFunctionInvocation.bind(this),
+        "workflow": StatedWorkflow.workflow.bind(this)
+    };
+
     static newWorkflow(template) {
-        this.context = {
-            "id": StatedWorkflow.generateDateAndTimeBasedID.bind(this),
-            "serial": StatedWorkflow.serial.bind(this),
-            "parallel": StatedWorkflow.parallel.bind(this),
-            "nextCloudEvent": StatedWorkflow.nextCloudEvent.bind(this),
-            "onHttp": StatedWorkflow.onHttp.bind(this),
-            "subscribe": StatedWorkflow.subscribe.bind(this),
-            "publish": StatedWorkflow.publish.bind(this),
-            "logFunctionInvocation": StatedWorkflow.logFunctionInvocation.bind(this),
-            "workflow": StatedWorkflow.workflow.bind(this)
-        };
+        this.context = this.FUNCTIONS;
         const templateProcessor = new TemplateProcessor(template, this.context);
         templateProcessor.logLevel = logLevel.DEBUG;
         return templateProcessor;
