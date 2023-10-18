@@ -1,0 +1,36 @@
+version: '3'
+
+services:
+
+  pulsar:
+    image: apachepulsar/pulsar:latest
+    command: bin/pulsar standalone
+    ports:
+      - "6650:6650"
+      - "8080:8080"
+    volumes:
+      - data:/pulsar/data
+    restart: unless-stopped
+
+  pulsar-manager:
+    image: apachepulsar/pulsar-manager:latest
+#    environment:
+#      REDIRECT_HOST: http://localhost
+#      REDIRECT_PORT: 80
+#      DRIVER_CLASS_NAME: org.postgresql.Driver
+#      URL: jdbc:postgresql://127.0.0.1:5432/pulsar_manager
+#      USERNAME: pulsar
+#      PASSWORD: pulsar
+#      LOG_LEVEL: DEBUG
+#      SERVER_PORT: 80
+#      PULSAR_BROKER_ROOT_URL: http://pulsar:8080
+#      PULSAR_WEBSOCKET_URL: ws://pulsar:6650
+    ports:
+      - "9527:9527"
+      - "7750:7750"
+    depends_on:
+      - pulsar
+    restart: unless-stopped
+
+volumes:
+  data:
