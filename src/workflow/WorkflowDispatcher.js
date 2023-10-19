@@ -11,6 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+import StatedREPL from "stated-js/dist/src/StatedREPL.js";
+import {StatedWorkflow} from "./StatedWorkflow.js";
 export class WorkflowDispatcher {
     constructor(subscribeParams) {
         const {to: workflowFunction, parallelism, type, subscriberId} = subscribeParams;
@@ -55,6 +57,18 @@ export class WorkflowDispatcher {
         return this.dispatcherObjects.get(key);
     }
 
+    static addBatchToAllSubscribers(type, testData) {
+        const keysSet = this.dispatchers.get(type);
+        if (keysSet) {
+            for (let key of keysSet) {
+                const dispatcher = this.dispatcherObjects.get(key);
+                dispatcher.addBatch(testData); // You can pass the actual data you want to dispatch here
+            }
+        } else {
+            console.log(`No subscribers found for type ${type}`);
+        }
+    }
+
     static dispatchToAllSubscribers(type, data) {
         const keysSet = this.dispatchers.get(type);
         if (keysSet) {
@@ -63,7 +77,7 @@ export class WorkflowDispatcher {
                 dispatcher.addToQueue(data); // You can pass the actual data you want to dispatch here
             }
         } else {
-            console.log(`No subscribers found for type ${type}`);
+            StatedWorkflow.logger.warn(`No subscribers found for type ${type}`);
         }
     }
 
@@ -98,10 +112,13 @@ export class WorkflowDispatcher {
     }
 
     //this is used for testing
-    addBatch(dataArray) {
+    addBatch(testData) {
+        if(!Array.isArray(testData)){
+            throw new Error(`testData must be an array: ${StatedREPL.stringify(testData)}`);
+        }
         this.batchMode = true;
-        this.batchCount += dataArray.length;
-        dataArray.forEach(data => this.addToQueue(data));
+        this.batchCount += testData.length;
+        testData.forEach(data => this.addToQueue(data));
     }
 
     //this is used for testing

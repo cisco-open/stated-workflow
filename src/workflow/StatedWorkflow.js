@@ -36,14 +36,13 @@ export class StatedWorkflow {
                 )
             })
         ],
-        level: "debug",
+        level: "error", //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
     });
 
     static FUNCTIONS = {
         "id": StatedWorkflow.generateDateAndTimeBasedID.bind(this),
         "serial": StatedWorkflow.serial.bind(this),
         "parallel": StatedWorkflow.parallel.bind(this),
-        "nextCloudEvent": StatedWorkflow.nextCloudEvent.bind(this),
         "onHttp": StatedWorkflow.onHttp.bind(this),
         "subscribe": StatedWorkflow.subscribe.bind(this),
         "publish": StatedWorkflow.publish.bind(this),
@@ -54,7 +53,7 @@ export class StatedWorkflow {
     static newWorkflow(template) {
         this.context = this.FUNCTIONS;
         const templateProcessor = new TemplateProcessor(template, this.context);
-        templateProcessor.logLevel = logLevel.DEBUG;
+        templateProcessor.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
         return templateProcessor;
     }
 
@@ -85,14 +84,14 @@ export class StatedWorkflow {
         }
     }
 
-    static async subscribe(subscribeOptions, clientParams) {
+    static async subscribe(subscribeOptions) {
         const {source} = subscribeOptions;
         StatedWorkflow.logger.debug(`subscribing ${StatedREPL.stringify(source)}`);
         if (source === 'http') {
             return StatedWorkflow.onHttp(subscribeOptions);
         }
-        if (source === 'cloudEvent' || source === 'data') {
-            return StatedWorkflow.nextCloudEvent(subscribeOptions, clientParams);
+        if (source === 'cloudEvent') {
+            return StatedWorkflow.subscribeCloudEvent(subscribeOptions);
         }
         if (!source) {
             throw new Error("Subscribe source not set");
@@ -140,12 +139,23 @@ export class StatedWorkflow {
         });/**/
     }
 
-    static publish(params, clientParams) {
-        StatedWorkflow.logger.debug(`publish params ${StatedREPL.stringify(params)} with clientParams ${StatedREPL.stringify(clientParams)}`);
-        if (clientParams.type === 'kafka') {
+    static publish(params) {
+        StatedWorkflow.logger.debug(`publish params ${StatedREPL.stringify(params)} }`);
+
+        const {testData, type, client:clientParams={}} = params;
+        if (testData) {
+            this.logger.debug(`testData provided, will not publish to 'real' message broker for publish parameters ${StatedREPL.stringify(params)}`);
+            WorkflowDispatcher.addBatchToAllSubscribers(type, testData);
+            return;
+        }
+
+        const {type:clientType} = clientParams
+        if (clientType=== 'kafka') {
             StatedWorkflow.publishKafka(params, clientParams);
-        } else {
+        } else if(clientType==="pulsar") {
             StatedWorkflow.publishPulsar(params, clientParams);
+        }else{
+            throw new Error(`Unsupported clientType: ${clientType}`);
         }
     }
 
@@ -259,7 +269,7 @@ export class StatedWorkflow {
         })();
     }
 
-    static async subscribeKafka(subscriptionParams, clientParams) {
+    static async subscribeKafka(subscriptionParams) {
         const { type, initialOffset = 'earliest', maxConsume = -1 } = subscriptionParams;
         StatedWorkflow.logger.debug(`Kafka subscribe params ${StatedREPL.stringify(subscriptionParams)} with clientParams ${StatedREPL.stringify(clientParams)}`);
 
@@ -308,22 +318,32 @@ export class StatedWorkflow {
         });
     }
 
-    static async nextCloudEvent(subscriptionParams, clientParams) {
+    static async subscribeCloudEvent(subscriptionParams) {
 
-        const {testData} = subscriptionParams;
-        if (testData) {
-            const dispatcher = WorkflowDispatcher.getDispatcher(subscriptionParams);
-            dispatcher.addBatch(testData);
-            await dispatcher.drainBatch(); // in test mode we wanna actually wait for all the test events to process
-            return;
+        const {testData, client:clientParams={type:'test'}} = subscriptionParams;
+        const {type:clientType} = clientParams;
+        if (testData !== undefined) {
+            if(testData !== undefined){
+                this.logger.debug(`No 'real' subscription created because testData provided for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
+                const dispatcher = WorkflowDispatcher.getDispatcher(subscriptionParams);
+                dispatcher.addBatch(testData);
+                await dispatcher.drainBatch(); // in test mode we wanna actually wait for all the test events to process
+                return;
+            }
         }
-        //in real-life we take messages off a message bus
-        if (clientParams.type === 'kafka') {
+        if(clientType==='test'){
+            this.logger.debug(`No 'real' subscription created because client.type='test' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
+            const dispatcher = WorkflowDispatcher.getDispatcher(subscriptionParams); // we need a dispatched even if no real message bus
+        }else if (clientType === 'kafka') {
+            this.logger.debug(`subscribing to kafka using ${clientParams}`)
             StatedWorkflow.createKafkaClient(clientParams);
-            StatedWorkflow.subscribeKafka(subscriptionParams, clientParams);
-        } else {
+            StatedWorkflow.subscribeKafka(subscriptionParams);
+        }else if(clientType === 'pulsar') {
+            this.logger.debug(`subscribing to pulsar (default) using ${clientParams}`)
             StatedWorkflow.createPulsarClient(clientParams);
-            StatedWorkflow.subscribePulsar(subscriptionParams, clientParams);
+            StatedWorkflow.subscribePulsar(subscriptionParams);
+        }else{
+            throw new Error(`unsupported client.type in ${StatedREPL.stringify(subscriptionParams)}`);
         }
     }
 
@@ -543,7 +563,6 @@ export class StatedWorkflow {
 export const id = StatedWorkflow.generateDateAndTimeBasedID;
 export const serial = StatedWorkflow.serial;
 export const parallel = StatedWorkflow.parallel;
-export const nextCloudEvent = StatedWorkflow.nextCloudEvent;
 export const onHttp = StatedWorkflow.onHttp;
 export const subscribe = StatedWorkflow.subscribe;
 export const publish = StatedWorkflow.publish;
