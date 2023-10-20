@@ -3,25 +3,119 @@ Stated Workflow is a collection of functions for a lightweight and scalable even
 ![Stated-Workflows](https://github.com/geoffhendrey/jsonataplay/blob/7a3fe15a2f5486ee6208d6333c06ade27dc291d3/stated-workflows.png?raw=true)
 
 ## Example Workflow
-Example workflow demonstrating of producing events to and consuming events from an Apache Pulsar. 
-```yaml
-# to run this locally you need to have pulsar running in standalone mode
-send$: $setInterval(function(){$publish(pubParams)}, 100)
-pubParams:
-  type: /${ subscribeParams.type} #pub to same type we subscribe on
-  data: "${ function(){  {'name': 'nozzleTime', 'rando': $random()}}  }"
-recv$: $subscribe(subscribeParams)
-subscribeParams: #parameters for subscribing to a cloud event
-  source: cloudEvent
-  type: 'my-topic'
-  to: /${ function($e){(
-            $console.log('received - ' & $string($e) );
-            $set('/rxLog', rxLog~>$append($e));            
-      )}  }
-  subscriberId: dingus
-  initialPosition: latest
-rxLog: []
-stop$: $count(rxLog)=20?$clearInterval(send$):'still going'
+ 
+```json
+> .init -f "example/wf.yaml"
+{
+  "start$": "$subscribe(subscribeParams, {})",
+  "name": "nozzleWork",
+  "subscribeParams": {
+    "source": "cloudEvent",
+    "testData": "${  [1].([{'name': 'nozzleTime', 'order':$}])  }",
+    "type": "my-topic",
+    "filter$": "function($e){ $e.name='nozzleTime' }",
+    "to": "../${myWorkflow$}",
+    "parallelism": 2,
+    "subscriberId": "../${name}"
+  },
+  "myWorkflow$": "function($e){\n    $e ~> $serial([step1, step2], \n                  {\n                    'name':$$.name, \n                    'log':$$.log, \n                    'workflowInvocation':$id()\n                  })\n}\n",
+  "step1": {
+    "name": "primeTheNozzle",
+    "function": "${function($e){ $e~>|$|{'primed':true}|  }}"
+  },
+  "step2": {
+    "name": "sprayTheNozzle",
+    "function": "${function($e){ $e~>|$|{'sprayed':true}|  }}"
+  },
+  "log": {
+    "retention": {
+      "maxWorkflowLogs": 100
+    }
+  }
+}
+> .out
+{
+  "start$": null,
+  "name": "nozzleWork",
+  "subscribeParams": {
+    "source": "cloudEvent",
+    "testData": [
+      {
+        "name": "nozzleTime",
+        "order": 1
+      }
+    ],
+    "type": "my-topic",
+    "filter$": "{function:}",
+    "to": "{function:}",
+    "parallelism": 2,
+    "subscriberId": "nozzleWork"
+  },
+  "myWorkflow$": "{function:}",
+  "step1": {
+    "name": "primeTheNozzle",
+    "function": "{function:}",
+    "log": {
+      "--ignore--": {
+        "start": {
+          "timestamp": "--timestamp--",
+          "args": {
+            "name": "nozzleTime",
+            "order": 1
+          }
+        },
+        "end": {
+          "timestamp": "--timestamp--",
+          "out": {
+            "name": "nozzleTime",
+            "order": 1,
+            "primed": true
+          }
+        }
+      }
+    }
+  },
+  "step2": {
+    "name": "sprayTheNozzle",
+    "function": "{function:}",
+    "log": {
+      "--ignore--": {
+        "start": {
+          "timestamp": "--timestamp--",
+          "args": {
+            "name": "nozzleTime",
+            "order": 1,
+            "primed": true
+          }
+        },
+        "end": {
+          "timestamp": "--timestamp--",
+          "out": {
+            "name": "nozzleTime",
+            "order": 1,
+            "primed": true,
+            "sprayed": true
+          }
+        }
+      }
+    }
+  },
+  "log": {
+    "retention": {
+      "maxWorkflowLogs": 100
+    },
+    "nozzleWork": {
+      "--ignore--": {
+        "info": {
+          "start": "--timestamp--",
+          "status": "succeeded",
+          "end": "--timestamp--"
+        },
+        "execution": {}
+      }
+    }
+  }
+}
 ```
 # Workflow deployment model
 Workflows can be run on any nodejs runtime, but suggested production deployment is using contaner-based orchestration 

@@ -16,43 +16,9 @@ import fs from 'fs';
 import yaml from 'js-yaml';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import StatedREPL from 'stated-js/dist/src/StatedREPL.js'
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-class EnhancedPrintFunc {
-    static isWorkflowId(value) {
-        const pattern = /^\d{4}-\d{2}-\d{2}-\d{13}-[a-z0-9]{4,6}$/;
-        const matched = pattern.test(value);
-        return matched;
-    }
-
-    static isTimestamp(value) {
-        // This will check for a 13 digit number, typical of a JavaScript timestamp
-        return /^\d{13}$/.test(value.toString());
-    }
-
-    static printFunc(key, value) {
-        const originalValue = StatedREPL.printFunc(key, value);
-
-        // If stated.printFunc already handled and transformed the value, no need to check again
-        if (originalValue !== value) {
-            return originalValue;
-        }
-
-        if (EnhancedPrintFunc.isWorkflowId(value)) {
-            return "--ignore--";
-        }
-
-        if (EnhancedPrintFunc.isTimestamp(value)) {
-            return "--timestamp--";
-        }
-
-        return value;
-    }
-
-}
 
 test("noop", async () => {});
 
