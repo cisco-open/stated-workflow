@@ -2,7 +2,8 @@
 Stated Workflow is a collection of functions for a lightweight and scalable event-driven workflow engine using [Stated](https://github.com/cisco-open/stated) template engine.
 ![Stated-Workflows](https://github.com/geoffhendrey/jsonataplay/blob/7a3fe15a2f5486ee6208d6333c06ade27dc291d3/stated-workflows.png?raw=true)
 
-## Example Workflow
+## Example Workflows
+### Simple workflow
  
 ```json
 > .init -f "example/wf.yaml"
@@ -33,6 +34,12 @@ Stated Workflow is a collection of functions for a lightweight and scalable even
     }
   }
 }
+```
+The result will include logs for each invocation in the tempalate itself.
+<details>
+<summary>Execution output</summary>
+
+```json
 > .out
 {
   "start$": null,
@@ -117,6 +124,109 @@ Stated Workflow is a collection of functions for a lightweight and scalable even
   }
 }
 ```
+</details>
+
+### pubsub example
+```json
+> .init -f "example/pubsub.yaml"
+{
+  "produceParams": {
+    "type": "my-topic",
+    "testData": "${ [1..5].({'name': 'nozzleTime', 'rando': $random()})  }",
+    "client": {
+      "type": "test"
+    }
+  },
+  "subscribeParams": {
+    "source": "cloudEvent",
+    "type": "/${ produceParams.type }",
+    "to": "/${ function($e){( $console.log('received - ' & $string($e) ); $set('/rxLog', rxLog~>$append($e)); )}  }",
+    "subscriberId": "dingus",
+    "initialPosition": "latest",
+    "client": {
+      "type": "test"
+    }
+  },
+  "send$": "$setInterval(function(){$publish(produceParams)}, 100)",
+  "recv$": "$subscribe(subscribeParams)",
+  "rxLog": [],
+  "stop$": "($count(rxLog)=5?($clearInterval(send$);'done'):'still going')"
+}
+```
+
+<details>
+<summary>Execution output</summary>
+
+```json
+.out
+{
+  "produceParams": {
+    "type": "my-topic",
+    "testData": [
+      {
+        "name": "nozzleTime",
+        "rando": "--rando--"
+      },
+      {
+        "name": "nozzleTime",
+        "rando": "--rando--"
+      },
+      {
+        "name": "nozzleTime",
+        "rando": "--rando--"
+      },
+      {
+        "name": "nozzleTime",
+        "rando": "--rando--"
+      },
+      {
+        "name": "nozzleTime",
+        "rando": "--rando--"
+      }
+    ],
+    "client": {
+      "type": "test"
+    }
+  },
+  "subscribeParams": {
+    "source": "cloudEvent",
+    "type": "my-topic",
+    "to": "{function:}",
+    "subscriberId": "dingus",
+    "initialPosition": "latest",
+    "client": {
+      "type": "test"
+    }
+  },
+  "send$": "--interval/timeout--",
+  "recv$": null,
+  "rxLog": [  
+    {
+      "name": "nozzleTime",
+      "rando": "--rando--"
+    },
+    {
+      "name": "nozzleTime",
+      "rando": "--rando--"
+    },
+    {
+      "name": "nozzleTime",
+      "rando": "--rando--"
+    },
+    {
+      "name": "nozzleTime",
+      "rando": "--rando--"
+    },
+    {
+      "name": "nozzleTime",
+      "rando": "--rando--"
+    }
+  ],
+  "stop$": "done"
+}
+```
+</details>
+
 # Workflow deployment model
 Workflows can be run on any nodejs runtime, but suggested production deployment is using contaner-based orchestration 
 such as Kubernetes. This repo provides a helm chart for deploying stated-workflow to Kubernetes.

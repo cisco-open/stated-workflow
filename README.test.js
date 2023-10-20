@@ -14,7 +14,6 @@
 
 import CliCore from 'stated-js/dist/src/CliCore.js';
 import fs from 'fs';
-import StatedREPL  from 'stated-js/dist/src/StatedREPL.js';
 import TemplateProcessor from 'stated-js/dist/src/TemplateProcessor.js'
 import {StatedWorkflow} from "./src/workflow/StatedWorkflow.js";
 import {EnhancedPrintFunc, replaceMatchingKeys} from "./src/test/TestTools.js";
@@ -80,7 +79,7 @@ testData.forEach(([cmdName, args, expectedResponseString], i) => {
     test(`${cmdName} ${args.join(' ')}`, async () => {
         const rest = args.join(" ");
         const resp = await cliCore[cmdName].apply(cliCore, [rest]);
-        const respNormalized = JSON.parse(StatedREPL.stringify(replaceMatchingKeys(resp), EnhancedPrintFunc.printFunc));
+        const respNormalized = JSON.parse(JSON.stringify(replaceMatchingKeys(resp), EnhancedPrintFunc.printFunc));
         const _expected = JSON.parse(expectedResponseString);
         expect(respNormalized).toEqual(_expected);
     }, 30000);  // set timeout to 10 seconds for each test since in the readme we call web apis

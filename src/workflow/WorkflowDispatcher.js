@@ -128,4 +128,9 @@ export class WorkflowDispatcher {
         }
         this.batchMode = false;
     }
+
+    static clear() {
+        this.dispatchers = new Map();       // key is type, value is a Set of keys
+        this.dispatcherObjects = new Map(); // key is composite key, value is WorkflowDispatcher object
+    }
 }

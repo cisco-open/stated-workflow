@@ -26,6 +26,10 @@ export class EnhancedPrintFunc {
     return /^\d{13}$/.test(value.toString());
   }
 
+  static isRando(key) {
+    return typeof key === 'string' && key === 'rando';
+  }
+
   static printFunc(key, value) {
     const originalValue = StatedREPL.printFunc(key, value);
 
@@ -33,12 +37,14 @@ export class EnhancedPrintFunc {
     if (originalValue !== value) {
       return originalValue;
     }
-
     if (EnhancedPrintFunc.isWorkflowId(key)) {
       return "--ignore--";
     }
     if (EnhancedPrintFunc.isWorkflowId(value)) {
       return "--ignore--";
+    }
+    if (EnhancedPrintFunc.isRando(key)) {
+      return "--rando--";
     }
 
     if (EnhancedPrintFunc.isTimestamp(value)) {
@@ -49,29 +55,6 @@ export class EnhancedPrintFunc {
   }
 
 }
-
-
-// export function replaceMatchingKeys(obj) {
-//   const pattern = /^\d{4}-\d{2}-\d{2}-\d{13}-[a-z0-9]{4,6}$/;
-//
-//   const newObj = {};
-//
-//   for (let [key, value] of Object.entries(obj)) {
-//     // If the value is an object, recurse on it
-//     if (typeof value === 'object' && value !== null) {
-//       value = replaceMatchingKeys(value);
-//     }
-//
-//     // If the key matches the pattern, replace it
-//     if (pattern.test(key)) {
-//       newObj['--ignore--'] = value;
-//     } else {
-//       newObj[key] = value;
-//     }
-//   }
-//
-//   return newObj;
-// }
 
 export function replaceMatchingKeys(obj) {
   const pattern = /^\d{4}-\d{2}-\d{2}-\d{13}-[a-z0-9]{4,6}$/;
@@ -119,4 +102,19 @@ export function replaceMatchingKeys(obj) {
   }
 
   return newObj;
+}
+
+function sortLogs(output, workflowName) {
+  const nozzleWorkLog = output.log[workflowName];
+  const instanceExecutionLogs = [];
+  const entries = Object.entries(nozzleWorkLog);
+  entries.reduce((acc, [key, instanceExecutionLog]) => {
+    acc.push(instanceExecutionLog);
+    return acc;
+  },instanceExecutionLogs);
+  return instanceExecutionLogs.sort((a, b) => {
+    let aOrder = a.execution[0].args[0].order;
+    let bOrder = b.execution[0].args[0].order;
+    return aOrder - bOrder;
+  });
 }

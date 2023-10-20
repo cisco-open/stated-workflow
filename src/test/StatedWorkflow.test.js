@@ -16,42 +16,61 @@ import fs from 'fs';
 import yaml from 'js-yaml';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import {WorkflowDispatcher} from "../workflow/WorkflowDispatcher.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 test("noop", async () => {});
 
-function sortLogs(output, workflowName) {
-    const nozzleWorkLog = output.log[workflowName];
-    const instanceExecutionLogs = [];
-    const entries = Object.entries(nozzleWorkLog);
-    entries.reduce((acc, [key, instanceExecutionLog]) => {
-        acc.push(instanceExecutionLog);
-        return acc;
-    },instanceExecutionLogs);
-    return instanceExecutionLogs.sort((a, b) => {
-        let aOrder = a.execution[0].args[0].order;
-        let bOrder = b.execution[0].args[0].order;
-        return aOrder - bOrder;
-    });
-}
 
 test("wf", async () => {
-
     // Load the YAML from the file
-
     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wf.yaml');
-    // const yamlFilePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../', '../', 'example', 'experimental', 'pubsub.yaml');
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
-    var template = yaml.load(templateYaml);
+    let template = yaml.load(templateYaml);
+    // instantiate template processor
     const tp = StatedWorkflow.newWorkflow(template);
     await tp.initialize();
     while(tp.output.stop$ === 'still going'){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
     }
-    expect(Object.keys(tp.output.log.nozzleWork).length).toBe(10);
+    expect(Object.keys(tp.output.log.nozzleWork).length).toBe(1);
 }, 8000);
+
+test("second wf", async () => {
+    WorkflowDispatcher.clear();
+
+    // Load the YAML from the file
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wf.yaml');
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+    let template = yaml.load(templateYaml);
+    // instantiate template processor
+    const tp = StatedWorkflow.newWorkflow(template);
+    await tp.initialize();
+    while(tp.output.stop$ === 'still going'){
+        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+    }
+    expect(Object.keys(tp.output.log.nozzleWork).length).toBe(1);
+}, 8000);
+
+
+test("pubsub", async () => {
+    WorkflowDispatcher.clear();
+
+    // Load the YAML from the file
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub.yaml');
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+    let template = yaml.load(templateYaml);
+    // instantiate template processor
+    const tp = StatedWorkflow.newWorkflow(template);
+    await tp.initialize();
+    while(tp.output.stop$ === 'still going'){
+        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+    }
+    expect(Object.keys(tp.output.rxLog).length).toBe(5);
+}, 8000);
+
 
 //
 // test("correlate", async () => {
