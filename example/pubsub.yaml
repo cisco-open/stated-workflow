@@ -9,7 +9,6 @@ subscribeParams: #parameters for subscribing to a cloud event
   source: cloudEvent
   type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
   to: /${ function($e){(
-    $console.log('received - ' & $string($e) );
     $set('/rxLog', rxLog~>$append($e));
     )}  }
   subscriberId: dingus

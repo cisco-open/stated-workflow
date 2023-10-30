@@ -140,7 +140,7 @@ The result will include logs for each invocation in the tempalate itself.
   "subscribeParams": {
     "source": "cloudEvent",
     "type": "/${ produceParams.type }",
-    "to": "/${ function($e){( $console.log('received - ' & $string($e) ); $set('/rxLog', rxLog~>$append($e)); )}  }",
+    "to": "/${ function($e){( $set('/rxLog', rxLog~>$append($e)); )}  }",
     "subscriberId": "dingus",
     "initialPosition": "latest",
     "client": {

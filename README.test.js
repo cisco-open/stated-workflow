@@ -82,6 +82,6 @@ testData.forEach(([cmdName, args, expectedResponseString], i) => {
         const respNormalized = JSON.parse(JSON.stringify(replaceMatchingKeys(resp), EnhancedPrintFunc.printFunc));
         const _expected = JSON.parse(expectedResponseString);
         expect(respNormalized).toEqual(_expected);
-    }, 30000);  // set timeout to 10 seconds for each test since in the readme we call web apis
+    }, 10000);
 });
 
