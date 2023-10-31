@@ -16,76 +16,61 @@ import fs from 'fs';
 import yaml from 'js-yaml';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import StatedREPL from 'stated-js/dist/src/StatedREPL.js'
+import {WorkflowDispatcher} from "../workflow/WorkflowDispatcher.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-class EnhancedPrintFunc {
-    static isWorkflowId(value) {
-        const pattern = /^\d{4}-\d{2}-\d{2}-\d{13}-[a-z0-9]{4,6}$/;
-        const matched = pattern.test(value);
-        return matched;
-    }
-
-    static isTimestamp(value) {
-        // This will check for a 13 digit number, typical of a JavaScript timestamp
-        return /^\d{13}$/.test(value.toString());
-    }
-
-    static printFunc(key, value) {
-        const originalValue = StatedREPL.printFunc(key, value);
-
-        // If stated.printFunc already handled and transformed the value, no need to check again
-        if (originalValue !== value) {
-            return originalValue;
-        }
-
-        if (EnhancedPrintFunc.isWorkflowId(value)) {
-            return "--ignore--";
-        }
-
-        if (EnhancedPrintFunc.isTimestamp(value)) {
-            return "--timestamp--";
-        }
-
-        return value;
-    }
-
-}
-
 test("noop", async () => {});
 
-function sortLogs(output, workflowName) {
-    const nozzleWorkLog = output.log[workflowName];
-    const instanceExecutionLogs = [];
-    const entries = Object.entries(nozzleWorkLog);
-    entries.reduce((acc, [key, instanceExecutionLog]) => {
-        acc.push(instanceExecutionLog);
-        return acc;
-    },instanceExecutionLogs);
-    return instanceExecutionLogs.sort((a, b) => {
-        let aOrder = a.execution[0].args[0].order;
-        let bOrder = b.execution[0].args[0].order;
-        return aOrder - bOrder;
-    });
-}
 
 test("wf", async () => {
-
     // Load the YAML from the file
-
     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wf.yaml');
-    // const yamlFilePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../', '../', 'example', 'experimental', 'pubsub.yaml');
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
-    var template = yaml.load(templateYaml);
+    let template = yaml.load(templateYaml);
+    // instantiate template processor
     const tp = StatedWorkflow.newWorkflow(template);
     await tp.initialize();
     while(tp.output.stop$ === 'still going'){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
     }
-    expect(Object.keys(tp.output.log.nozzleWork).length).toBe(10);
+    expect(Object.keys(tp.output.log.nozzleWork).length).toBe(1);
 }, 8000);
+
+test("second wf", async () => {
+    WorkflowDispatcher.clear();
+
+    // Load the YAML from the file
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wf.yaml');
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+    let template = yaml.load(templateYaml);
+    // instantiate template processor
+    const tp = StatedWorkflow.newWorkflow(template);
+    await tp.initialize();
+    while(tp.output.stop$ === 'still going'){
+        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+    }
+    expect(Object.keys(tp.output.log.nozzleWork).length).toBe(1);
+}, 8000);
+
+
+test("pubsub", async () => {
+    WorkflowDispatcher.clear();
+
+    // Load the YAML from the file
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub.yaml');
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+    let template = yaml.load(templateYaml);
+    // instantiate template processor
+    const tp = StatedWorkflow.newWorkflow(template);
+    await tp.initialize();
+    while(tp.output.stop$ === 'still going'){
+        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+    }
+    expect(Object.keys(tp.output.rxLog).length).toBe(5);
+}, 8000);
+
 
 //
 // test("correlate", async () => {
