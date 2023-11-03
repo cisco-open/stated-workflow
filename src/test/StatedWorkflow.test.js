@@ -17,6 +17,8 @@ import yaml from 'js-yaml';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import {WorkflowDispatcher} from "../workflow/WorkflowDispatcher.js";
+import StatedREPL from "stated-js/dist/src/StatedREPL.js";
+import {EnhancedPrintFunc} from "./TestTools.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,7 +37,8 @@ test("wf", async () => {
     while(tp.output.stop$ === 'still going'){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
     }
-    expect(Object.keys(tp.output.log.nozzleWork).length).toBe(1);
+    expect(Object.keys(tp.output.step1.log).length).toBe(1);
+    expect(Object.keys(tp.output.step2.log).length).toBe(1);
 }, 8000);
 
 test("second wf", async () => {
@@ -51,7 +54,8 @@ test("second wf", async () => {
     while(tp.output.stop$ === 'still going'){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
     }
-    expect(Object.keys(tp.output.log.nozzleWork).length).toBe(1);
+    expect(Object.keys(tp.output.step1.log).length).toBe(1);
+    expect(Object.keys(tp.output.step2.log).length).toBe(1);
 }, 8000);
 
 
@@ -86,7 +90,6 @@ test("correlate", async () => {
     expect(tp.output.state).toBe("RECEIVED_RESPONSE");
 }, 8000);
 
-/*
 test("workflow logs", async () => {
 
     // Load the YAML from the file
@@ -240,7 +243,7 @@ test("workflow logs", async () => {
 test("recover completed workflow - should do nothing", async () => {
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../','../','example', 'experimental', 'wf-recover.yaml');
+    const yamlFilePath = path.join(__dirname, '../','../','example', 'wf-recover.yaml');
     const templateYaml =
     `
     recover$: $recover(step0)
@@ -309,7 +312,7 @@ test("recover completed workflow - should do nothing", async () => {
 test("recover incomplete workflow - should rerun all steps", async () => {
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../','../','example', 'experimental', 'wf-recover.yaml');
+    const yamlFilePath = path.join(__dirname, '../','../','example', 'wf-recover.yaml');
     const templateYaml =
         `
     recover$: $recover(step0)
@@ -357,7 +360,7 @@ test("recover incomplete workflow - should rerun all steps", async () => {
 test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 and 2", async () => {
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../','../','example', 'experimental', 'wf-recover.yaml');
+    const yamlFilePath = path.join(__dirname, '../','../','example', 'wf-recover.yaml');
     const templateYaml =
         `
     recover$: $recover(step0)
@@ -417,7 +420,7 @@ test("workflow perf", async () => {
     console.time("workflow perf total time"); // Start the timer with a label
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'experimental', 'wfPerf01.yaml');
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wfPerf01.yaml');
     console.time("Read YAML file"); // Start the timer for reading the file
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     console.timeEnd("Read YAML file"); // End the timer for reading the file
@@ -436,12 +439,11 @@ test("workflow perf", async () => {
     console.timeEnd("workflow perf total time"); // End the total time timer
 });
 
-
 test("webserver", async () => {
     console.time("workflow perf total time"); // Start the timer with a label
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'experimental', 'wfHttp01.yaml');
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wfHttp01.yaml');
     console.time("Read YAML file"); // Start the timer for reading the file
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     console.timeEnd("Read YAML file"); // End the timer for reading the file
@@ -464,7 +466,7 @@ test("downloaders", async () => {
     console.time("workflow perf total time"); // Start the timer with a label
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'experimental', 'wfDownloads.yaml');
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wfDownloads.yaml');
     console.time("Read YAML file"); // Start the timer for reading the file
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     console.timeEnd("Read YAML file"); // End the timer for reading the file
@@ -482,8 +484,6 @@ test("downloaders", async () => {
 
     console.timeEnd("workflow perf total time"); // End the total time timer
 }, 10000);
-
-*/
 
 
 /*

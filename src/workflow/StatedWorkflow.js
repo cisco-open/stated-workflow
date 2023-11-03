@@ -46,6 +46,7 @@ export class StatedWorkflow {
         "onHttp": StatedWorkflow.onHttp.bind(this),
         "subscribe": StatedWorkflow.subscribe.bind(this),
         "publish": StatedWorkflow.publish.bind(this),
+        "recover": StatedWorkflow.recover.bind(this),
         "logFunctionInvocation": StatedWorkflow.logFunctionInvocation.bind(this),
         "workflow": StatedWorkflow.workflow.bind(this)
     };
@@ -55,6 +56,13 @@ export class StatedWorkflow {
         const templateProcessor = new TemplateProcessor(template, this.context);
         templateProcessor.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
         return templateProcessor;
+    }
+
+    static async recover(stepJson){
+        const stepLog = new StepLog(stepJson);
+        for  (let workflowInvocation of stepLog.getInvocations()){
+            await this.runStep(workflowInvocation, stepJson);
+        }
     }
 
     static async logFunctionInvocation(stage, args, result, error = null, log) {
@@ -364,33 +372,14 @@ export class StatedWorkflow {
 
     }
 
-    static async serial(input, steps, context) {
-        const {name: workflowName, log, workflowInvocation} = context;
-
-        if (log === undefined) {
-            throw new Error('log is missing from context');
-        }
-
-        if (workflowInvocation === undefined) {
-            throw new Error('invocation id is missing from context');
-        }
-
-        StatedWorkflow.initializeLog(log, workflowName, workflowInvocation);
+    static async serial(input, steps, context={}) {
+        const {workflowInvocation=StatedWorkflow.generateUniqueId()} = context;
+        context.workflowInvocation = workflowInvocation; //set the generatedId into the context
 
         let currentInput = input;
-
         for (let stepJson of steps) {
-            currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput);
+            currentInput = await this.runStep(workflowInvocation, stepJson, currentInput);
         }
-
-        // for (let step of steps) {
-        //     const stepRecord = {workflowInvocation: workflowInvocation, workflowName, stepName: step.name, serialOrdinal, branchType:"SERIAL"};
-        //     currentInput = await StatedWorkflow.executeStep(step, currentInput, log[workflowName][workflowInvocation], stepRecord);
-        // }
-
-        StatedWorkflow.finalizeLog(log[workflowName][workflowInvocation]);
-        StatedWorkflow.ensureRetention(log[workflowName]);
-
         return currentInput;
     }
 
