@@ -13,12 +13,19 @@ listenForResponse:
       )}  }
   subscriberId: commander
   initialPosition: latest
+  client:
+    type: test
+
 command:
   type: 'my-topic'
-  data: {type: 'DO_IT', correlationId: "${ $floor($random()*100000) }" }
+  data: [{type: 'DO_IT', correlationId: "${ $floor($random()*100000) }" }]
+  client:
+    type: test
 resp:
   type: 'my-topic'
-  data: {type: 'DONE_IT', correlationId: 'set me'}
+  data: [{type: 'DONE_IT', correlationId: 'set me'}]
+  client:
+    type: test
 listenForCommand:
   source: cloudEvent
   type: 'my-topic'
@@ -34,6 +41,8 @@ listenForCommand:
   subscriberId: commandReceiver
   initialPosition: latest
   maxConsume: 1 #close the consumer afer we get our event
+  client:
+    type: test
 state: "IDLE"
 
 

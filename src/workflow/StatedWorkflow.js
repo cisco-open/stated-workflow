@@ -142,10 +142,10 @@ export class StatedWorkflow {
     static publish(params) {
         StatedWorkflow.logger.debug(`publish params ${StatedREPL.stringify(params)} }`);
 
-        const {testData, type, client:clientParams={}} = params;
-        if (testData) {
+        const {data, type, client:clientParams={}} = params;
+        if (clientParams  && clientParams.type === 'test') {
             this.logger.debug(`testData provided, will not publish to 'real' message broker for publish parameters ${StatedREPL.stringify(params)}`);
-            WorkflowDispatcher.addBatchToAllSubscribers(type, testData);
+            WorkflowDispatcher.addBatchToAllSubscribers(type, data);
             return;
         }
 

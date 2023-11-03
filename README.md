@@ -132,7 +132,7 @@ The result will include logs for each invocation in the tempalate itself.
 {
   "produceParams": {
     "type": "my-topic",
-    "testData": "${ [1..5].({'name': 'nozzleTime', 'rando': $random()})  }",
+    "data": "${ [1..5].({'name': 'nozzleTime', 'rando': $random()})  }",
     "client": {
       "type": "test"
     }
@@ -162,7 +162,7 @@ The result will include logs for each invocation in the tempalate itself.
 {
   "produceParams": {
     "type": "my-topic",
-    "testData": [
+    "data": [
       {
         "name": "nozzleTime",
         "rando": "--rando--"
