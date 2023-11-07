@@ -35,23 +35,27 @@ test("wf", async () => {
     while(tp.output.stop$ === 'still going'){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
     }
-    expect(Object.keys(tp.output.log.nozzleWork).length).toBe(1);
-}, 8000);
-
-test("second wf", async () => {
-    WorkflowDispatcher.clear();
-
-    // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wf.yaml');
-    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
-    let template = yaml.load(templateYaml);
-    // instantiate template processor
-    const tp = StatedWorkflow.newWorkflow(template);
-    await tp.initialize();
-    while(tp.output.stop$ === 'still going'){
-        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
-    }
-    expect(Object.keys(tp.output.log.nozzleWork).length).toBe(1);
+    let stepLog = tp.output.step1.log;
+    expect(stepLog).toBeDefined();
+    let logEntry = stepLog[Object.keys(stepLog)[0]];
+    expect(logEntry).toBeDefined();
+    expect(logEntry.start).toBeDefined();
+    expect(logEntry.start.args).toBeDefined();
+    expect(logEntry.end).toBeDefined();
+    expect(logEntry.end.out).toBeDefined();
+    stepLog = tp.output.step2.log;
+    expect(stepLog).toBeDefined();
+    logEntry = stepLog[Object.keys(stepLog)[0]];
+    expect(logEntry).toBeDefined();
+    expect(logEntry.start).toBeDefined();
+    expect(logEntry.start.args).toBeDefined();
+    expect(logEntry.end).toBeDefined();
+    expect(logEntry.end.out).toEqual({
+        "name": "nozzleTime",
+        "order": 1,
+        "primed": true,
+        "sprayed": true
+    });
 }, 8000);
 
 

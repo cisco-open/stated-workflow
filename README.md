@@ -216,10 +216,10 @@ of functions that provide integration with cloud events, and high
 availability to workflows, when they are executed in the Stated-Workflows
 clustered runtime.
 
-# Job parallelism
-Our simple "homeworld" example is Job. It has a beginning and an end. It is 
-never 'reentered' while it is running. Job's can be run in parallel because each job's
-state is totally encapsulated in its template variables.
+# Job Concurrency
+Job's can be run concurrently because each job's state is totally encapsulated 
+in its template variables. The following JS code shows how to launch 10 jobs
+in parallel.
 
 ```javascript
 // This example uses the stated-js package to process a template that fetches
@@ -257,10 +257,242 @@ runParallel(template, 10)
         .catch(error => console.error(error));
 
 ```
-
-
-
+# Internal Job Concurrency
+let's modify our homeworlds example to make a concurrent homeworlds example. 
+We have used the stated `!` operator to remove `personDetails` and `homeworldDetails` from the output to avoid clutter.
+JSONata automatically makes array 
+```json
+> .init -f "example/concurrent-homeworlds.json"
+{
+  "people": [
+    "luke",
+    "han"
+  ],
+  "personDetails": "!${ people.$fetch('https://swapi.dev/api/people/?search='& $).json().results[0]}",
+  "homeworldURLs": "${ personDetails.homeworld }",
+  "homeworldDetails": "!${ homeworldURLs.$fetch($).json() }",
+  "homeworldName": "${ homeworldDetails.name }"
+}
+> .set /people ["luke","han","leia"]
+{
+  "people": [
+    "luke",
+    "han",
+    "leia"
+  ],
+  "homeworldURLs": [
+    "https://swapi.dev/api/planets/1/",
+    "https://swapi.dev/api/planets/22/",
+    "https://swapi.dev/api/planets/2/"
+  ],
+  "homeworldName": [
+    "Tatooine",
+    "Corellia",
+    "Alderaan"
+  ]
+}
+```
 # Durability
+Up until now we have showed how to use pure Stated to build simple jobs. Pure Stated does not provide durability
+or high availability. Stated-workflows adds
+the dimension of _durability_ and _high-availability_ to template execution. To achieve these "ilities", Stated-workflows must
+run in Stated-Workflow cluster. However, it is not necessary to run in a cluster to write, test, and debug 
+Stated-Workflows locally. As long as you don't "unplug" the stated REPL, it will produce functionally the same result
+as running in Stated-Workflow cluster. Stated-Workflows provides a "local cluster" option where you can test the 
+_durability_ of stated workflows by unceremoniously "killing" the REPL and then restarting the workflow at a later time.
+
+## Steps
+Stated provides durability by defining the Step as the unit of durability. A step
+is nothing more than a json object that has a field named 'function', that is a JSONata `function`
+```json
+{
+  "function": "${ function($in){ $in + 42 } }"
+}
+```
+Let's recast our homeworld example using Steps. This will give the Job durability, so that it 
+can fail and be restarted. When a step function is called, the step's log is populated with 
+an entry corresponding to a uniqe `invocationId` for the workflow. The log captures the `args` 
+that were passed to the step function, as well the functions output (`out`).
+
+![steps](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow%20-%20Page%202.svg)
+WHen a workflow invocation completes, its logs are deleted from each step. Here we show invoking
+the `homeworld-steps.json` workflow, with `--options` that preserve the logs of completed steps.
+```json
+> .init -f "example/homeworlds-steps.json" --options={"workflows":{"keepLogs":true}}
+{
+  "output": "${   ['luke', 'han']~>$map(workflow) }",
+  "workflow": "${ function($person){$person~>$serial(steps)} }",
+  "steps": [
+    {
+      "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
+    },
+    {
+      "function": "${  function($personDetail){$personDetail.homeworld}  }"
+    },
+    {
+      "function": "${  function($homeworldURL){$homeworldURL.$fetch($).json() }  }"
+    },
+    {
+      "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"
+    }
+  ]
+}
+> .out
+{
+  "output": [
+    "Tatooine",
+    "Corellia"
+  ],
+  "steps": [
+    {
+      "function": "{function:}",
+      "log": {
+        "--ignore--": {
+          "end": {
+            "out": {
+              "birth_year": "29BBY",
+              "created": "2014-12-10T16:49:14.582000Z",
+              "edited": "2014-12-20T21:17:50.334000Z",
+              "eye_color": "brown",
+              "films": [
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/2/",
+                "https://swapi.dev/api/films/3/"
+              ],
+              "gender": "male",
+              "hair_color": "brown",
+              "height": "180",
+              "homeworld": "https://swapi.dev/api/planets/22/",
+              "mass": "80",
+              "name": "Han Solo",
+              "skin_color": "fair",
+              "species": [],
+              "starships": [
+                "https://swapi.dev/api/starships/10/",
+                "https://swapi.dev/api/starships/22/"
+              ],
+              "url": "https://swapi.dev/api/people/14/",
+              "vehicles": []
+            },
+            "timestamp": "--timestamp--"
+          },
+          "start": {
+            "args": "han",
+            "timestamp": "--timestamp--"
+          }
+        }
+      }
+    },
+    {
+      "function": "{function:}",
+      "log": {
+        "--ignore--": {
+          "end": {
+            "out": "https://swapi.dev/api/planets/22/",
+            "timestamp": "--timestamp--"
+          },
+          "start": {
+            "args": {
+              "birth_year": "29BBY",
+              "created": "2014-12-10T16:49:14.582000Z",
+              "edited": "2014-12-20T21:17:50.334000Z",
+              "eye_color": "brown",
+              "films": [
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/2/",
+                "https://swapi.dev/api/films/3/"
+              ],
+              "gender": "male",
+              "hair_color": "brown",
+              "height": "180",
+              "homeworld": "https://swapi.dev/api/planets/22/",
+              "mass": "80",
+              "name": "Han Solo",
+              "skin_color": "fair",
+              "species": [],
+              "starships": [
+                "https://swapi.dev/api/starships/10/",
+                "https://swapi.dev/api/starships/22/"
+              ],
+              "url": "https://swapi.dev/api/people/14/",
+              "vehicles": []
+            },
+            "timestamp": "--timestamp--"
+          }
+        }
+      }
+    },
+    {
+      "function": "{function:}",
+      "log": {
+        "--ignore--": {
+          "end": {
+            "out": {
+              "climate": "temperate",
+              "created": "2014-12-10T16:49:12.453000Z",
+              "diameter": "11000",
+              "edited": "2014-12-20T20:58:18.456000Z",
+              "films": [],
+              "gravity": "1 standard",
+              "name": "Corellia",
+              "orbital_period": "329",
+              "population": "3000000000",
+              "residents": [
+                "https://swapi.dev/api/people/14/",
+                "https://swapi.dev/api/people/18/"
+              ],
+              "rotation_period": "25",
+              "surface_water": "70",
+              "terrain": "plains, urban, hills, forests",
+              "url": "https://swapi.dev/api/planets/22/"
+            },
+            "timestamp": "--timestamp--"
+          },
+          "start": {
+            "args": "https://swapi.dev/api/planets/22/",
+            "timestamp": "--timestamp--"
+          }
+        }
+      }
+    },
+    {
+      "function": "{function:}",
+      "log": {
+        "--ignore--": {
+          "end": {
+            "out": "Corellia",
+            "timestamp": "--timestamp--"
+          },
+          "start": {
+            "args": {
+              "climate": "temperate",
+              "created": "2014-12-10T16:49:12.453000Z",
+              "diameter": "11000",
+              "edited": "2014-12-20T20:58:18.456000Z",
+              "films": [],
+              "gravity": "1 standard",
+              "name": "Corellia",
+              "orbital_period": "329",
+              "population": "3000000000",
+              "residents": [
+                "https://swapi.dev/api/people/14/",
+                "https://swapi.dev/api/people/18/"
+              ],
+              "rotation_period": "25",
+              "surface_water": "70",
+              "terrain": "plains, urban, hills, forests",
+              "url": "https://swapi.dev/api/planets/22/"
+            },
+            "timestamp": "--timestamp--"
+          }
+        }
+      }
+    }
+  ],
+  "workflow": "{function:}"
+}
+```
+
 
 ## Example Workflows
 ### Simple workflow
@@ -268,34 +500,29 @@ runParallel(template, 10)
 ```json
 > .init -f "example/wf.yaml"
 {
-  "start$": "$subscribe(subscribeParams, {})",
+  "myWorkflow$": "function($e){\n    $e ~> $serial([step1, step2])\n}\n",
   "name": "nozzleWork",
-  "subscribeParams": {
-    "source": "cloudEvent",
-    "testData": "${  [1].([{'name': 'nozzleTime', 'order':$}])  }",
-    "type": "my-topic",
-    "filter$": "function($e){ $e.name='nozzleTime' }",
-    "to": "../${myWorkflow$}",
-    "parallelism": 2,
-    "subscriberId": "../${name}"
-  },
-  "myWorkflow$": "function($e){\n    $e ~> $serial([step1, step2], \n                  {\n                    'name':$$.name, \n                    'log':$$.log, \n                    'workflowInvocation':$id()\n                  })\n}\n",
+  "start$": "$subscribe(subscribeParams, {})",
   "step1": {
-    "name": "primeTheNozzle",
-    "function": "${function($e){ $e~>|$|{'primed':true}|  }}"
+    "function": "${function($e){ $e~>|$|{'primed':true}|  }}",
+    "name": "primeTheNozzle"
   },
   "step2": {
-    "name": "sprayTheNozzle",
-    "function": "${function($e){ $e~>|$|{'sprayed':true}|  }}"
+    "function": "${function($e){ $e~>|$|{'sprayed':true}|  }}",
+    "name": "sprayTheNozzle"
   },
-  "log": {
-    "retention": {
-      "maxWorkflowLogs": 100
-    }
+  "subscribeParams": {
+    "filter$": "function($e){ $e.name='nozzleTime' }",
+    "parallelism": 2,
+    "source": "cloudEvent",
+    "subscriberId": "../${name}",
+    "testData": "${  [1].([{'name': 'nozzleTime', 'order':$}])  }",
+    "to": "../${myWorkflow$}",
+    "type": "my-topic"
   }
 }
 ```
-The result will include logs for each invocation in the tempalate itself.
+The result will include logs for each invocation in the template itself.
 <details>
 <summary>Execution output</summary>
 
@@ -364,21 +591,6 @@ The result will include logs for each invocation in the tempalate itself.
             "sprayed": true
           }
         }
-      }
-    }
-  },
-  "log": {
-    "retention": {
-      "maxWorkflowLogs": 100
-    },
-    "nozzleWork": {
-      "--ignore--": {
-        "info": {
-          "start": "--timestamp--",
-          "status": "succeeded",
-          "end": "--timestamp--"
-        },
-        "execution": {}
       }
     }
   }

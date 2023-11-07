@@ -47,7 +47,7 @@ export class StatedWorkflow {
         "subscribe": StatedWorkflow.subscribe.bind(this),
         "publish": StatedWorkflow.publish.bind(this),
         "logFunctionInvocation": StatedWorkflow.logFunctionInvocation.bind(this),
-        "workflow": StatedWorkflow.workflow.bind(this)
+        //"workflow": StatedWorkflow.workflow.bind(this)
     };
 
     static newWorkflow(template) {
@@ -364,18 +364,12 @@ export class StatedWorkflow {
 
     }
 
-    static async serial(input, steps, context) {
-        const {name: workflowName, log, workflowInvocation} = context;
-
-        if (log === undefined) {
-            throw new Error('log is missing from context');
-        }
+    static async serial(input, steps, context={}) {
+        let {workflowInvocation} = context;
 
         if (workflowInvocation === undefined) {
-            throw new Error('invocation id is missing from context');
+            workflowInvocation = this.generateDateAndTimeBasedID();
         }
-
-        StatedWorkflow.initializeLog(log, workflowName, workflowInvocation);
 
         let currentInput = input;
 
@@ -388,8 +382,8 @@ export class StatedWorkflow {
         //     currentInput = await StatedWorkflow.executeStep(step, currentInput, log[workflowName][workflowInvocation], stepRecord);
         // }
 
-        StatedWorkflow.finalizeLog(log[workflowName][workflowInvocation]);
-        StatedWorkflow.ensureRetention(log[workflowName]);
+        //StatedWorkflow.finalizeLog(log[workflowName][workflowInvocation]);
+        //StatedWorkflow.ensureRetention(log[workflowName]);
 
         return currentInput;
     }
@@ -528,7 +522,7 @@ export class StatedWorkflow {
         return `${dateStr}-${timeInMs}-${randomPart}`;
     }
 
-    static async workflow(input, steps, options) {
+    static async workflow(input, steps, options={}) {
         const {name: workflowName, log} = options;
         let {id} = options;
 
