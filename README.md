@@ -1,12 +1,22 @@
-# stated-workflow
-Stated Workflow is a collection of functions for a lightweight and scalable event-driven workflow engine using [Stated](https://github.com/cisco-open/stated) template engine.
-![Stated-Workflows](https://github.com/geoffhendrey/jsonataplay/blob/7a3fe15a2f5486ee6208d6333c06ade27dc291d3/stated-workflows.png?raw=true)
+![Stated-Workflows](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/stated-workflows.svg)
+
+# Overview
+Stated Workflows is a collection of functions for a lightweight and scalable event-driven workflow engine using 
+[Stated](https://github.com/cisco-open/stated) template engine.
+This README assumes some familiarity with the [Stated REPL](https://github.com/cisco-open/stated#running-the-repl).
+If you don't have Stated, [get it now](https://github.com/cisco-open/stated#getting-started). The key benefits of 
+Stated Worklflows are:
+ * __Easy__ - Stated Workflows are easier to express and comprehend than other workflow languages
+ * __Testable__ - Stated Workflows are testable. Every Stated Workflow can be tested from a REPL and behaves exactly locally as it does in Stated Workflow cluster.
+ * __Interactive__ - As you can see from the exmaples in this README, you can interact directly with workflows from the REPL
+ * __Transparent__ - Stated takes a "What You See Is What You Get" approach to workflows. Stated-Workflows is the only workflow engine with a JSON-centric approach to data and durability.
+ * __Highly Available__ - 
 
 # Jobs
 A job is a Stated template that runs to completion and does not receive any asynchronous inputs.
 A job has a beginning, and an end. Here is a job that uses the Starwars API to search for Luke Skywalker's details,
 extract the homeworld URL, retrieve the homeworld details, and extract the homeworld's name.
-![homeword workflow](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow.svg)
+![homeworld workflow](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow.svg)
 
 
 ```json
