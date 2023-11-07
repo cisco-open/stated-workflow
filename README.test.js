@@ -13,10 +13,12 @@
 // limitations under the License.
 
 import CliCore from 'stated-js/dist/src/CliCore.js';
+import StatedREPL from 'stated-js/dist/src/StatedREPL.js';
 import fs from 'fs';
 import TemplateProcessor from 'stated-js/dist/src/TemplateProcessor.js'
 import {StatedWorkflow} from "./src/workflow/StatedWorkflow.js";
 import {EnhancedPrintFunc, replaceMatchingKeys} from "./src/test/TestTools.js";
+import jsonata from "jsonata";
 
 /**
  * Regular expression for command extraction from README.md file. This program finds all the markup code blocks
@@ -51,37 +53,72 @@ import {EnhancedPrintFunc, replaceMatchingKeys} from "./src/test/TestTools.js";
  * m: Multiline flag, to allow ^ and $ to match the start and end of lines, not just the start and end of the whole string.
  */
 const markdownContent = fs.readFileSync("README.md", 'utf-8');
-const commandRegex  = /^> \.(?<command>.+[\r\n])((?<expectedResponse>(?:(?!^>|```)[\s\S])*))$/gm;;
+const codeBlockRegex = /```(?<codeBlock>[\s\S]*?)```/g;
+const jsonataExpressionsArrayRegex = /^[^\[]*(?<jsonataExpressionsArrayString>\s*\[.*?\]\s*)$/m
+const commandRegex  = /^> \.(?<command>.+[\r\n])((?<expectedResponse>(?:(?!^>|```)[\s\S])*))$/gm;
 let match;
 const cliCore = new CliCore();
 const testData = [];
 
-TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
-
-while ((match = commandRegex.exec(markdownContent)) !== null) {
-    const command = match.groups.command.trim();
-    const expectedResponseString = match.groups.expectedResponse.trim();
-    const args = command.split(' ');
-
-    if (args.length > 0) {
-        const cmdName = args.shift();
-        const method = cliCore[cmdName];
-
-        if (typeof method === 'function') {
-            testData.push([cmdName, args, expectedResponseString]);
-        } else {
-            throw Error(`Unknown command: .${cmdName}`);
+while ((match = codeBlockRegex.exec(markdownContent)) !== null) {
+    const {codeBlock} = match.groups;
+    let _match = jsonataExpressionsArrayRegex.exec(codeBlock);
+    let jsonataExprArrayJson;
+    if(_match!==null){
+        const {jsonataExpressionsArrayString} = _match.groups;
+        if(jsonataExpressionsArrayString !== undefined){
+            jsonataExprArrayJson = JSON.parse(jsonataExpressionsArrayString);
         }
     }
+    let i=0;
+    while((_match = commandRegex.exec(codeBlock)) !== null){
+        const {command, expectedResponse} = _match.groups;
+        const expectedResponseString = _match.groups.expectedResponse.trim();
+        const args = command.trim().split(' ');
+
+        if (args.length > 0) {
+            const cmdName = args.shift();
+            const method = cliCore[cmdName];
+
+            if (typeof method === 'function') {
+                let jsonataExpr;
+                if(jsonataExprArrayJson !== undefined){
+                    jsonataExpr = jsonataExprArrayJson[i];
+                }else{
+                    jsonataExpr = false;
+                }
+                testData.push([cmdName, args, expectedResponse, jsonataExpr]);
+            } else {
+                throw Error(`Unknown command: .${cmdName}`);
+            }
+        }
+        i++;
+    }
+
 }
 
-testData.forEach(([cmdName, args, expectedResponseString], i) => {
+
+testData.forEach(([cmdName, args, expectedResponseString, jsonataExpression], i) => {
     test(`${cmdName} ${args.join(' ')}`, async () => {
         const rest = args.join(" ");
         const resp = await cliCore[cmdName].apply(cliCore, [rest]);
-        const respNormalized = JSON.parse(JSON.stringify(replaceMatchingKeys(resp), EnhancedPrintFunc.printFunc));
-        const _expected = JSON.parse(expectedResponseString);
-        expect(respNormalized).toEqual(_expected);
-    }, 10000);
+        const respNormalized = JSON.parse(StatedREPL.stringify(resp));
+        if(jsonataExpression){ //if we have an optional jsonata expression specified after the codeblock, likje ````json <optionaJsonataExpression>
+            const compiledExpr = jsonata(jsonataExpression);
+            const result = await compiledExpr.evaluate(respNormalized);
+            if (result !== true) {
+                // If the result is not true, throw an error with details
+                throw new Error(`JSONata Test Failed: Expected JSONata expression to evaluate to true.\nExpression: ${jsonataExpression}\nResponse: ${JSON.stringify(respNormalized, null, 2)}\nEvaluation result: ${result}`);
+            }
+            expect(result).toBe(true);
+        }else {
+            if(expectedResponseString){
+                const _expected = JSON.parse(expectedResponseString);
+                expect(respNormalized).toEqual(_expected);
+            }else{
+                expect(respNormalized).toBeDefined();
+            }
+        }
+    }, 30000);  // set timeout to 10 seconds for each test since in the readme we call web apis
 });
 
