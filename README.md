@@ -9,17 +9,66 @@ Stated Worklflows are:
  * __Easy__ - Stated Workflows are easier to express and comprehend than other workflow languages
  * __Testable__ - Stated Workflows are testable. Every Stated Workflow can be tested from a REPL and behaves exactly locally as it does in Stated Workflow cluster.
  * __Interactive__ - As you can see from the exmaples in this README, you can interact directly with workflows from the REPL
- * __Transparent__ - Stated takes a "What You See Is What You Get" approach to workflows. Stated-Workflows is the only workflow engine with a JSON-centric approach to data and durability.
- * __Highly Available__ - 
+ * __Transparent__ - Stated Workflows takes a "What You See Is What You Get" approach to workflows. Stated-Workflows is the only workflow engine with a JSON-centric approach to data and durability.
+ * __Highly Available__ - Stated Workflows can be run in an easy-to-scale, k8s-friendly cluster for scaling, durability, and high availability
 
+## Getting Started
+
+### Installation
+
+To install the `stated-js` package, you can use yarn or npm. Open your terminal and run one of the following commands:
+
+Using Yarn:
+
+```shell
+yarn global add stated-workflows
+````
+
+Using Npm:
+
+```shell
+npm install -g stated-workflows
+````
+Verify you have node:
+```shell
+node -v | grep -Eo 'v([0-9]+)\.' | grep -E 'v19|v[2-9][0-9]' && echo "Node is 19 or higher" || echo "Node is below 19"
+
+```
+
+### Running the REPL
+To use the Stated Workflows REPL (Read-Eval-Print Loop) it is recommended to have at least version 19.2 or higher of node.js. The
+Stated REPL is built on [Node REPL](https://nodejs.org/api/repl.html#repl).
+You can start the REPL by running the `stateflow` command in your terminal:
+```shell
+luke$ stateflow
+```
+The REPL will launch, allowing you to interact with the stated-js library. In order to launch properly you need to have
+`node` on your path.`stateflow` is a wrapper script that simply calls `stated-workflow.js`, which contains this 
+`#!/usr/bin/env node --experimental-vm-modules`. 
+
+For example you can enter this command in the REPL:
+```bash
+> .init -f "example/homeworld.json"
+```
 # Jobs
-A job is a Stated template that runs to completion and does not receive any asynchronous inputs.
+A job is a Stated Workflow template that runs to completion and does not receive any asynchronous inputs.
 A job has a beginning, and an end. Here is a job that uses the Starwars API to search for Luke Skywalker's details,
 extract the homeworld URL, retrieve the homeworld details, and extract the homeworld's name.
+```json
+{
+  "lukePersonDetails": "${ $fetch('https://swapi.dev/api/people/?search=luke').json().results[0]}",
+  "lukeHomeworldURL": "${ lukePersonDetails.homeworld }",
+  "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
+  "homeworldName": "${ homeworldDetails.name }"
+}
+```
 ![homeworld workflow](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow.svg)
 
+Try it, from the [Stated REPL](https://github.com/cisco-open/stated#running-the-repl). The `.init` command loads the 
+example
 
 ```json
+luke$ stateflow
 > .init -f "example/homeworld.json"
 {
   "lukePersonDetails": "${ $fetch('https://swapi.dev/api/people/?search=luke').json().results[0]}",

@@ -1,3 +1,4 @@
+#!/usr/bin/env node --experimental-vm-modules
 // Copyright 2023 Cisco Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
