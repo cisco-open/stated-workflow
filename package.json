@@ -29,7 +29,7 @@
   ],
   "author": "Geoff Hendrey <ghendreyl@cisco.com>, Sergey Sergeev <sesergee@cisco.com>",
   "dependencies": {
-    "stated-js": "^0.0.83",
+    "stated-js": "^0.0.84",
     "express": "^4.18.2",
     "kafkajs": "^2.2.4",
     "pulsar-client": "^1.9.0"

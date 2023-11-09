@@ -2668,10 +2668,10 @@ stack-utils@^2.0.3:
   dependencies:
     escape-string-regexp "^2.0.0"
 
-stated-js@^0.0.83:
-  version "0.0.83"
-  resolved "https://registry.npmjs.org/stated-js/-/stated-js-0.0.83.tgz#de1857bff6df3817c3d474e97976f227d1105a27"
-  integrity sha512-+TzLg2wb6pxh5wekrCrtA6Ti7W8L2uPf1ii0eNaMvhTVrn22kxtmiKyvOGkirBA7hb3v5a7pXTDdpjvB6SFd4A==
+stated-js@^0.0.84:
+  version "0.0.84"
+  resolved "https://registry.npmjs.org/stated-js/-/stated-js-0.0.84.tgz#ca86cc3d1106d669d98aabcabbfcb636a0985fc6"
+  integrity sha512-jx2XCsQ9EjERl1nh1DHjgFJqGkuLhcmPH5ibAnQOVDIe4TcALI9QsdbLzNpoEbqE5dgKYsHlVu8IcIH3PVXkcg==
   dependencies:
     flatbuffers "^23.5.26"
     js-yaml "^4.1.0"

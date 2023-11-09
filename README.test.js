@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {parseMarkdownAndTestCodeblocks } from 'stated-js/dist/src/TestUtils.js';
 import CliCore from 'stated-js/dist/src/CliCore.js';
 import TemplateProcessor from "stated-js/dist/src/TemplateProcessor.js";
+import {parseMarkdownAndTestCodeblocks} from "stated-js/dist/src/TestUtils.js";
 import {StatedWorkflow} from "./src/workflow/StatedWorkflow.js";
+
 
 TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
 
