@@ -376,7 +376,7 @@ that were passed to the step function, as well the functions output (`out`).
 ![steps](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow%20-%20Page%202.svg)
 WHen a workflow invocation completes, its logs are deleted from each step. Here we show invoking
 the `homeworld-steps.json` workflow, with `--options` that preserve the logs of completed steps.
-```json [false, "output=['Tatooine','Corellia']"]
+```json
 > .init -f "example/homeworlds-steps.json"
 {
   "output": "${   ['luke', 'han']~>$map(workflow) }",
@@ -396,6 +396,11 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
     }
   ]
 }
+```
+<details>
+<summary>Execution output (click to expand)</summary>
+
+```json ["output=['Tatooine','Corellia']"]
 > .out
 {
   "output": [
@@ -711,11 +716,11 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
   ]
 }
 ```
+</details>
+
 # Error Handling
 If a step function throws an `Error`, or returns `undefined`, the invocation log will contain a `fail`. In the 
-example below we intentionally break the second step by concatenating "--broken--" to the homeword URL. Note the
-`fail` that occurs in logs for luke and han. Also note that the final fourth step contains no `start` entry as 
-$serial execution halts on fail.
+example below we intentionally break the second step by concatenating "--broken--" to the homeword URL. 
 ```json
 > .init -f "example/homeworlds-steps-error.json"
 {
@@ -737,8 +742,11 @@ $serial execution halts on fail.
   ]
 }
 ```
+Note the
+`fail` that occurs in logs for luke and han in the below execution output. Also note that the final fourth step contains no `start` entry as
+$serial execution halts on fail.
 <details>
-<summary>Execution output</summary>
+<summary>Execution output (click to expand)</summary>
 
 ```json ["steps[2].log.*.fail ~> $count = 2"]
 > .out
