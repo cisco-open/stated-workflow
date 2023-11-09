@@ -12,6 +12,9 @@
   "scripts": {
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
+  "bin": {
+    "stateflow": "./stated-workflow.js"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/cisco-open/stated-workflow"
@@ -26,7 +29,7 @@
   ],
   "author": "Geoff Hendrey <ghendreyl@cisco.com>, Sergey Sergeev <sesergee@cisco.com>",
   "dependencies": {
-    "stated-js": "^0.0.82",
+    "stated-js": "^0.0.84",
     "express": "^4.18.2",
     "kafkajs": "^2.2.4",
     "pulsar-client": "^1.9.0"
