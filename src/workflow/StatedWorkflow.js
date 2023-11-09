@@ -375,7 +375,9 @@ export class StatedWorkflow {
         let currentInput = input;
 
         for (let stepJson of steps) {
-            currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput);
+            if(currentInput !== undefined) {
+                currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput);
+            }
         }
 
         // for (let step of steps) {

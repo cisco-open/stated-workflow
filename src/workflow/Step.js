@@ -12,10 +12,9 @@ export default class Step {
 
         let {log, function:fn} = this.stepJson; //the stepJson log is a map keyed by workflowInvocation
         log = this.initLog(log);
-
+        const invocationLog= {start};
+        log[workflowInvocation] = invocationLog;
         try {
-            const invocationLog= {start};
-            log[workflowInvocation] = invocationLog;
             const out = await fn.apply(this, [args, {workflowInvocation}]);
             const end = {
                 timestamp: new Date().getTime(),
@@ -24,7 +23,8 @@ export default class Step {
             invocationLog['end'] = end;
             return out;
         } catch (error) {
-            return error;
+            invocationLog['fail'] = {error, timestamp: new Date().getTime()}
+            return undefined;
         }
     }
 
