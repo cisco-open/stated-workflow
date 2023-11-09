@@ -716,7 +716,7 @@ If a step function throws an `Error`, or returns `undefined`, the invocation log
 example below we intentionally break the second step by concatenating "--broken--" to the homeword URL. Note the
 `fail` that occurs in logs for luke and han. Also note that the final fourth step contains no `start` entry as 
 $serial execution halts on fail.
-```json [false, "steps[2].log.*.fail ~> $count = 2"]
+```json
 > .init -f "example/homeworlds-steps-error.json"
 {
   "output": "${   ['luke', 'han']~>$map(workflow) }",
@@ -736,6 +736,11 @@ $serial execution halts on fail.
     }
   ]
 }
+```
+<details>
+<summary>Execution output</summary>
+
+```json ["steps[2].log.*.fail ~> $count = 2"]
 > .out
 {
   "output": null,
@@ -931,6 +936,5 @@ $serial execution halts on fail.
     }
   ]
 }
-
-
 ```
+</details>
