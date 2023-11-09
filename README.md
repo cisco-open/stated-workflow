@@ -377,7 +377,7 @@ that were passed to the step function, as well the functions output (`out`).
 WHen a workflow invocation completes, its logs are deleted from each step. Here we show invoking
 the `homeworld-steps.json` workflow, with `--options` that preserve the logs of completed steps.
 ```json [false, "output=['Tatooine','Corellia']"]
-> .init -f "example/homeworlds-steps.json" --options={"workflows":{"keepLogs":true}}
+> .init -f "example/homeworlds-steps.json"
 {
   "output": "${   ['luke', 'han']~>$map(workflow) }",
   "workflow": "${ function($person){$person~>$serial(steps)} }",
@@ -402,42 +402,81 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
     "Tatooine",
     "Corellia"
   ],
+  "workflow": "{function:}",
   "steps": [
     {
       "function": "{function:}",
       "log": {
-        "--ignore--": {
+        "2023-11-09-1699500721593-ok2z": {
+          "start": {
+            "timestamp": 1699500721593,
+            "args": "luke"
+          },
           "end": {
+            "timestamp": 1699500723568,
             "out": {
-              "birth_year": "29BBY",
-              "created": "2014-12-10T16:49:14.582000Z",
-              "edited": "2014-12-20T21:17:50.334000Z",
+              "name": "Luke Skywalker",
+              "height": "172",
+              "mass": "77",
+              "hair_color": "blond",
+              "skin_color": "fair",
+              "eye_color": "blue",
+              "birth_year": "19BBY",
+              "gender": "male",
+              "homeworld": "https://swapi.dev/api/planets/1/",
+              "films": [
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/2/",
+                "https://swapi.dev/api/films/3/",
+                "https://swapi.dev/api/films/6/"
+              ],
+              "species": [],
+              "vehicles": [
+                "https://swapi.dev/api/vehicles/14/",
+                "https://swapi.dev/api/vehicles/30/"
+              ],
+              "starships": [
+                "https://swapi.dev/api/starships/12/",
+                "https://swapi.dev/api/starships/22/"
+              ],
+              "created": "2014-12-09T13:50:51.644000Z",
+              "edited": "2014-12-20T21:17:56.891000Z",
+              "url": "https://swapi.dev/api/people/1/"
+            }
+          }
+        },
+        "2023-11-09-1699500725173-m7x6": {
+          "start": {
+            "timestamp": 1699500725173,
+            "args": "han"
+          },
+          "end": {
+            "timestamp": 1699500726505,
+            "out": {
+              "name": "Han Solo",
+              "height": "180",
+              "mass": "80",
+              "hair_color": "brown",
+              "skin_color": "fair",
               "eye_color": "brown",
+              "birth_year": "29BBY",
+              "gender": "male",
+              "homeworld": "https://swapi.dev/api/planets/22/",
               "films": [
                 "https://swapi.dev/api/films/1/",
                 "https://swapi.dev/api/films/2/",
                 "https://swapi.dev/api/films/3/"
               ],
-              "gender": "male",
-              "hair_color": "brown",
-              "height": "180",
-              "homeworld": "https://swapi.dev/api/planets/22/",
-              "mass": "80",
-              "name": "Han Solo",
-              "skin_color": "fair",
               "species": [],
+              "vehicles": [],
               "starships": [
                 "https://swapi.dev/api/starships/10/",
                 "https://swapi.dev/api/starships/22/"
               ],
-              "url": "https://swapi.dev/api/people/14/",
-              "vehicles": []
-            },
-            "timestamp": "--timestamp--"
-          },
-          "start": {
-            "args": "han",
-            "timestamp": "--timestamp--"
+              "created": "2014-12-10T16:49:14.582000Z",
+              "edited": "2014-12-20T21:17:50.334000Z",
+              "url": "https://swapi.dev/api/people/14/"
+            }
           }
         }
       }
@@ -445,38 +484,76 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
     {
       "function": "{function:}",
       "log": {
-        "--ignore--": {
-          "end": {
-            "out": "https://swapi.dev/api/planets/22/",
-            "timestamp": "--timestamp--"
-          },
+        "2023-11-09-1699500721593-ok2z": {
           "start": {
+            "timestamp": 1699500723568,
             "args": {
-              "birth_year": "29BBY",
-              "created": "2014-12-10T16:49:14.582000Z",
-              "edited": "2014-12-20T21:17:50.334000Z",
+              "name": "Luke Skywalker",
+              "height": "172",
+              "mass": "77",
+              "hair_color": "blond",
+              "skin_color": "fair",
+              "eye_color": "blue",
+              "birth_year": "19BBY",
+              "gender": "male",
+              "homeworld": "https://swapi.dev/api/planets/1/",
+              "films": [
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/2/",
+                "https://swapi.dev/api/films/3/",
+                "https://swapi.dev/api/films/6/"
+              ],
+              "species": [],
+              "vehicles": [
+                "https://swapi.dev/api/vehicles/14/",
+                "https://swapi.dev/api/vehicles/30/"
+              ],
+              "starships": [
+                "https://swapi.dev/api/starships/12/",
+                "https://swapi.dev/api/starships/22/"
+              ],
+              "created": "2014-12-09T13:50:51.644000Z",
+              "edited": "2014-12-20T21:17:56.891000Z",
+              "url": "https://swapi.dev/api/people/1/"
+            }
+          },
+          "end": {
+            "timestamp": 1699500723568,
+            "out": "https://swapi.dev/api/planets/1/"
+          }
+        },
+        "2023-11-09-1699500725173-m7x6": {
+          "start": {
+            "timestamp": 1699500726505,
+            "args": {
+              "name": "Han Solo",
+              "height": "180",
+              "mass": "80",
+              "hair_color": "brown",
+              "skin_color": "fair",
               "eye_color": "brown",
+              "birth_year": "29BBY",
+              "gender": "male",
+              "homeworld": "https://swapi.dev/api/planets/22/",
               "films": [
                 "https://swapi.dev/api/films/1/",
                 "https://swapi.dev/api/films/2/",
                 "https://swapi.dev/api/films/3/"
               ],
-              "gender": "male",
-              "hair_color": "brown",
-              "height": "180",
-              "homeworld": "https://swapi.dev/api/planets/22/",
-              "mass": "80",
-              "name": "Han Solo",
-              "skin_color": "fair",
               "species": [],
+              "vehicles": [],
               "starships": [
                 "https://swapi.dev/api/starships/10/",
                 "https://swapi.dev/api/starships/22/"
               ],
-              "url": "https://swapi.dev/api/people/14/",
-              "vehicles": []
-            },
-            "timestamp": "--timestamp--"
+              "created": "2014-12-10T16:49:14.582000Z",
+              "edited": "2014-12-20T21:17:50.334000Z",
+              "url": "https://swapi.dev/api/people/14/"
+            }
+          },
+          "end": {
+            "timestamp": 1699500726505,
+            "out": "https://swapi.dev/api/planets/22/"
           }
         }
       }
@@ -484,32 +561,74 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
     {
       "function": "{function:}",
       "log": {
-        "--ignore--": {
+        "2023-11-09-1699500721593-ok2z": {
+          "start": {
+            "timestamp": 1699500723568,
+            "args": "https://swapi.dev/api/planets/1/"
+          },
           "end": {
+            "timestamp": 1699500725173,
             "out": {
-              "climate": "temperate",
-              "created": "2014-12-10T16:49:12.453000Z",
-              "diameter": "11000",
-              "edited": "2014-12-20T20:58:18.456000Z",
-              "films": [],
+              "name": "Tatooine",
+              "rotation_period": "23",
+              "orbital_period": "304",
+              "diameter": "10465",
+              "climate": "arid",
               "gravity": "1 standard",
+              "terrain": "desert",
+              "surface_water": "1",
+              "population": "200000",
+              "residents": [
+                "https://swapi.dev/api/people/1/",
+                "https://swapi.dev/api/people/2/",
+                "https://swapi.dev/api/people/4/",
+                "https://swapi.dev/api/people/6/",
+                "https://swapi.dev/api/people/7/",
+                "https://swapi.dev/api/people/8/",
+                "https://swapi.dev/api/people/9/",
+                "https://swapi.dev/api/people/11/",
+                "https://swapi.dev/api/people/43/",
+                "https://swapi.dev/api/people/62/"
+              ],
+              "films": [
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/3/",
+                "https://swapi.dev/api/films/4/",
+                "https://swapi.dev/api/films/5/",
+                "https://swapi.dev/api/films/6/"
+              ],
+              "created": "2014-12-09T13:50:49.641000Z",
+              "edited": "2014-12-20T20:58:18.411000Z",
+              "url": "https://swapi.dev/api/planets/1/"
+            }
+          }
+        },
+        "2023-11-09-1699500725173-m7x6": {
+          "start": {
+            "timestamp": 1699500726505,
+            "args": "https://swapi.dev/api/planets/22/"
+          },
+          "end": {
+            "timestamp": 1699500727297,
+            "out": {
               "name": "Corellia",
+              "rotation_period": "25",
               "orbital_period": "329",
+              "diameter": "11000",
+              "climate": "temperate",
+              "gravity": "1 standard",
+              "terrain": "plains, urban, hills, forests",
+              "surface_water": "70",
               "population": "3000000000",
               "residents": [
                 "https://swapi.dev/api/people/14/",
                 "https://swapi.dev/api/people/18/"
               ],
-              "rotation_period": "25",
-              "surface_water": "70",
-              "terrain": "plains, urban, hills, forests",
+              "films": [],
+              "created": "2014-12-10T16:49:12.453000Z",
+              "edited": "2014-12-20T20:58:18.456000Z",
               "url": "https://swapi.dev/api/planets/22/"
-            },
-            "timestamp": "--timestamp--"
-          },
-          "start": {
-            "args": "https://swapi.dev/api/planets/22/",
-            "timestamp": "--timestamp--"
+            }
           }
         }
       }
@@ -517,37 +636,301 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
     {
       "function": "{function:}",
       "log": {
-        "--ignore--": {
-          "end": {
-            "out": "Corellia",
-            "timestamp": "--timestamp--"
-          },
+        "2023-11-09-1699500721593-ok2z": {
           "start": {
+            "timestamp": 1699500725173,
             "args": {
-              "climate": "temperate",
-              "created": "2014-12-10T16:49:12.453000Z",
-              "diameter": "11000",
-              "edited": "2014-12-20T20:58:18.456000Z",
-              "films": [],
+              "name": "Tatooine",
+              "rotation_period": "23",
+              "orbital_period": "304",
+              "diameter": "10465",
+              "climate": "arid",
               "gravity": "1 standard",
+              "terrain": "desert",
+              "surface_water": "1",
+              "population": "200000",
+              "residents": [
+                "https://swapi.dev/api/people/1/",
+                "https://swapi.dev/api/people/2/",
+                "https://swapi.dev/api/people/4/",
+                "https://swapi.dev/api/people/6/",
+                "https://swapi.dev/api/people/7/",
+                "https://swapi.dev/api/people/8/",
+                "https://swapi.dev/api/people/9/",
+                "https://swapi.dev/api/people/11/",
+                "https://swapi.dev/api/people/43/",
+                "https://swapi.dev/api/people/62/"
+              ],
+              "films": [
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/3/",
+                "https://swapi.dev/api/films/4/",
+                "https://swapi.dev/api/films/5/",
+                "https://swapi.dev/api/films/6/"
+              ],
+              "created": "2014-12-09T13:50:49.641000Z",
+              "edited": "2014-12-20T20:58:18.411000Z",
+              "url": "https://swapi.dev/api/planets/1/"
+            }
+          },
+          "end": {
+            "timestamp": 1699500725173,
+            "out": "Tatooine"
+          }
+        },
+        "2023-11-09-1699500725173-m7x6": {
+          "start": {
+            "timestamp": 1699500727297,
+            "args": {
               "name": "Corellia",
+              "rotation_period": "25",
               "orbital_period": "329",
+              "diameter": "11000",
+              "climate": "temperate",
+              "gravity": "1 standard",
+              "terrain": "plains, urban, hills, forests",
+              "surface_water": "70",
               "population": "3000000000",
               "residents": [
                 "https://swapi.dev/api/people/14/",
                 "https://swapi.dev/api/people/18/"
               ],
-              "rotation_period": "25",
-              "surface_water": "70",
-              "terrain": "plains, urban, hills, forests",
+              "films": [],
+              "created": "2014-12-10T16:49:12.453000Z",
+              "edited": "2014-12-20T20:58:18.456000Z",
               "url": "https://swapi.dev/api/planets/22/"
-            },
-            "timestamp": "--timestamp--"
+            }
+          },
+          "end": {
+            "timestamp": 1699500727297,
+            "out": "Corellia"
           }
         }
       }
     }
-  ],
-  "workflow": "{function:}"
+  ]
 }
+```
+# Error Handling
+If a step function throws an `Error`, or returns `undefined`, the invocation log will contain a `fail`. In the 
+example below we intentionally break the second step by concatenating "--broken--" to the homeword URL. Note the
+`fail` that occurs in logs for luke and han. Also note that the final fourth step contains no `start` entry as 
+$serial execution halts on fail.
+```json [false, "steps[2].log.*.fail ~> $count = 2"]
+> .init -f "example/homeworlds-steps-error.json"
+{
+  "output": "${   ['luke', 'han']~>$map(workflow) }",
+  "workflow": "${ function($person){$person~>$serial(steps)} }",
+  "steps": [
+    {
+      "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
+    },
+    {
+      "function": "${  function($personDetail){$personDetail.homeworld & '--broken--'}  }"
+    },
+    {
+      "function": "${  function($homeworldURL){$homeworldURL.$fetch($).json() }  }"
+    },
+    {
+      "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"
+    }
+  ]
+}
+> .out
+{
+  "output": null,
+  "workflow": "{function:}",
+  "steps": [
+    {
+      "function": "{function:}",
+      "log": {
+        "2023-11-09-1699544593801-xrar": {
+          "start": {
+            "timestamp": 1699544593802,
+            "args": "luke"
+          },
+          "end": {
+            "timestamp": 1699544596267,
+            "out": {
+              "name": "Luke Skywalker",
+              "height": "172",
+              "mass": "77",
+              "hair_color": "blond",
+              "skin_color": "fair",
+              "eye_color": "blue",
+              "birth_year": "19BBY",
+              "gender": "male",
+              "homeworld": "https://swapi.dev/api/planets/1/",
+              "films": [
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/2/",
+                "https://swapi.dev/api/films/3/",
+                "https://swapi.dev/api/films/6/"
+              ],
+              "species": [],
+              "vehicles": [
+                "https://swapi.dev/api/vehicles/14/",
+                "https://swapi.dev/api/vehicles/30/"
+              ],
+              "starships": [
+                "https://swapi.dev/api/starships/12/",
+                "https://swapi.dev/api/starships/22/"
+              ],
+              "created": "2014-12-09T13:50:51.644000Z",
+              "edited": "2014-12-20T21:17:56.891000Z",
+              "url": "https://swapi.dev/api/people/1/"
+            }
+          }
+        },
+        "2023-11-09-1699544597985-fi7c": {
+          "start": {
+            "timestamp": 1699544597985,
+            "args": "han"
+          },
+          "end": {
+            "timestamp": 1699544599201,
+            "out": {
+              "name": "Han Solo",
+              "height": "180",
+              "mass": "80",
+              "hair_color": "brown",
+              "skin_color": "fair",
+              "eye_color": "brown",
+              "birth_year": "29BBY",
+              "gender": "male",
+              "homeworld": "https://swapi.dev/api/planets/22/",
+              "films": [
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/2/",
+                "https://swapi.dev/api/films/3/"
+              ],
+              "species": [],
+              "vehicles": [],
+              "starships": [
+                "https://swapi.dev/api/starships/10/",
+                "https://swapi.dev/api/starships/22/"
+              ],
+              "created": "2014-12-10T16:49:14.582000Z",
+              "edited": "2014-12-20T21:17:50.334000Z",
+              "url": "https://swapi.dev/api/people/14/"
+            }
+          }
+        }
+      }
+    },
+    {
+      "function": "{function:}",
+      "log": {
+        "2023-11-09-1699544593801-xrar": {
+          "start": {
+            "timestamp": 1699544596267,
+            "args": {
+              "name": "Luke Skywalker",
+              "height": "172",
+              "mass": "77",
+              "hair_color": "blond",
+              "skin_color": "fair",
+              "eye_color": "blue",
+              "birth_year": "19BBY",
+              "gender": "male",
+              "homeworld": "https://swapi.dev/api/planets/1/",
+              "films": [
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/2/",
+                "https://swapi.dev/api/films/3/",
+                "https://swapi.dev/api/films/6/"
+              ],
+              "species": [],
+              "vehicles": [
+                "https://swapi.dev/api/vehicles/14/",
+                "https://swapi.dev/api/vehicles/30/"
+              ],
+              "starships": [
+                "https://swapi.dev/api/starships/12/",
+                "https://swapi.dev/api/starships/22/"
+              ],
+              "created": "2014-12-09T13:50:51.644000Z",
+              "edited": "2014-12-20T21:17:56.891000Z",
+              "url": "https://swapi.dev/api/people/1/"
+            }
+          },
+          "end": {
+            "timestamp": 1699544596267,
+            "out": "https://swapi.dev/api/planets/1/--broken--"
+          }
+        },
+        "2023-11-09-1699544597985-fi7c": {
+          "start": {
+            "timestamp": 1699544599201,
+            "args": {
+              "name": "Han Solo",
+              "height": "180",
+              "mass": "80",
+              "hair_color": "brown",
+              "skin_color": "fair",
+              "eye_color": "brown",
+              "birth_year": "29BBY",
+              "gender": "male",
+              "homeworld": "https://swapi.dev/api/planets/22/",
+              "films": [
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/2/",
+                "https://swapi.dev/api/films/3/"
+              ],
+              "species": [],
+              "vehicles": [],
+              "starships": [
+                "https://swapi.dev/api/starships/10/",
+                "https://swapi.dev/api/starships/22/"
+              ],
+              "created": "2014-12-10T16:49:14.582000Z",
+              "edited": "2014-12-20T21:17:50.334000Z",
+              "url": "https://swapi.dev/api/people/14/"
+            }
+          },
+          "end": {
+            "timestamp": 1699544599202,
+            "out": "https://swapi.dev/api/planets/22/--broken--"
+          }
+        }
+      }
+    },
+    {
+      "function": "{function:}",
+      "log": {
+        "2023-11-09-1699544593801-xrar": {
+          "start": {
+            "timestamp": 1699544596267,
+            "args": "https://swapi.dev/api/planets/1/--broken--"
+          },
+          "fail": {
+            "error": {
+              "position": null,
+              "token": "json"
+            },
+            "timestamp": 1699544597985
+          }
+        },
+        "2023-11-09-1699544597985-fi7c": {
+          "start": {
+            "timestamp": 1699544599202,
+            "args": "https://swapi.dev/api/planets/22/--broken--"
+          },
+          "fail": {
+            "error": {
+              "position": null,
+              "token": "json"
+            },
+            "timestamp": 1699544599813
+          }
+        }
+      }
+    },
+    {
+      "function": "{function:}"
+    }
+  ]
+}
+
+
 ```
