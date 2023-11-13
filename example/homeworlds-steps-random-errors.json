@@ -1,18 +1,19 @@
 {
   "output": "${   ['luke']~>$map(workflow) }",
   "workflow": "${ function($person){$person~>$serial(steps)} }",
-  "updateRetries": "${ function($log){ ($log.output.retries & log.output.retries < 5) ? true : ($log.output.retries ?  false : $log.output.retries = 1 )} }",
   "connectionError": true,
   "steps": [
     {
       "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
     },
     {
+      "functionOld ": "${  function($personDetail){$personDetail.homeworld & '--broken--'}  }",
       "function": "${  function($personDetail){$personDetail.homeworld }  }"
     },
     {
-      "function": "/${ function($homeworldURL){ connectionError ? 'https://swapi.dev/api/people/--broken-url--'.$fetch($).json() : $homeworldURL.$fetch($).json() }  }",
-      "shouldRetry": "${  function($log){ $log.output.fail ? updateRetries($log): false }  }"
+      "functionOld": "${  function($homeworldURL){$homeworldURL.$fetch($).json() }  }",
+      "function": "${ function($homeworldURL){ 'https://swapi.dev/api/planets/1/--broken--'.$fetch($).json() }  }",
+      "shouldRetry": "${  function($log){ $log.end ? true : $log.retryCount < 4 }  }"
     },
     {
       "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"
