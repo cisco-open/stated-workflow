@@ -948,4 +948,12 @@ $serial execution halts on fail.
 </details>
 
 ## retries
+Each step can provide an optional boolean function `shouldRetry`, which should accept invocationLog argument. If it 
+retruns trues, the function will be retried. 
+```json
+{
+  "function": "${ function($in){ [true, false] } }",
+  "shouldRetry": "${ function($invocationLog){ $invocationLog.fail ? false : true } }"
+}
+```
 

@@ -1,17 +1,18 @@
 {
-  "output": "${   ['luke', 'han']~>$map(workflow) }",
+  "output": "${   ['luke']~>$map(workflow) }",
   "workflow": "${ function($person){$person~>$serial(steps)} }",
   "updateRetries": "${ function($log){ ($log.output.retries & log.output.retries < 5) ? true : ($log.output.retries ?  false : $log.output.retries = 1 )} }",
+  "connectionError": true,
   "steps": [
     {
       "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
     },
     {
-      "function": "${  function($personDetail){$personDetail.homeworld & ($random() < 0.5 ? '--broken--' : '') }  }"
+      "function": "${  function($personDetail){$personDetail.homeworld }  }"
     },
     {
-      "function": "${  function($homeworldURL){$homeworldURL.$fetch($).json() }  }",
-      "shouldRertry": "${  function($log){ $log.output.fail ? updateRetries($log): false }  }"
+      "function": "/${ function($homeworldURL){ connectionError ? 'https://swapi.dev/api/people/--broken-url--'.$fetch($).json() : $homeworldURL.$fetch($).json() }  }",
+      "shouldRetry": "${  function($log){ $log.output.fail ? updateRetries($log): false }  }"
     },
     {
       "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"
