@@ -36,7 +36,6 @@ export default class Step {
                 invocationLog['end'] = end;
                 return out;
             } catch (error) {
-                console.error("Error encountered:", error);
                 invocationLog['fail'] = {error, timestamp: new Date().getTime()}
             }
 
@@ -45,8 +44,7 @@ export default class Step {
             }
 
             const shouldRetryResult = await shouldRetry.apply(this, [invocationLog]);
-            console.log("shouldRetry result:", shouldRetryResult);  // Debugging statement
-            if (!shouldRetryResult) break;  // Exit the loop if shouldRetry returns false
+            if (!shouldRetryResult) break;
         } while (true);
 
     }
