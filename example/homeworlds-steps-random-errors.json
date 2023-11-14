@@ -7,13 +7,11 @@
       "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
     },
     {
-      "functionOld ": "${  function($personDetail){$personDetail.homeworld & '--broken--'}  }",
       "function": "${  function($personDetail){$personDetail.homeworld }  }"
     },
     {
-      "functionOld": "${  function($homeworldURL){$homeworldURL.$fetch($).json() }  }",
-      "function": "${ function($homeworldURL){ 'https://swapi.dev/api/planets/1/--broken--'.$fetch($).json() }  }",
-      "shouldRetry": "${  function($log){ $log.end ? true : $log.retryCount < 4 }  }"
+      "function": "/${ function($homeworldURL){ ($url := connectionError ? $homeworldURL & '--broken--' : $homeworldURL ; $set('/connectionError', $not(connectionError)); $fetch($url).json(); ) }  }",
+      "shouldRetry": "${  function($log){ $log.end ? false : $log.retryCount < 4 }  }"
     },
     {
       "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"

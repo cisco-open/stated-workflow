@@ -22,8 +22,12 @@ export default class Step {
         if (shouldRetry === undefined || shouldRetry === null) {
             shouldRetry = () => true;
         }
+
         do {
             try {
+                if (invocationLog['retryCount'] !== undefined) {
+                    invocationLog['retryCount']++;
+                }
                 let out = await fn.apply(this, [args, {workflowInvocation}]);
                 const end = {
                     timestamp: new Date().getTime(),
@@ -32,14 +36,18 @@ export default class Step {
                 invocationLog['end'] = end;
                 return out;
             } catch (error) {
+                console.error("Error encountered:", error);
                 invocationLog['fail'] = {error, timestamp: new Date().getTime()}
-                if (invocationLog['retryCount'] === undefined) {
-                    invocationLog['retryCount'] = 0;
-                }
-                invocationLog['retryCount'] = invocationLog['retryCount'] + 1;
-                return undefined;
             }
-        } while (await shouldRetry.apply(this, [log[workflowInvocation]]) === true);
+
+            if (invocationLog['retryCount'] === undefined) {
+                invocationLog['retryCount'] = 0;
+            }
+
+            const shouldRetryResult = await shouldRetry.apply(this, [invocationLog]);
+            console.log("shouldRetry result:", shouldRetryResult);  // Debugging statement
+            if (!shouldRetryResult) break;  // Exit the loop if shouldRetry returns false
+        } while (true);
 
     }
 
