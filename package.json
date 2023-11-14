@@ -5,15 +5,14 @@
   "description": "Lightweight and scalable event-driven workflow engine built on Stated",
   "main": "./src/workflow/StatedWorkflow.js",
   "module": "./src/workflow/StatedWorkflow.js",
-  "bin": "./stated-workflow.js",
+  "bin": {
+    "stateflow": "./stated-workflow.js"
+  },
   "exports": {
     ".": "./src/workflow/StatedWorkflow.js"
   },
   "scripts": {
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
-  },
-  "bin": {
-    "stateflow": "./stated-workflow.js"
   },
   "repository": {
     "type": "git",
@@ -29,10 +28,10 @@
   ],
   "author": "Geoff Hendrey <ghendreyl@cisco.com>, Sergey Sergeev <sesergee@cisco.com>",
   "dependencies": {
-    "stated-js": "^0.0.86",
     "express": "^4.18.2",
     "kafkajs": "^2.2.4",
-    "pulsar-client": "^1.9.0"
+    "pulsar-client": "^1.9.0",
+    "stated-js": "^0.0.86"
   },
   "devDependencies": {
     "jest": "^29.7.0"

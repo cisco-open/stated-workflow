@@ -10,7 +10,7 @@ export default class Step {
             args
         };
 
-        let {log, function: fn, shouldRetry} = this.stepJson; //the stepJson log is a map keyed by workflowInvocation
+        let {log, function: fn, shouldRetry=()=>false} = this.stepJson;
         log = this.initLog(log);
         let invocationLog;
         if (log[workflowInvocation] == undefined) {
@@ -18,9 +18,6 @@ export default class Step {
             log[workflowInvocation] = invocationLog
         } else {
             invocationLog = log[workflowInvocation];
-        }
-        if (shouldRetry === undefined || shouldRetry === null) {
-            shouldRetry = () => false; // default to no retry
         }
 
         do {
@@ -33,6 +30,7 @@ export default class Step {
                     timestamp: new Date().getTime(),
                     out
                 };
+                delete invocationLog.fail;
                 invocationLog['end'] = end;
                 return out;
             } catch (error) {

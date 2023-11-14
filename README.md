@@ -978,7 +978,7 @@ retruns trues, the function will be retried.
 
 <details>
 <summary>Execution output (click to expand)</summary>
-```json ["steps[2].log.*.retryCount = 1"]
+```json ["steps[2].log.*.retryCount = 1 and $not($exists(steps[2].log.*.fail))"]
 > .out
 {
   "output": "Tatooine",
@@ -1079,13 +1079,6 @@ retruns trues, the function will be retried.
           "start": {
             "timestamp": 1699922095809,
             "args": "https://swapi.dev/api/planets/1/"
-          },
-          "fail": {
-            "error": {
-              "position": null,
-              "token": "json"
-            },
-            "timestamp": 1699922096844
           },
           "retryCount": 1,
           "end": {
