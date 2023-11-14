@@ -20,7 +20,7 @@ export default class Step {
             invocationLog = log[workflowInvocation];
         }
         if (shouldRetry === undefined || shouldRetry === null) {
-            shouldRetry = () => true;
+            shouldRetry = () => false; // default to no retry
         }
 
         do {
