@@ -10,7 +10,7 @@ export default class Step {
             args
         };
 
-        let {log, function: fn, shouldRetry=()=>false} = this.stepJson;
+        let {log, function: fn, shouldRetry=(invocationLog)=>false} = this.stepJson;
         log = this.initLog(log);
         let invocationLog;
         if (log[workflowInvocation] == undefined) {
