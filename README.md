@@ -376,7 +376,7 @@ that were passed to the step function, as well the functions output (`out`).
 ![steps](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow%20-%20Page%202.svg)
 WHen a workflow invocation completes, its logs are deleted from each step. Here we show invoking
 the `homeworld-steps.json` workflow, with `--options` that preserve the logs of completed steps.
-```json [false, "output=['Tatooine','Corellia']"]
+```json
 > .init -f "example/homeworlds-steps.json"
 {
   "output": "${   ['luke', 'han']~>$map(workflow) }",
@@ -396,6 +396,11 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
     }
   ]
 }
+```
+<details>
+<summary>Execution output (click to expand)</summary>
+
+```json ["output=['Tatooine','Corellia']"]
 > .out
 {
   "output": [
@@ -711,11 +716,11 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
   ]
 }
 ```
+</details>
+
 # Error Handling
 If a step function throws an `Error`, or returns `undefined`, the invocation log will contain a `fail`. In the 
-example below we intentionally break the second step by concatenating "--broken--" to the homeword URL. Note the
-`fail` that occurs in logs for luke and han. Also note that the final fourth step contains no `start` entry as 
-$serial execution halts on fail.
+example below we intentionally break the second step by concatenating "--broken--" to the homeword URL. 
 ```json
 > .init -f "example/homeworlds-steps-error.json"
 {
@@ -729,7 +734,7 @@ $serial execution halts on fail.
       "function": "${  function($personDetail){$personDetail.homeworld & '--broken--'}  }"
     },
     {
-      "function": "${  function($homeworldURL){$homeworldURL.$fetch($).json() }  }"
+      "function": "${  function($homeworldURL){$fetch($homeworldURL).json() }  }"
     },
     {
       "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"
@@ -737,8 +742,11 @@ $serial execution halts on fail.
   ]
 }
 ```
+Note the
+`fail` that occurs in logs for luke and han in the below execution output. Also note that the final fourth step contains no `start` entry as
+$serial execution halts on fail.
 <details>
-<summary>Execution output</summary>
+<summary>Execution output (click to expand)</summary>
 
 ```json ["steps[2].log.*.fail ~> $count = 2"]
 > .out
@@ -749,13 +757,13 @@ $serial execution halts on fail.
     {
       "function": "{function:}",
       "log": {
-        "2023-11-09-1699544593801-xrar": {
+        "2023-11-14-1699923328135-1dsf": {
           "start": {
-            "timestamp": 1699544593802,
+            "timestamp": 1699923328136,
             "args": "luke"
           },
           "end": {
-            "timestamp": 1699544596267,
+            "timestamp": 1699923329596,
             "out": {
               "name": "Luke Skywalker",
               "height": "172",
@@ -787,13 +795,13 @@ $serial execution halts on fail.
             }
           }
         },
-        "2023-11-09-1699544597985-fi7c": {
+        "2023-11-14-1699923330297-49lm": {
           "start": {
-            "timestamp": 1699544597985,
+            "timestamp": 1699923330297,
             "args": "han"
           },
           "end": {
-            "timestamp": 1699544599201,
+            "timestamp": 1699923331417,
             "out": {
               "name": "Han Solo",
               "height": "180",
@@ -826,9 +834,9 @@ $serial execution halts on fail.
     {
       "function": "{function:}",
       "log": {
-        "2023-11-09-1699544593801-xrar": {
+        "2023-11-14-1699923328135-1dsf": {
           "start": {
-            "timestamp": 1699544596267,
+            "timestamp": 1699923329596,
             "args": {
               "name": "Luke Skywalker",
               "height": "172",
@@ -860,13 +868,13 @@ $serial execution halts on fail.
             }
           },
           "end": {
-            "timestamp": 1699544596267,
+            "timestamp": 1699923329596,
             "out": "https://swapi.dev/api/planets/1/--broken--"
           }
         },
-        "2023-11-09-1699544597985-fi7c": {
+        "2023-11-14-1699923330297-49lm": {
           "start": {
-            "timestamp": 1699544599201,
+            "timestamp": 1699923331417,
             "args": {
               "name": "Han Solo",
               "height": "180",
@@ -894,7 +902,7 @@ $serial execution halts on fail.
             }
           },
           "end": {
-            "timestamp": 1699544599202,
+            "timestamp": 1699923331417,
             "out": "https://swapi.dev/api/planets/22/--broken--"
           }
         }
@@ -903,9 +911,9 @@ $serial execution halts on fail.
     {
       "function": "{function:}",
       "log": {
-        "2023-11-09-1699544593801-xrar": {
+        "2023-11-14-1699923328135-1dsf": {
           "start": {
-            "timestamp": 1699544596267,
+            "timestamp": 1699923329596,
             "args": "https://swapi.dev/api/planets/1/--broken--"
           },
           "fail": {
@@ -913,12 +921,13 @@ $serial execution halts on fail.
               "position": null,
               "token": "json"
             },
-            "timestamp": 1699544597985
-          }
+            "timestamp": 1699923330296
+          },
+          "retryCount": 0
         },
-        "2023-11-09-1699544597985-fi7c": {
+        "2023-11-14-1699923330297-49lm": {
           "start": {
-            "timestamp": 1699544599202,
+            "timestamp": 1699923331417,
             "args": "https://swapi.dev/api/planets/22/--broken--"
           },
           "fail": {
@@ -926,13 +935,237 @@ $serial execution halts on fail.
               "position": null,
               "token": "json"
             },
-            "timestamp": 1699544599813
-          }
+            "timestamp": 1699923332071
+          },
+          "retryCount": 0
         }
       }
     },
     {
       "function": "{function:}"
+    }
+  ]
+}
+```
+</details>
+
+## retries
+Each step can provide an optional boolean function `shouldRetry`, which should accept invocationLog argument. If it 
+retruns trues, the function will be retried. 
+```json
+> .init -f example/homeworlds-steps-with-retry.json
+{
+  "output": "${   ['luke']~>$map(workflow) }",
+  "workflow": "${ function($person){$person~>$serial(steps)} }",
+  "connectionError": true,
+  "steps": [
+    {
+      "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
+    },
+    {
+      "function": "${  function($personDetail){$personDetail.homeworld }  }"
+    },
+    {
+      "function": "/${ function($homeworldURL){ ($url := connectionError ? $homeworldURL & '--broken--' : $homeworldURL ; $set('/connectionError', $not(connectionError)); $fetch($url).json(); ) }  }",
+      "shouldRetry": "${  function($log){ $log.end ? false : $log.retryCount < 4 }  }"
+    },
+    {
+      "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"
+    }
+  ]
+}
+```
+
+<details>
+<summary>Execution output (click to expand)</summary>
+```json ["steps[2].log.*.retryCount = 1 and $not($exists(steps[2].log.*.fail))"]
+> .out
+{
+  "output": "Tatooine",
+  "workflow": "{function:}",
+  "connectionError": true,
+  "steps": [
+    {
+      "function": "{function:}",
+      "log": {
+        "2023-11-14-1699922094477-8e85": {
+          "start": {
+            "timestamp": 1699922094477,
+            "args": "luke"
+          },
+          "end": {
+            "timestamp": 1699922095809,
+            "out": {
+              "name": "Luke Skywalker",
+              "height": "172",
+              "mass": "77",
+              "hair_color": "blond",
+              "skin_color": "fair",
+              "eye_color": "blue",
+              "birth_year": "19BBY",
+              "gender": "male",
+              "homeworld": "https://swapi.dev/api/planets/1/",
+              "films": [
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/2/",
+                "https://swapi.dev/api/films/3/",
+                "https://swapi.dev/api/films/6/"
+              ],
+              "species": [],
+              "vehicles": [
+                "https://swapi.dev/api/vehicles/14/",
+                "https://swapi.dev/api/vehicles/30/"
+              ],
+              "starships": [
+                "https://swapi.dev/api/starships/12/",
+                "https://swapi.dev/api/starships/22/"
+              ],
+              "created": "2014-12-09T13:50:51.644000Z",
+              "edited": "2014-12-20T21:17:56.891000Z",
+              "url": "https://swapi.dev/api/people/1/"
+            }
+          }
+        }
+      }
+    },
+    {
+      "function": "{function:}",
+      "log": {
+        "2023-11-14-1699922094477-8e85": {
+          "start": {
+            "timestamp": 1699922095809,
+            "args": {
+              "name": "Luke Skywalker",
+              "height": "172",
+              "mass": "77",
+              "hair_color": "blond",
+              "skin_color": "fair",
+              "eye_color": "blue",
+              "birth_year": "19BBY",
+              "gender": "male",
+              "homeworld": "https://swapi.dev/api/planets/1/",
+              "films": [
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/2/",
+                "https://swapi.dev/api/films/3/",
+                "https://swapi.dev/api/films/6/"
+              ],
+              "species": [],
+              "vehicles": [
+                "https://swapi.dev/api/vehicles/14/",
+                "https://swapi.dev/api/vehicles/30/"
+              ],
+              "starships": [
+                "https://swapi.dev/api/starships/12/",
+                "https://swapi.dev/api/starships/22/"
+              ],
+              "created": "2014-12-09T13:50:51.644000Z",
+              "edited": "2014-12-20T21:17:56.891000Z",
+              "url": "https://swapi.dev/api/people/1/"
+            }
+          },
+          "end": {
+            "timestamp": 1699922095809,
+            "out": "https://swapi.dev/api/planets/1/"
+          }
+        }
+      }
+    },
+    {
+      "function": "{function:}",
+      "shouldRetry": "{function:}",
+      "log": {
+        "2023-11-14-1699922094477-8e85": {
+          "start": {
+            "timestamp": 1699922095809,
+            "args": "https://swapi.dev/api/planets/1/"
+          },
+          "retryCount": 1,
+          "end": {
+            "timestamp": 1699922097891,
+            "out": {
+              "name": "Tatooine",
+              "rotation_period": "23",
+              "orbital_period": "304",
+              "diameter": "10465",
+              "climate": "arid",
+              "gravity": "1 standard",
+              "terrain": "desert",
+              "surface_water": "1",
+              "population": "200000",
+              "residents": [
+                "https://swapi.dev/api/people/1/",
+                "https://swapi.dev/api/people/2/",
+                "https://swapi.dev/api/people/4/",
+                "https://swapi.dev/api/people/6/",
+                "https://swapi.dev/api/people/7/",
+                "https://swapi.dev/api/people/8/",
+                "https://swapi.dev/api/people/9/",
+                "https://swapi.dev/api/people/11/",
+                "https://swapi.dev/api/people/43/",
+                "https://swapi.dev/api/people/62/"
+              ],
+              "films": [
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/3/",
+                "https://swapi.dev/api/films/4/",
+                "https://swapi.dev/api/films/5/",
+                "https://swapi.dev/api/films/6/"
+              ],
+              "created": "2014-12-09T13:50:49.641000Z",
+              "edited": "2014-12-20T20:58:18.411000Z",
+              "url": "https://swapi.dev/api/planets/1/"
+            }
+          }
+        }
+      }
+    },
+    {
+      "function": "{function:}",
+      "log": {
+        "2023-11-14-1699922094477-8e85": {
+          "start": {
+            "timestamp": 1699922097891,
+            "args": {
+              "name": "Tatooine",
+              "rotation_period": "23",
+              "orbital_period": "304",
+              "diameter": "10465",
+              "climate": "arid",
+              "gravity": "1 standard",
+              "terrain": "desert",
+              "surface_water": "1",
+              "population": "200000",
+              "residents": [
+                "https://swapi.dev/api/people/1/",
+                "https://swapi.dev/api/people/2/",
+                "https://swapi.dev/api/people/4/",
+                "https://swapi.dev/api/people/6/",
+                "https://swapi.dev/api/people/7/",
+                "https://swapi.dev/api/people/8/",
+                "https://swapi.dev/api/people/9/",
+                "https://swapi.dev/api/people/11/",
+                "https://swapi.dev/api/people/43/",
+                "https://swapi.dev/api/people/62/"
+              ],
+              "films": [
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/3/",
+                "https://swapi.dev/api/films/4/",
+                "https://swapi.dev/api/films/5/",
+                "https://swapi.dev/api/films/6/"
+              ],
+              "created": "2014-12-09T13:50:49.641000Z",
+              "edited": "2014-12-20T20:58:18.411000Z",
+              "url": "https://swapi.dev/api/planets/1/"
+            }
+          },
+          "end": {
+            "timestamp": 1699922097891,
+            "out": "Tatooine"
+          }
+        }
+      }
     }
   ]
 }

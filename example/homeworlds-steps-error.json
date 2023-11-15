@@ -9,7 +9,7 @@
       "function": "${  function($personDetail){$personDetail.homeworld & '--broken--'}  }"
     },
     {
-      "function": "${  function($homeworldURL){$homeworldURL.$fetch($).json() }  }"
+      "function": "${  function($homeworldURL){$fetch($homeworldURL).json() }  }"
     },
     {
       "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"

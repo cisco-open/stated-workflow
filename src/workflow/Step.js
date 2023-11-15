@@ -10,22 +10,41 @@ export default class Step {
             args
         };
 
-        let {log, function:fn} = this.stepJson; //the stepJson log is a map keyed by workflowInvocation
+        let {log, function: fn, shouldRetry=(invocationLog)=>false} = this.stepJson;
         log = this.initLog(log);
-        const invocationLog= {start};
-        log[workflowInvocation] = invocationLog;
-        try {
-            const out = await fn.apply(this, [args, {workflowInvocation}]);
-            const end = {
-                timestamp: new Date().getTime(),
-                out
-            };
-            invocationLog['end'] = end;
-            return out;
-        } catch (error) {
-            invocationLog['fail'] = {error, timestamp: new Date().getTime()}
-            return undefined;
+        let invocationLog;
+        if (log[workflowInvocation] == undefined) {
+            invocationLog = {start};
+            log[workflowInvocation] = invocationLog
+        } else {
+            invocationLog = log[workflowInvocation];
         }
+
+        do {
+            try {
+                if (invocationLog['retryCount'] !== undefined) {
+                    invocationLog['retryCount']++;
+                }
+                let out = await fn.apply(this, [args, {workflowInvocation}]);
+                const end = {
+                    timestamp: new Date().getTime(),
+                    out
+                };
+                delete invocationLog.fail;
+                invocationLog['end'] = end;
+                return out;
+            } catch (error) {
+                invocationLog['fail'] = {error, timestamp: new Date().getTime()}
+            }
+
+            if (invocationLog['retryCount'] === undefined) {
+                invocationLog['retryCount'] = 0;
+            }
+
+            const shouldRetryResult = await shouldRetry.apply(this, [invocationLog]);
+            if (!shouldRetryResult) break;
+        } while (true);
+
     }
 
     initLog(log) {
