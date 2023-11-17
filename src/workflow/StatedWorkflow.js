@@ -393,24 +393,16 @@ export class StatedWorkflow {
     }
 
     // This function is called by the template processor to execute an array of steps in parallel
-    static async parallel(input, steps, context) {
-        const {name: workflowName, log, workflowInvocation} = context;
-
-        if (log === undefined) {
-            throw new Error('log is missing from context');
-        }
+    static async parallel(input, steps, context = {}) {
+        let {workflowInvocation} = context;
 
         if (workflowInvocation === undefined) {
-            throw new Error('invocation id is missing from context');
+            workflowInvocation = this.generateDateAndTimeBasedID();
         }
 
-        StatedWorkflow.initializeLog(log, workflowName, workflowInvocation);
-
         let promises = [];
-        let serialOrdinal = 0;
-        for (let step of steps) {
-            const stepRecord = {invocationId: workflowInvocation, workflowName, stepName: step.name, serialOrdinal, branchType:"PARALLEL"};
-            const promise = StatedWorkflow.executeStep(step, input, log[workflowName][workflowInvocation], stepRecord)
+        for (let stepJson of steps) {
+            const promise = StatedWorkflow.runStep(workflowInvocation, stepJson, input)
               .then(result => {
                   // step.output.results.push(result);
                   return result;

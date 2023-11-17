@@ -447,12 +447,11 @@ test("workflow perf", async () => {
     expect(Object.keys(tp.output.step2.log).length).toEqual(10000);
 }, 10000);
 
-/*
 test("webserver", async () => {
     console.time("workflow perf total time"); // Start the timer with a label
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'experimental', 'wfHttp01.yaml');
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wfHttp01.yaml');
     console.time("Read YAML file"); // Start the timer for reading the file
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     console.timeEnd("Read YAML file"); // End the timer for reading the file
@@ -475,7 +474,7 @@ test("downloaders", async () => {
     console.time("workflow perf total time"); // Start the timer with a label
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'experimental', 'wfDownloads.yaml');
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wfDownloads.yaml');
     console.time("Read YAML file"); // Start the timer for reading the file
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     console.timeEnd("Read YAML file"); // End the timer for reading the file
@@ -494,53 +493,34 @@ test("downloaders", async () => {
     console.timeEnd("workflow perf total time"); // End the total time timer
 }, 10000);
 
-*/
 
-
-/*
 test("test all", async () => {
     const tp = await StatedWorkflow.newWorkflow({
-        "startEven": "tada",
+        "startEvent": "tada",
         // a,b,c,d are workflow stages, which include a callable stated expression, and an output object to
         // store the results of the expression and any errors that occur
         // it will allow workflow stages to be skipped if they have already been run or stop processing next
         // stages if the current stage fails.
         "a": {
-            "function": "${ function($in) { ( $console.log($in); [$in, 'a'] ~> $join('->') )} }",
-            "output": {
-                "results": [],
-                "errors": {}
-            }
+            "function": "${ function($in) { ( $console.log($in); [$in, 'a'] ~> $join('->') )} }"
         },
         "b": {
-            "function": "${ function($in) { [$in, 'b'] ~> $join('->') } }",
-            "output": {
-                "results": [],
-                "errors": {}
-            }
+            "function": "${ function($in) { [$in, 'b'] ~> $join('->') } }"
         },
         "c": {
-            "function": "${ function($in) { ( $console.log($in); [$in, 'c'] ~> $join('->') )} }",
-            "output": {
-                "results": [],
-                "errors": {}
-            }
+            "function": "${ function($in) { ( $console.log($in); [$in, 'c'] ~> $join('->') )} }"
         },
         "d": {
-            "function": "${ function($in) { ( $console.log($in); [$in, 'd'] ~> $join('->') )} }",
-            "output": {
-                "results": [],
-                "errors": {}
-            }
+            "function": "${ function($in) { ( $console.log($in); [$in, 'd'] ~> $join('->') )} }"
         },
-        "workflow1": "${ startEven ~> $serial([a, b]) }",
-        "workflow2": "${ startEven ~> $parallel([c,d]) }"
+        "workflow1": "${ startEvent ~> $serial([a, b]) }",
+        "workflow2": "${ startEvent ~> $parallel([c,d]) }"
     });
+    await tp.initialize();
     expect(tp.output.workflow1)
-        .toEqual(['tada->a','tada->a->b']);
+        .toEqual('tada->a->b');
     expect(tp.output.workflow2)
         .toEqual(expect.arrayContaining(['tada->c', 'tada->d']));
 });
-*/
 
 
