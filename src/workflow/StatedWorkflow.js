@@ -381,14 +381,6 @@ export class StatedWorkflow {
             }
         }
 
-        // for (let step of steps) {
-        //     const stepRecord = {workflowInvocation: workflowInvocation, workflowName, stepName: step.name, serialOrdinal, branchType:"SERIAL"};
-        //     currentInput = await StatedWorkflow.executeStep(step, currentInput, log[workflowName][workflowInvocation], stepRecord);
-        // }
-
-        //StatedWorkflow.finalizeLog(log[workflowName][workflowInvocation]);
-        //StatedWorkflow.ensureRetention(log[workflowName]);
-
         return currentInput;
     }
 
