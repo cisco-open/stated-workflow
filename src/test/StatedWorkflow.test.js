@@ -17,6 +17,8 @@ import yaml from 'js-yaml';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import {WorkflowDispatcher} from "../workflow/WorkflowDispatcher.js";
+import StatedREPL from "stated-js/dist/src/StatedREPL.js";
+import {EnhancedPrintFunc} from "./TestTools.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -89,7 +91,6 @@ test("correlate", async () => {
     expect(tp.output.state).toBe("RECEIVED_RESPONSE");
 }, 8000);
 
-/*
 test("workflow logs", async () => {
 
     // Load the YAML from the file
@@ -240,6 +241,7 @@ test("workflow logs", async () => {
     };
 }, 10000);
 
+/*
 test("recover completed workflow - should do nothing", async () => {
 
     // Load the YAML from the file
