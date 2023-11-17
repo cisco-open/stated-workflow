@@ -241,6 +241,8 @@ test("workflow logs", async () => {
     };
 }, 10000);
 
+// in this test we have a log invocation with both start and stop for step0, so recover should
+// not rerun the steps.
 test("recover completed workflow - should do nothing", async () => {
 
     const templateYaml =
@@ -310,10 +312,11 @@ test("recover completed workflow - should do nothing", async () => {
     });
 }, 10000);
 
+// in this test the workflow log includes a start but not end, and it should trigger the
+// workflow to rerun this event
 test("recover incomplete workflow - should rerun all steps", async () => {
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../','../','example', 'wf-recover.yaml');
     const templateYaml =
         `
     recover$: $recover(step0)
@@ -358,7 +361,6 @@ test("recover incomplete workflow - should rerun all steps", async () => {
     })
 }, 10000);
 
-/*
 test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 and 2", async () => {
 
     // Load the YAML from the file
@@ -406,11 +408,11 @@ test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 
     const tp = StatedWorkflow.newWorkflow(template);
     await tp.initialize();
     const {step0, step1, step2} = tp.output;
-    expect(step0.log['1697402819332-9q6gg'].end).exists;
-    expect(step1.log['1697402819332-9q6gg'].start).exists;
-    expect(step1.log['1697402819332-9q6gg'].end).exists;
-    expect(step2.log['1697402819332-9q6gg'].start).exists;
-    expect(step2.log['1697402819332-9q6gg'].end).exists;
+    expect(step0.log['1697402819332-9q6gg'].end).toBeDefined();
+    expect(step1.log['1697402819332-9q6gg'].start).toBeDefined();
+    expect(step1.log['1697402819332-9q6gg'].end).toBeDefined();
+    expect(step2.log['1697402819332-9q6gg'].start).toBeDefined();
+    expect(step2.log['1697402819332-9q6gg'].end).toBeDefined();
     expect(step2.log['1697402819332-9q6gg'].end.out).toMatchObject({
         "name": "nozzleTime",
         "primed": true,
@@ -419,29 +421,33 @@ test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 
 }, 10000);
 
 test("workflow perf", async () => {
-    console.time("workflow perf total time"); // Start the timer with a label
+    const startTime = Date.now(); // Start the total timer
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'experimental', 'wfPerf01.yaml');
-    console.time("Read YAML file"); // Start the timer for reading the file
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wfPerf01.yaml');
+    const readFileStart = Date.now(); // Start the timer for reading the file
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
-    console.timeEnd("Read YAML file"); // End the timer for reading the file
+    const readFileEnd = Date.now(); // End the timer for reading the file
+    console.log("Read YAML file: " + (readFileEnd - readFileStart) + "ms");
 
     // Parse the YAML
-    console.time("Parse YAML"); // Start the timer for parsing the YAML
+    const parseYamlStart = Date.now(); // Start the timer for parsing the YAML
     var template = yaml.load(templateYaml);
-    console.timeEnd("Parse YAML"); // End the timer for parsing the YAML
+    const parseYamlEnd = Date.now(); // End the timer for parsing the YAML
+    console.log("Parse YAML: " + (parseYamlEnd - parseYamlStart) + "ms");
 
     // Initialize the template
-    console.time("Initialize workflow"); // Start the timer for initializing the workflow
+    const initWorkflowStart = Date.now(); // Start the timer for initializing the workflow
     const tp = StatedWorkflow.newWorkflow(template);
     await tp.initialize();
-    console.timeEnd("Initialize workflow"); // End the timer for initializing the workflow
+    const initWorkflowTimeMs = Date.now() - initWorkflowStart; // time taken to init workflow
+    console.log("Initialize workflow: " + (initWorkflowTimeMs) + "ms");
+    expect(initWorkflowTimeMs).toBeLessThan(3000); // usually takes ~800ms, but providing some safety here
+    expect(Object.keys(tp.output.step1.log).length).toEqual(10000);
+    expect(Object.keys(tp.output.step2.log).length).toEqual(10000);
+}, 10000);
 
-    console.timeEnd("workflow perf total time"); // End the total time timer
-});
-
-
+/*
 test("webserver", async () => {
     console.time("workflow perf total time"); // Start the timer with a label
 
