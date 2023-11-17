@@ -241,38 +241,35 @@ test("workflow logs", async () => {
     };
 }, 10000);
 
-/*
 test("recover completed workflow - should do nothing", async () => {
 
-    // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../','../','example', 'experimental', 'wf-recover.yaml');
     const templateYaml =
-    `
+      `
     recover$: $recover(step0)
     name: nozzleWork
     step0:
       name: entrypoint
       function: /\${  function($e){$e ~> $serial([step1, step2])}  }
       "log": {
-            "1697402819332-9q6gg": {
-              "start": {
-                "timestamp": 1697402819332,
-                "args": {
-                  "name": "nozzleTime",
-                  "order": 1
-                }
-              },
-              "end": {
-                "timestamp": 1697402826805,
-                "out": {
-                  "name": "nozzleTime",
-                  "order": 1,
-                  "primed": true,
-                  "sprayed": true
-                }
-              }
+        "1697402819332-9q6gg": {
+          "start": {
+            "timestamp": 1697402819332,
+            "args": {
+              "name": "nozzleTime",
+              "order": 1
+            }
+          },
+          "end": {
+            "timestamp": 1697402826805,
+            "out": {
+              "name": "nozzleTime",
+              "order": 1,
+              "primed": true,
+              "sprayed": true
             }
           }
+        }
+      }
     step1:
       name: primeTheNozzle
       function: \${   function($e){ $e~>|$|{'primed':true}|}  }
@@ -280,15 +277,17 @@ test("recover completed workflow - should do nothing", async () => {
       name: sprayTheNozzle
       function: \${function($e){ $e~>|$|{'sprayed':true}|  }}
 `
-
     // Parse the YAML
     var template = yaml.load(templateYaml);
 
     const tp = StatedWorkflow.newWorkflow(template);
+
     await tp.initialize();
-    const {step0, step1, step2} = tp.output;
-    expect(step1.log).isUndefined;
-    expect(step2.log).isUndefined;
+
+    const {recover$, step0, step1, step2} = tp.output;
+    expect(recover$).toBeUndefined(); // make sure no error is returned
+    expect(step1.log).toBeUndefined();
+    expect(step2.log).toBeUndefined();
     expect(step0.log).toEqual({ //the entry point log is completed (it has a start and an end) - so we don't do anything
         "1697402819332-9q6gg": {
             "start": {
@@ -314,7 +313,7 @@ test("recover completed workflow - should do nothing", async () => {
 test("recover incomplete workflow - should rerun all steps", async () => {
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../','../','example', 'experimental', 'wf-recover.yaml');
+    const yamlFilePath = path.join(__dirname, '../','../','example', 'wf-recover.yaml');
     const templateYaml =
         `
     recover$: $recover(step0)
@@ -359,6 +358,7 @@ test("recover incomplete workflow - should rerun all steps", async () => {
     })
 }, 10000);
 
+/*
 test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 and 2", async () => {
 
     // Load the YAML from the file

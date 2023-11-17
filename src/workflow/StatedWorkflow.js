@@ -47,6 +47,7 @@ export class StatedWorkflow {
         "onHttp": StatedWorkflow.onHttp.bind(this),
         "subscribe": StatedWorkflow.subscribe.bind(this),
         "publish": StatedWorkflow.publish.bind(this),
+        "recover": StatedWorkflow.recover.bind(this),
         "logFunctionInvocation": StatedWorkflow.logFunctionInvocation.bind(this),
         //"workflow": StatedWorkflow.workflow.bind(this)
     };
@@ -441,6 +442,13 @@ export class StatedWorkflow {
           {'type': stepRecord.workflowName, 'data': stepRecord},
           {type:'pulsar', params: {serviceUrl: 'pulsar://localhost:6650'}}
         );
+    }
+
+    static async recover(stepJson){
+        const stepLog = new StepLog(stepJson);
+        for  (let workflowInvocation of stepLog.getInvocations()){
+            await this.runStep(workflowInvocation, stepJson);
+        }
     }
 
     static async runStep(workflowInvocation, stepJson, input){
