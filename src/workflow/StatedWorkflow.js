@@ -47,6 +47,7 @@ export class StatedWorkflow {
         "onHttp": StatedWorkflow.onHttp.bind(this),
         "subscribe": StatedWorkflow.subscribe.bind(this),
         "publish": StatedWorkflow.publish.bind(this),
+        "recover": StatedWorkflow.recover.bind(this),
         "logFunctionInvocation": StatedWorkflow.logFunctionInvocation.bind(this),
         //"workflow": StatedWorkflow.workflow.bind(this)
     };
@@ -143,10 +144,10 @@ export class StatedWorkflow {
     static publish(params) {
         StatedWorkflow.logger.debug(`publish params ${StatedREPL.stringify(params)} }`);
 
-        const {testData, type, client:clientParams={}} = params;
-        if (testData) {
-            this.logger.debug(`testData provided, will not publish to 'real' message broker for publish parameters ${StatedREPL.stringify(params)}`);
-            WorkflowDispatcher.addBatchToAllSubscribers(type, testData);
+        const {data, type, client:clientParams={}} = params;
+        if (clientParams  && clientParams.type === 'test') {
+            this.logger.debug(`test client provided, will not publish to 'real' message broker for publish parameters ${StatedREPL.stringify(params)}`);
+            WorkflowDispatcher.addBatchToAllSubscribers(type, data);
             return;
         }
 
@@ -380,36 +381,20 @@ export class StatedWorkflow {
             }
         }
 
-        // for (let step of steps) {
-        //     const stepRecord = {workflowInvocation: workflowInvocation, workflowName, stepName: step.name, serialOrdinal, branchType:"SERIAL"};
-        //     currentInput = await StatedWorkflow.executeStep(step, currentInput, log[workflowName][workflowInvocation], stepRecord);
-        // }
-
-        //StatedWorkflow.finalizeLog(log[workflowName][workflowInvocation]);
-        //StatedWorkflow.ensureRetention(log[workflowName]);
-
         return currentInput;
     }
 
     // This function is called by the template processor to execute an array of steps in parallel
-    static async parallel(input, steps, context) {
-        const {name: workflowName, log, workflowInvocation} = context;
-
-        if (log === undefined) {
-            throw new Error('log is missing from context');
-        }
+    static async parallel(input, steps, context = {}) {
+        let {workflowInvocation} = context;
 
         if (workflowInvocation === undefined) {
-            throw new Error('invocation id is missing from context');
+            workflowInvocation = this.generateDateAndTimeBasedID();
         }
 
-        StatedWorkflow.initializeLog(log, workflowName, workflowInvocation);
-
         let promises = [];
-        let serialOrdinal = 0;
-        for (let step of steps) {
-            const stepRecord = {invocationId: workflowInvocation, workflowName, stepName: step.name, serialOrdinal, branchType:"PARALLEL"};
-            const promise = StatedWorkflow.executeStep(step, input, log[workflowName][workflowInvocation], stepRecord)
+        for (let stepJson of steps) {
+            const promise = StatedWorkflow.runStep(workflowInvocation, stepJson, input)
               .then(result => {
                   // step.output.results.push(result);
                   return result;
@@ -441,6 +426,13 @@ export class StatedWorkflow {
           {'type': stepRecord.workflowName, 'data': stepRecord},
           {type:'pulsar', params: {serviceUrl: 'pulsar://localhost:6650'}}
         );
+    }
+
+    static async recover(stepJson){
+        const stepLog = new StepLog(stepJson);
+        for  (let workflowInvocation of stepLog.getInvocations()){
+            await this.runStep(workflowInvocation, stepJson);
+        }
     }
 
     static async runStep(workflowInvocation, stepJson, input){

@@ -1,7 +1,7 @@
 # producer will be sending data function output to the "type" topic
 produceParams:
   type: "my-topic"
-  testData: "${ [1..5].({'name': 'nozzleTime', 'rando': $random()})  }"
+  data: "${ [1..5].({'name': 'nozzleTime', 'rando': $random()})  }"
   client:
     type: test
 # producer will be invoking "to" function for each consumed event

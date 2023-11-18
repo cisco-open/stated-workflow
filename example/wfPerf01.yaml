@@ -6,16 +6,13 @@ subscribeParams: #parameters for subscribing to a cloud event
   filter$: function($e){ $e.name='nozzleTime' }
   to: ../${myWorkflow$}
   parallelism: 8
-  source: data
+  source: cloudEvent
+  client:
+    type: test
 
 myWorkflow$: |
   function($e){
-      $e ~> $serial([step1, step2], 
-                    {
-                      'name':$$.name, 
-                      'log':$$.log, 
-                      'id':$id($$.name)
-                    })
+      $e ~> $serial([step1, step2]) 
   }
 step1:
   name: primeTheNozzle
@@ -23,12 +20,3 @@ step1:
 step2:
   name: sprayTheNozzle
   function: ${function($e){ $e~>|$|{'sprayed':true}|  }}
-log:
-  retention:
-    maxWorkflowLogs: 100
-
-
-
-
-
-

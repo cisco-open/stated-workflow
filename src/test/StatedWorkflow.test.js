@@ -17,6 +17,8 @@ import yaml from 'js-yaml';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import {WorkflowDispatcher} from "../workflow/WorkflowDispatcher.js";
+import StatedREPL from "stated-js/dist/src/StatedREPL.js";
+import {EnhancedPrintFunc} from "./TestTools.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,23 +77,20 @@ test("pubsub", async () => {
     expect(Object.keys(tp.output.rxLog).length).toBe(5);
 }, 8000);
 
+test("correlate", async () => {
 
-//
-// test("correlate", async () => {
-//
-//     // Load the YAML from the file
-//     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'correlate.yaml');
-//     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
-//     var template = yaml.load(templateYaml);
-//     const tp = StatedWorkflow.newWorkflow(template);
-//     await tp.initialize();
-//     while(tp.output.state !== 'RECEIVED_RESPONSE'){
-//         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
-//     }
-//     expect(tp.output.state).toBe("RECEIVED_RESPONSE");
-// }, 8000);
+    // Load the YAML from the file
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'correlate.yaml');
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+    var template = yaml.load(templateYaml);
+    const tp = StatedWorkflow.newWorkflow(template);
+    await tp.initialize();
+    while(tp.output.state !== 'RECEIVED_RESPONSE'){
+        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+    }
+    expect(tp.output.state).toBe("RECEIVED_RESPONSE");
+}, 8000);
 
-/*
 test("workflow logs", async () => {
 
     // Load the YAML from the file
@@ -242,37 +241,37 @@ test("workflow logs", async () => {
     };
 }, 10000);
 
+// in this test we have a log invocation with both start and stop for step0, so recover should
+// not rerun the steps.
 test("recover completed workflow - should do nothing", async () => {
 
-    // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../','../','example', 'experimental', 'wf-recover.yaml');
     const templateYaml =
-    `
+      `
     recover$: $recover(step0)
     name: nozzleWork
     step0:
       name: entrypoint
       function: /\${  function($e){$e ~> $serial([step1, step2])}  }
       "log": {
-            "1697402819332-9q6gg": {
-              "start": {
-                "timestamp": 1697402819332,
-                "args": {
-                  "name": "nozzleTime",
-                  "order": 1
-                }
-              },
-              "end": {
-                "timestamp": 1697402826805,
-                "out": {
-                  "name": "nozzleTime",
-                  "order": 1,
-                  "primed": true,
-                  "sprayed": true
-                }
-              }
+        "1697402819332-9q6gg": {
+          "start": {
+            "timestamp": 1697402819332,
+            "args": {
+              "name": "nozzleTime",
+              "order": 1
+            }
+          },
+          "end": {
+            "timestamp": 1697402826805,
+            "out": {
+              "name": "nozzleTime",
+              "order": 1,
+              "primed": true,
+              "sprayed": true
             }
           }
+        }
+      }
     step1:
       name: primeTheNozzle
       function: \${   function($e){ $e~>|$|{'primed':true}|}  }
@@ -280,15 +279,17 @@ test("recover completed workflow - should do nothing", async () => {
       name: sprayTheNozzle
       function: \${function($e){ $e~>|$|{'sprayed':true}|  }}
 `
-
     // Parse the YAML
     var template = yaml.load(templateYaml);
 
     const tp = StatedWorkflow.newWorkflow(template);
+
     await tp.initialize();
-    const {step0, step1, step2} = tp.output;
-    expect(step1.log).isUndefined;
-    expect(step2.log).isUndefined;
+
+    const {recover$, step0, step1, step2} = tp.output;
+    expect(recover$).toBeUndefined(); // make sure no error is returned
+    expect(step1.log).toBeUndefined();
+    expect(step2.log).toBeUndefined();
     expect(step0.log).toEqual({ //the entry point log is completed (it has a start and an end) - so we don't do anything
         "1697402819332-9q6gg": {
             "start": {
@@ -311,10 +312,11 @@ test("recover completed workflow - should do nothing", async () => {
     });
 }, 10000);
 
+// in this test the workflow log includes a start but not end, and it should trigger the
+// workflow to rerun this event
 test("recover incomplete workflow - should rerun all steps", async () => {
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../','../','example', 'experimental', 'wf-recover.yaml');
     const templateYaml =
         `
     recover$: $recover(step0)
@@ -406,11 +408,11 @@ test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 
     const tp = StatedWorkflow.newWorkflow(template);
     await tp.initialize();
     const {step0, step1, step2} = tp.output;
-    expect(step0.log['1697402819332-9q6gg'].end).exists;
-    expect(step1.log['1697402819332-9q6gg'].start).exists;
-    expect(step1.log['1697402819332-9q6gg'].end).exists;
-    expect(step2.log['1697402819332-9q6gg'].start).exists;
-    expect(step2.log['1697402819332-9q6gg'].end).exists;
+    expect(step0.log['1697402819332-9q6gg'].end).toBeDefined();
+    expect(step1.log['1697402819332-9q6gg'].start).toBeDefined();
+    expect(step1.log['1697402819332-9q6gg'].end).toBeDefined();
+    expect(step2.log['1697402819332-9q6gg'].start).toBeDefined();
+    expect(step2.log['1697402819332-9q6gg'].end).toBeDefined();
     expect(step2.log['1697402819332-9q6gg'].end.out).toMatchObject({
         "name": "nozzleTime",
         "primed": true,
@@ -419,34 +421,39 @@ test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 
 }, 10000);
 
 test("workflow perf", async () => {
-    console.time("workflow perf total time"); // Start the timer with a label
+    const startTime = Date.now(); // Start the total timer
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'experimental', 'wfPerf01.yaml');
-    console.time("Read YAML file"); // Start the timer for reading the file
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wfPerf01.yaml');
+    const readFileStart = Date.now(); // Start the timer for reading the file
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
-    console.timeEnd("Read YAML file"); // End the timer for reading the file
+    const readFileEnd = Date.now(); // End the timer for reading the file
+    console.log("Read YAML file: " + (readFileEnd - readFileStart) + "ms");
 
     // Parse the YAML
-    console.time("Parse YAML"); // Start the timer for parsing the YAML
+    const parseYamlStart = Date.now(); // Start the timer for parsing the YAML
     var template = yaml.load(templateYaml);
-    console.timeEnd("Parse YAML"); // End the timer for parsing the YAML
+    const parseYamlEnd = Date.now(); // End the timer for parsing the YAML
+    console.log("Parse YAML: " + (parseYamlEnd - parseYamlStart) + "ms");
 
     // Initialize the template
-    console.time("Initialize workflow"); // Start the timer for initializing the workflow
+    const initWorkflowStart = Date.now(); // Start the timer for initializing the workflow
     const tp = StatedWorkflow.newWorkflow(template);
     await tp.initialize();
-    console.timeEnd("Initialize workflow"); // End the timer for initializing the workflow
+    const initWorkflowTimeMs = Date.now() - initWorkflowStart; // time taken to init workflow
+    console.log("Initialize workflow: " + (initWorkflowTimeMs) + "ms");
+    expect(initWorkflowTimeMs).toBeLessThan(3000); // usually takes ~800ms, but providing some safety here
+    expect(Object.keys(tp.output.step1.log).length).toEqual(10000);
+    expect(Object.keys(tp.output.step2.log).length).toEqual(10000);
+}, 10000);
 
-    console.timeEnd("workflow perf total time"); // End the total time timer
-});
-
-
+// TODO: webserver does not shut down after initialization. We will need to implement a shutdown callback
+/*
 test("webserver", async () => {
     console.time("workflow perf total time"); // Start the timer with a label
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'experimental', 'wfHttp01.yaml');
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wfHttp01.yaml');
     console.time("Read YAML file"); // Start the timer for reading the file
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     console.timeEnd("Read YAML file"); // End the timer for reading the file
@@ -463,13 +470,15 @@ test("webserver", async () => {
     console.timeEnd("Initialize workflow"); // End the timer for initializing the workflow
 
     console.timeEnd("workflow perf total time"); // End the total time timer
+    tp.close();
 });
+*/
 
 test("downloaders", async () => {
     console.time("workflow perf total time"); // Start the timer with a label
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'experimental', 'wfDownloads.yaml');
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wfDownloads.yaml');
     console.time("Read YAML file"); // Start the timer for reading the file
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     console.timeEnd("Read YAML file"); // End the timer for reading the file
@@ -488,53 +497,32 @@ test("downloaders", async () => {
     console.timeEnd("workflow perf total time"); // End the total time timer
 }, 10000);
 
-*/
 
-
-/*
 test("test all", async () => {
     const tp = await StatedWorkflow.newWorkflow({
-        "startEven": "tada",
+        "startEvent": "tada",
         // a,b,c,d are workflow stages, which include a callable stated expression, and an output object to
         // store the results of the expression and any errors that occur
         // it will allow workflow stages to be skipped if they have already been run or stop processing next
         // stages if the current stage fails.
         "a": {
-            "function": "${ function($in) { ( $console.log($in); [$in, 'a'] ~> $join('->') )} }",
-            "output": {
-                "results": [],
-                "errors": {}
-            }
+            "function": "${ function($in) { ( $console.log($in); [$in, 'a'] ~> $join('->') )} }"
         },
         "b": {
-            "function": "${ function($in) { [$in, 'b'] ~> $join('->') } }",
-            "output": {
-                "results": [],
-                "errors": {}
-            }
+            "function": "${ function($in) { [$in, 'b'] ~> $join('->') } }"
         },
         "c": {
-            "function": "${ function($in) { ( $console.log($in); [$in, 'c'] ~> $join('->') )} }",
-            "output": {
-                "results": [],
-                "errors": {}
-            }
+            "function": "${ function($in) { ( $console.log($in); [$in, 'c'] ~> $join('->') )} }"
         },
         "d": {
-            "function": "${ function($in) { ( $console.log($in); [$in, 'd'] ~> $join('->') )} }",
-            "output": {
-                "results": [],
-                "errors": {}
-            }
+            "function": "${ function($in) { ( $console.log($in); [$in, 'd'] ~> $join('->') )} }"
         },
-        "workflow1": "${ startEven ~> $serial([a, b]) }",
-        "workflow2": "${ startEven ~> $parallel([c,d]) }"
+        "workflow1": "${ startEvent ~> $serial([a, b]) }",
+        "workflow2": "${ startEvent ~> $parallel([c,d]) }"
     });
+    await tp.initialize();
     expect(tp.output.workflow1)
-        .toEqual(['tada->a','tada->a->b']);
+        .toEqual('tada->a->b');
     expect(tp.output.workflow2)
         .toEqual(expect.arrayContaining(['tada->c', 'tada->d']));
 });
-*/
-
-
