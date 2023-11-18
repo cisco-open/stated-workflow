@@ -52,6 +52,10 @@ export class StatedWorkflow {
         //"workflow": StatedWorkflow.workflow.bind(this)
     };
 
+    constructor(template){
+        this.templateProcessor = new TemplateProcessor(template, this.functions);
+    }
+
     static newWorkflow(template) {
         this.context = this.FUNCTIONS;
         const templateProcessor = new TemplateProcessor(template, this.context);
@@ -366,7 +370,7 @@ export class StatedWorkflow {
 
     }
 
-    static async serial(input, steps, context={}) {
+    async serial(input, stepsJsonPtr, context={}) {
         let {workflowInvocation} = context;
 
         if (workflowInvocation === undefined) {
@@ -374,10 +378,14 @@ export class StatedWorkflow {
         }
 
         let currentInput = input;
-
-        for (let stepJson of steps) {
-            if(currentInput !== undefined) {
-                currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput);
+        const steps = this.templateProcessor.get(stepsJsonPtr);
+        for (let i=0; i<steps.length; i++) {
+            if(currentInput === undefined) {
+                break;
+            }else{
+                const stepJson = steps[i];
+                const thisStepJsonPtr = stepsJsonPtr+"/log/"+workflowInvocation+"/"+i;
+                currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, thisStepJsonPtr);
             }
         }
 
@@ -428,6 +436,7 @@ export class StatedWorkflow {
         );
     }
 
+<<<<<<< HEAD
     static async recover(stepJson){
         const stepLog = new StepLog(stepJson);
         for  (let workflowInvocation of stepLog.getInvocations()){
@@ -436,6 +445,9 @@ export class StatedWorkflow {
     }
 
     static async runStep(workflowInvocation, stepJson, input){
+=======
+    static async runStep(workflowInvocation, stepJson, input, stepJsonPtr){
+>>>>>>> 1d633a0 (wip)
         const stepLog = new StepLog(stepJson);
         const {instruction, event:loggedEvent} = stepLog.getCourseOfAction(workflowInvocation);
         if(instruction === "START"){

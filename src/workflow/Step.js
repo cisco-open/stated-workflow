@@ -1,44 +1,45 @@
+import {JsonPointer as jp} from "stated-js"
 
 export default class Step {
-    constructor(stepJson) {
+    constructor(stepJson, templateProcessor) {
         this.stepJson = stepJson;
+        this.templateProcessor = templateProcessor;
     }
 
-    async run(workflowInvocation, args) {
-        const start = {
-            timestamp: new Date().getTime(),
-            args
-        };
-
-        let {log, function: fn, shouldRetry=(invocationLog)=>false} = this.stepJson;
-        log = this.initLog(log);
-        let invocationLog;
-        if (log[workflowInvocation] == undefined) {
-            invocationLog = {start};
-            log[workflowInvocation] = invocationLog
-        } else {
-            invocationLog = log[workflowInvocation];
+    async run(invocationLogJsonPtr, args) {
+        const {templateProcessor:tp} = this;
+        let invocationLog = tp.getData(invocationLogJsonPtr);
+        if(invocationLog===undefined){
+            invocationLog = {
+                start: {
+                    timestamp: new Date().getTime(),
+                    args
+                }
+            };
+            tp.setData(invocationLogJsonPtr, invocationLog );
         }
 
+        let {function: fn, shouldRetry=(invocationLog)=>false} =  this.stepJson;
+        let {retryCount}  = invocationLog;
         do {
             try {
-                if (invocationLog['retryCount'] !== undefined) {
-                    invocationLog['retryCount']++;
+                if (retryCount !== undefined) {
+                    tp.setData(invocationLogJsonPtr+"/retryCount", ++retryCount);
                 }
-                let out = await fn.apply(this, [args, {workflowInvocation}]);
+                let out = await fn.apply(this, [args]);
                 const end = {
                     timestamp: new Date().getTime(),
                     out
                 };
-                delete invocationLog.fail;
-                invocationLog['end'] = end;
+                tp.setData(invocationLogJsonPtr+"/end", {start});
+                tp.removeData(invocationLogJsonPtr+"/fail")
                 return out;
             } catch (error) {
-                invocationLog['fail'] = {error, timestamp: new Date().getTime()}
+                tp.setData(invocationLogJsonPtr+"/fail" , {error, timestamp: new Date().getTime()});
             }
 
-            if (invocationLog['retryCount'] === undefined) {
-                invocationLog['retryCount'] = 0;
+            if (retryCount === undefined) {
+                tp.setData(invocationLogJsonPtr + "/retryCount", 0);
             }
 
             const shouldRetryResult = await shouldRetry.apply(this, [invocationLog]);
@@ -47,11 +48,4 @@ export default class Step {
 
     }
 
-    initLog(log) {
-        if (log === undefined) {
-            log = {};
-            this.stepJson.log = log; //init to empty log, no workflowInvocations in it
-        }
-        return log;
-    }
 }
