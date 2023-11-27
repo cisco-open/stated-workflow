@@ -2504,6 +2504,11 @@ readable-stream@^3.4.0, readable-stream@^3.6.0:
     string_decoder "^1.1.1"
     util-deprecate "^1.0.1"
 
+readline@^1.3.0:
+  version "1.3.0"
+  resolved "https://registry.npmjs.org/readline/-/readline-1.3.0.tgz"
+  integrity sha512-k2d6ACCkiNYz222Fs/iNze30rRJ1iIicW7JuX/7/cozvih6YCkFZH+J6mAFDVgv0dRBaAyr4jDqC95R2y4IADg==
+
 repl@^0.1.3:
   version "0.1.3"
   resolved "https://registry.npmjs.org/repl/-/repl-0.1.3.tgz"
@@ -2686,10 +2691,8 @@ stack-utils@^2.0.3:
   dependencies:
     escape-string-regexp "^2.0.0"
 
-stated-js@^0.0.86:
-  version "0.0.86"
-  resolved "https://registry.npmjs.org/stated-js/-/stated-js-0.0.86.tgz"
-  integrity sha512-Meb6UHUy9KsWxoJSEgUITaewK6yUFXO2e8dOrDpbiHmh4fO8Fw1nQ5bcfQ2g/bZ/MAg4DpOe+0FNww6PwuljkQ==
+"stated-js@file:.yalc/stated-js":
+  version "0.0.90"
   dependencies:
     chalk "^5.3.0"
     flatbuffers "^23.5.26"
@@ -2699,6 +2702,7 @@ stated-js@^0.0.86:
     lodash "^4.17.21"
     lodash-es "^4.17.21"
     minimist "^1.2.8"
+    readline "^1.3.0"
     repl "^0.1.3"
     string-argv "^0.3.2"
     webpack-node-externals "^3.0.0"

@@ -19,6 +19,9 @@ import path from 'path';
 import {WorkflowDispatcher} from "../workflow/WorkflowDispatcher.js";
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import {EnhancedPrintFunc} from "./TestTools.js";
+import TemplateProcessor from "stated-js/dist/src/TemplateProcessor.js";
+import DependencyFinder from "stated-js/dist/src/DependencyFinder.js";
+import { default as jp } from "stated-js/dist/src/JsonPointer.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -525,4 +528,34 @@ test("test all", async () => {
         .toEqual('tada->a->b');
     expect(tp.output.workflow2)
         .toEqual(expect.arrayContaining(['tada->c', 'tada->d']));
+});
+
+test("function generators", async () => {
+    let template = {
+        "step1": {"function": "${   function($e){ $e~>|$|{'primed':true}|}  }"},
+        "step2": {"function": "${   function($e){ $e~>|$|{'sprayed':true}|}  }"},
+        "workflow": "${   function($e){ $e ~> $serial2([step1, step2]) }   }",
+        "result": "${ (koink; [{'id': '1'}, {'id': '2'}] ~> $map(workflow))}",
+        "konik": "some konik"
+    };
+    let tp = StatedWorkflow.newWorkflow(template);
+
+    await tp.initialize();
+
+    expect(tp.output.result).toBeDefined();
+
+    // Remove unnecessary fields from the result (sequence: true).
+    const resultItems = tp.output.result.map(item => {
+        return { id: item.id, primed: item.primed, sprayed: item.sprayed };
+    });
+
+    expect(resultItems).toStrictEqual([
+        { "id": "1", "primed": true, "sprayed": true },
+        { "id": "2", "primed": true, "sprayed": true }
+    ]);
+
+    expect(tp.output.step1.log).toBeDefined();
+    expect(Object.keys(tp.output.step1.log).length).toEqual(2);
+    expect(tp.output.step2.log).toBeDefined();
+    expect(Object.keys(tp.output.step2.log).length).toEqual(2);
 });

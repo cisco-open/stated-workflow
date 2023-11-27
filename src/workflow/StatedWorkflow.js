@@ -14,6 +14,7 @@
 // limitations under the License.
 import TemplateProcessor from "stated-js/dist/src/TemplateProcessor.js";
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
+import DependencyFinder from "stated-js/dist/src/DependencyFinder.js";
 import express from 'express';
 import Pulsar from 'pulsar-client';
 import {Kafka, logLevel} from 'kafkajs';
@@ -21,6 +22,7 @@ import winston from "winston";
 import {WorkflowDispatcher} from "./WorkflowDispatcher.js";
 import {StepLog} from "./StepLog.js";
 import Step from "./Step.js";
+import jp from "stated-js/dist/src/JsonPointer.js";
 
 //This class is a wrapper around the TemplateProcessor class that provides workflow functionality
 export class StatedWorkflow {
@@ -52,12 +54,82 @@ export class StatedWorkflow {
         //"workflow": StatedWorkflow.workflow.bind(this)
     };
 
+
+
     static newWorkflow(template) {
         this.context = this.FUNCTIONS;
-        const templateProcessor = new TemplateProcessor(template, this.context);
-        templateProcessor.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
-        return templateProcessor;
+        TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
+        const tp = new TemplateProcessor(template, this.context);
+        tp.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
+
+        // creating and setting up function generators here
+        const serialGen = this.serialGenerator(tp, template.steps);
+        tp.functionGenerators.set('serial2', serialGen);
+
+        return tp;
     }
+
+
+    /* Start  Experemental */
+
+    static serialGenerator(metaInf, tp) {
+        let serialDeps = {};
+        const serial = (metaInf, tp)=>{
+            return async (input, steps, context)=>{
+                const ast = metaInf.compiledExpr__.ast();
+                let depFinder = new DependencyFinder(ast);
+                depFinder = await depFinder.withAstFilterExpression("**[procedure.value='serial2']");
+
+                const absDeps = depFinder.findDependencies().map(d=>[...jp.parse(metaInf.exprTargetJsonPointer__), ...d]);
+                serialDeps[metaInf.jsonPointer__] = absDeps.map(jp.compile);
+
+                const serialResult = await StatedWorkflow.serial2(input, serialDeps, context, tp, metaInf);
+
+                return serialResult;
+            }
+        }
+        return serial;
+    }
+
+
+    // serial function with tp and metaInf as parameters
+    static async serial2(input, serialDeps, context={}, tp = null, metaInf = null) {
+        let {workflowInvocation} = context;
+
+        if (workflowInvocation === undefined) {
+            workflowInvocation = this.generateDateAndTimeBasedID();
+        }
+
+        let currentInput = input;
+
+        for (let dep of serialDeps[metaInf.jsonPointer__]) {
+            let stepJson = await tp.evaluate(dep);
+            if(currentInput !== undefined) {
+                currentInput = await StatedWorkflow.runStep2(workflowInvocation, stepJson, currentInput, tp, metaInf);
+            }
+        }
+
+        return currentInput;
+    }
+
+    static async runStep2(workflowInvocation, stepJson, input){
+        const stepLog = new StepLog(stepJson);
+        const {instruction, event:loggedEvent} = stepLog.getCourseOfAction(workflowInvocation);
+        if(instruction === "START"){
+            const step = new Step(stepJson);
+            return await step.run(workflowInvocation, input);
+        }else if (instruction === "RESTART"){
+            const step = new Step(stepJson);
+            return await step.run(workflowInvocation, loggedEvent.args);
+        } else if(instruction === "SKIP"){
+            return loggedEvent.out;
+        }else{
+            throw new Error(`unknown courseOfAction: ${instruction}`);
+        }
+    }
+
+
+    /* End Experemental */
 
     static async logFunctionInvocation(stage, args, result, error = null, log) {
         const logMessage = {
@@ -435,6 +507,21 @@ export class StatedWorkflow {
         }
     }
 
+    static async runStep(workflowInvocation, stepJson, input){
+        const stepLog = new StepLog(stepJson);
+        const {instruction, event:loggedEvent} = stepLog.getCourseOfAction(workflowInvocation);
+        if(instruction === "START"){
+            const step = new Step(stepJson);
+            return await step.run(workflowInvocation, input);
+        }else if (instruction === "RESTART"){
+            const step = new Step(stepJson);
+            return await step.run(workflowInvocation, loggedEvent.args);
+        } else if(instruction === "SKIP"){
+            return loggedEvent.out;
+        }else{
+            throw new Error(`unknown courseOfAction: ${instruction}`);
+        }
+    }
     static async runStep(workflowInvocation, stepJson, input){
         const stepLog = new StepLog(stepJson);
         const {instruction, event:loggedEvent} = stepLog.getCourseOfAction(workflowInvocation);

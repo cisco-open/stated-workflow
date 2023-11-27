@@ -1,0 +1,22 @@
+{
+  "output": "${   ['luke', 'han']~>$map(workflow) }",
+  "workflow": "${ function($person){$person~>$parallel([$serial(steps.part1), $serial(steps.part2))]} }",
+  "steps": {
+    "part1": [
+      {
+        "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
+      },
+      {
+        "function": "${  function($personDetail){$personDetail.homeworld}  }"
+      }
+    ],
+    "part2": [
+      {
+        "function": "${  function($homeworldURL){$homeworldURL.$fetch($).json() }  }"
+      },
+      {
+      "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"
+      }
+    ]
+  }
+}

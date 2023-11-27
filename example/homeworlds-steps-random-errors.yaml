@@ -1,0 +1,21 @@
+{
+  "output": "${   ['luke']~>$map(workflow) }",
+  "workflow": "${ function($person){$person~>$serial(steps)} }",
+  "updateRetries": "${ function($log){ ($log.output.retries & log.output.retries < 5) ? true : ($log.output.retries ?  false : $log.output.retries = 1 )} }",
+  "connectionError": true,
+  "steps": [
+    {
+      "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
+    },
+    {
+      "function": "${  function($personDetail){$personDetail.homeworld }  }"
+    },
+    {
+      "function": "/${ function($homeworldURL){ ( $o = connectionError ? '--broken-url--'.$fetch($).json() : $homeworldURL.$fetch($).json() ; connectionError = false; $o;) }  }",
+      "shouldRetry": "${  function($log){ $log.end ? false : $log.retries < 3 }  }"
+    },
+    {
+      "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"
+    }
+  ]
+}
