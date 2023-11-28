@@ -1,4 +1,4 @@
-import {JsonPointer as jp} from "stated-js"
+import {default as jp} from "stated-js/dist/src/JsonPointer.js";
 
 export default class Step {
     constructor(stepJson, templateProcessor) {
@@ -8,7 +8,7 @@ export default class Step {
 
     async run(invocationLogJsonPtr, args) {
         const {templateProcessor:tp} = this;
-        let invocationLog = tp.getData(invocationLogJsonPtr);
+        let invocationLog = jp.get(this.templateProcessor.output, invocationLogJsonPtr);
         if(invocationLog===undefined){
             invocationLog = {
                 start: {

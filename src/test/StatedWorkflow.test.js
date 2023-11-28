@@ -100,8 +100,9 @@ test("workflow logs", async () => {
     // Parse the YAML
     var template = yaml.load(templateYaml);
 
-    const tp = StatedWorkflow.newWorkflow(template);
-    await tp.initialize();
+    const wf = StatedWorkflow.newWorkflow(template);
+    await wf.templateProcessor.initialize();
+    const {templateProcessor:tp} = wf;
     const {step1, step2} = tp.output;
     //correlate each workflowInvocation from step1's log to step2's log
     Object.keys(step1.log).forEach(workflowInvocation=> {

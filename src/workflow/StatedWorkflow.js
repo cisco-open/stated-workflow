@@ -21,6 +21,8 @@ import winston from "winston";
 import {WorkflowDispatcher} from "./WorkflowDispatcher.js";
 import {StepLog} from "./StepLog.js";
 import Step from "./Step.js";
+import {default as jp}  from "stated-js/dist/src/JsonPointer.js"
+import DependencyFinder from "stated-js/dist/src/DependencyFinder.js";
 
 //This class is a wrapper around the TemplateProcessor class that provides workflow functionality
 export class StatedWorkflow {
@@ -42,25 +44,125 @@ export class StatedWorkflow {
 
     static FUNCTIONS = {
         "id": StatedWorkflow.generateDateAndTimeBasedID.bind(this),
-        "serial": StatedWorkflow.serial.bind(this),
-        "parallel": StatedWorkflow.parallel.bind(this),
+        //"parallel": StatedWorkflow.parallel.bind(this), FIXME TODO
         "onHttp": StatedWorkflow.onHttp.bind(this),
         "subscribe": StatedWorkflow.subscribe.bind(this),
         "publish": StatedWorkflow.publish.bind(this),
-        "recover": StatedWorkflow.recover.bind(this),
+        //"recover": StatedWorkflow.recover.bind(this), FIXME TODO
         "logFunctionInvocation": StatedWorkflow.logFunctionInvocation.bind(this),
         //"workflow": StatedWorkflow.workflow.bind(this)
     };
 
     constructor(template){
-        this.templateProcessor = new TemplateProcessor(template, this.functions);
+        this.templateProcessor = new TemplateProcessor(template, StatedWorkflow.FUNCTIONS);
+        this.templateProcessor.functionGenerators.set("serial", this.serial.bind(this));
     }
 
+    async serial(metaInf, tp){
+        const resolvedJsonPointers = await this.resolveEachStepToOneLocationInTemplate(metaInf);
+        return async (input, steps, context={}) => {
+            this.validateStepPointers(resolvedJsonPointers, steps, metaInf);
+            let {workflowInvocation} = context;
+
+            if (workflowInvocation === undefined) {
+                workflowInvocation = StatedWorkflow.generateDateAndTimeBasedID();
+            }
+
+            let currentInput = input;
+            for (let i = 0; i < steps.length; i++) {
+                if (currentInput === undefined) {
+                    break;
+                } else {
+                    const stepJson = steps[i];
+                    const stepJsonPtr = resolvedJsonPointers[i];
+                    currentInput = await this.runStep(workflowInvocation, stepJson, currentInput, stepJsonPtr);
+                }
+            }
+
+            return currentInput;
+        }
+    }
+
+
+    validateStepPointers(resolvedJsonPointers, steps, metaInf) {
+        if (resolvedJsonPointers.length !== steps.length) {
+            throw new Error(`At ${metaInf.jsonPointer__},
+            '$serial(...)' was passed ${steps.length} steps, but found ${resolvedJsonPointers.length} step locations in the document.`);
+        }
+    }
+
+    /**
+     * make sure that if the serial function has numSteps, that have located storage for each of the steps in the
+     * document.
+     * @param jsonPointers
+     */
+    drillIntoStepArrays(jsonPointers=[]){
+        const resolved = [];
+        jsonPointers.forEach(p=>{
+            if(!jp.has(this.templateProcessor.output, p)){
+                throw new Error(`Cannot find ${p} in the template`);
+            }
+            const loc = jp.get(this.templateProcessor.output, p);
+            //if serial has a dependency on an array, for example $serial(stepsArray) or
+            // $serial(step1~>append(otherStepsArray)), the we drill into the array and mine out json pointers
+            // to each element of the array
+            if(Array.isArray(loc)){
+                for(let i=0;i<loc.length;i++){
+                    resolved.push(p+"/"+i);
+                }
+            }else{
+                resolved.push(p);
+            }
+
+        });
+        return resolved;
+
+    }
+
+    async resolveEachStepToOneLocationInTemplate(metaInf){
+        const jsonPointers = await this.findSerialStepDependenciesInTemplate(metaInf);
+        const resolvedPointers = this.drillIntoStepArrays(jsonPointers);
+        return resolvedPointers;
+    }
+
+    async findSerialStepDependenciesInTemplate(metaInf){
+        const ast = metaInf.compiledExpr__.ast();
+        let depFinder = new DependencyFinder(ast);
+        depFinder = await depFinder.withAstFilterExpression("**[procedure.value='serial']");
+        if(depFinder.ast){
+            return depFinder.findDependencies().map(jp.compile)
+        }
+       return [];
+    }
+
+
+    /*
+    async serial(input, stepsJsonPtr, context={}) {
+        let {workflowInvocation} = context;
+
+        if (workflowInvocation === undefined) {
+            workflowInvocation = this.generateDateAndTimeBasedID();
+        }
+
+        let currentInput = input;
+        const steps = this.templateProcessor.get(stepsJsonPtr);
+        for (let i=0; i<steps.length; i++) {
+            if(currentInput === undefined) {
+                break;
+            }else{
+                const stepJson = steps[i];
+                const thisStepJsonPtr = stepsJsonPtr+"/log/"+workflowInvocation+"/"+i;
+                currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, thisStepJsonPtr);
+            }
+        }
+
+        return currentInput;
+    }
+
+     */
+
     static newWorkflow(template) {
-        this.context = this.FUNCTIONS;
-        const templateProcessor = new TemplateProcessor(template, this.context);
-        templateProcessor.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
-        return templateProcessor;
+        return new StatedWorkflow(template);
     }
 
     static async logFunctionInvocation(stage, args, result, error = null, log) {
@@ -370,30 +472,8 @@ export class StatedWorkflow {
 
     }
 
-    async serial(input, stepsJsonPtr, context={}) {
-        let {workflowInvocation} = context;
-
-        if (workflowInvocation === undefined) {
-            workflowInvocation = this.generateDateAndTimeBasedID();
-        }
-
-        let currentInput = input;
-        const steps = this.templateProcessor.get(stepsJsonPtr);
-        for (let i=0; i<steps.length; i++) {
-            if(currentInput === undefined) {
-                break;
-            }else{
-                const stepJson = steps[i];
-                const thisStepJsonPtr = stepsJsonPtr+"/log/"+workflowInvocation+"/"+i;
-                currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, thisStepJsonPtr);
-            }
-        }
-
-        return currentInput;
-    }
-
     // This function is called by the template processor to execute an array of steps in parallel
-    static async parallel(input, steps, context = {}) {
+    async parallel(input, steps, context = {}) {
         let {workflowInvocation} = context;
 
         if (workflowInvocation === undefined) {
@@ -402,7 +482,7 @@ export class StatedWorkflow {
 
         let promises = [];
         for (let stepJson of steps) {
-            const promise = StatedWorkflow.runStep(workflowInvocation, stepJson, input)
+            const promise = this.runStep(workflowInvocation, stepJson, input)
               .then(result => {
                   // step.output.results.push(result);
                   return result;
@@ -436,25 +516,22 @@ export class StatedWorkflow {
         );
     }
 
-<<<<<<< HEAD
-    static async recover(stepJson){
+
+    async recover(stepJson){
         const stepLog = new StepLog(stepJson);
         for  (let workflowInvocation of stepLog.getInvocations()){
             await this.runStep(workflowInvocation, stepJson);
         }
     }
+    async runStep(workflowInvocation, stepJson, input, stepJsonPtr){
 
-    static async runStep(workflowInvocation, stepJson, input){
-=======
-    static async runStep(workflowInvocation, stepJson, input, stepJsonPtr){
->>>>>>> 1d633a0 (wip)
         const stepLog = new StepLog(stepJson);
         const {instruction, event:loggedEvent} = stepLog.getCourseOfAction(workflowInvocation);
         if(instruction === "START"){
-            const step = new Step(stepJson);
+            const step = new Step(stepJson, this.templateProcessor);
             return await step.run(workflowInvocation, input);
         }else if (instruction === "RESTART"){
-            const step = new Step(stepJson);
+            const step = new Step(stepJson, this.templateProcessor);
             return await step.run(workflowInvocation, loggedEvent.args);
         } else if(instruction === "SKIP"){
             return loggedEvent.out;
