@@ -529,10 +529,10 @@ export class StatedWorkflow {
         const {instruction, event:loggedEvent} = stepLog.getCourseOfAction(workflowInvocation);
         if(instruction === "START"){
             const step = new Step(stepJson, this.templateProcessor);
-            return await step.run(workflowInvocation, input);
+            return await step.run(stepJsonPtr, workflowInvocation, input);
         }else if (instruction === "RESTART"){
             const step = new Step(stepJson, this.templateProcessor);
-            return await step.run(workflowInvocation, loggedEvent.args);
+            return await step.run(stepJsonPtr, workflowInvocation, loggedEvent.args);
         } else if(instruction === "SKIP"){
             return loggedEvent.out;
         }else{

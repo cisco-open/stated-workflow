@@ -6,9 +6,13 @@ export default class Step {
         this.templateProcessor = templateProcessor;
     }
 
-    async run(invocationLogJsonPtr, args) {
+    async run(stepJsonPtr, workflowInvocation, args) {
         const {templateProcessor:tp} = this;
-        let invocationLog = jp.get(this.templateProcessor.output, invocationLogJsonPtr);
+        const jsonPtr = stepJsonPtr + "/log/" + workflowInvocation
+        let invocationLog;
+        if(jp.has(this.templateProcessor.output, jsonPtr)){
+            invocationLog = jp.get(this.templateProcessor.output, jsonPtr);
+        }
         if(invocationLog===undefined){
             invocationLog = {
                 start: {
@@ -16,7 +20,7 @@ export default class Step {
                     args
                 }
             };
-            tp.setData(invocationLogJsonPtr, invocationLog );
+            tp.setData(jsonPtr, invocationLog );
         }
 
         let {function: fn, shouldRetry=(invocationLog)=>false} =  this.stepJson;
@@ -24,22 +28,22 @@ export default class Step {
         do {
             try {
                 if (retryCount !== undefined) {
-                    tp.setData(invocationLogJsonPtr+"/retryCount", ++retryCount);
+                    tp.setData(jsonPtr+"/retryCount", ++retryCount);
                 }
                 let out = await fn.apply(this, [args]);
                 const end = {
                     timestamp: new Date().getTime(),
                     out
                 };
-                tp.setData(invocationLogJsonPtr+"/end", {start});
-                tp.removeData(invocationLogJsonPtr+"/fail")
+                tp.setData(jsonPtr+"/end", end);
+                tp.removeData(jsonPtr+"/fail")
                 return out;
             } catch (error) {
-                tp.setData(invocationLogJsonPtr+"/fail" , {error, timestamp: new Date().getTime()});
+                tp.setData(jsonPtr+"/fail" , {error, timestamp: new Date().getTime()});
             }
 
             if (retryCount === undefined) {
-                tp.setData(invocationLogJsonPtr + "/retryCount", 0);
+                tp.setData(jsonPtr + "/retryCount", 0);
             }
 
             const shouldRetryResult = await shouldRetry.apply(this, [invocationLog]);
