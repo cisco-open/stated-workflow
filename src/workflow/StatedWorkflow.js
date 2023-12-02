@@ -21,6 +21,7 @@ import winston from "winston";
 import {WorkflowDispatcher} from "./WorkflowDispatcher.js";
 import {StepLog} from "./StepLog.js";
 import Step from "./Step.js";
+import Persistence from "./Persistence.js";
 
 //This class is a wrapper around the TemplateProcessor class that provides workflow functionality
 export class StatedWorkflow {
@@ -39,6 +40,8 @@ export class StatedWorkflow {
         ],
         level: "error", //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
     });
+
+    static persistence = new Persistence();
 
     static FUNCTIONS = {
         "id": StatedWorkflow.generateDateAndTimeBasedID.bind(this),
@@ -439,10 +442,10 @@ export class StatedWorkflow {
         const stepLog = new StepLog(stepJson);
         const {instruction, event:loggedEvent} = stepLog.getCourseOfAction(workflowInvocation);
         if(instruction === "START"){
-            const step = new Step(stepJson);
+            const step = new Step(stepJson, StatedWorkflow.persistence);
             return await step.run(workflowInvocation, input);
         }else if (instruction === "RESTART"){
-            const step = new Step(stepJson);
+            const step = new Step(stepJson, StatedWorkflow.persistence);
             return await step.run(workflowInvocation, loggedEvent.args);
         } else if(instruction === "SKIP"){
             return loggedEvent.out;

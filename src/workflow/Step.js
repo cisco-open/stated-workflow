@@ -1,7 +1,8 @@
 
 export default class Step {
-    constructor(stepJson) {
+    constructor(stepJson, persistence) {
         this.stepJson = stepJson;
+        this.persistence = persistence;
     }
 
     async run(workflowInvocation, args) {
@@ -32,6 +33,7 @@ export default class Step {
                 };
                 delete invocationLog.fail;
                 invocationLog['end'] = end;
+                this.persistence.save(workflowInvocation, this.stepJson, invocationLog);
                 return out;
             } catch (error) {
                 invocationLog['fail'] = {error, timestamp: new Date().getTime()}
@@ -40,7 +42,7 @@ export default class Step {
             if (invocationLog['retryCount'] === undefined) {
                 invocationLog['retryCount'] = 0;
             }
-
+            this.persistence.save(workflowInvocation, this.stepJson, invocationLog);
             const shouldRetryResult = await shouldRetry.apply(this, [invocationLog]);
             if (!shouldRetryResult) break;
         } while (true);
