@@ -13,6 +13,9 @@
 // limitations under the License.
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import {StatedWorkflow} from "./StatedWorkflow.js";
+
+// This class is used to add events to a queue and dispatch them to one or more subscribed workflow function with the
+// given parallelism. Tracks the number of active events and the number of events in the queue.
 export class WorkflowDispatcher {
     constructor(subscribeParams) {
         const {to: workflowFunction, parallelism, type, subscriberId} = subscribeParams;
