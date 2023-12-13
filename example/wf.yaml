@@ -1,4 +1,5 @@
 start$: $subscribe(subscribeParams, {})
+start2$: $subscribe(subscribeParams2, {})
 name: nozzleWork
 subscribeParams: #parameters for subscribing to a cloud event
   source: cloudEvent
@@ -8,7 +9,19 @@ subscribeParams: #parameters for subscribing to a cloud event
   to: ../${myWorkflow$}
   parallelism: 2
   subscriberId: ../${name}
+subscribeParams2: #parameters for subscribing to a cloud event
+  source: cloudEvent
+  testData: "${  [1].([{'name': 'nozzleTime', 'order':$}])  }"
+  type: 'my-topic'
+  filter$: function($e){ $e.name='nozzleTime' }
+  to: ../${myWorkflow2$}
+  parallelism: 2
+  subscriberId: 'nozzleWork2'
 myWorkflow$: |
+  function($e){
+      $e ~> $serialGenerator([step1, step2])
+  }
+myWorkflow2$: |
   function($e){
       $e ~> $serialGenerator([step1, step2])
   }

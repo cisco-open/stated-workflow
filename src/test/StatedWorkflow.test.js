@@ -108,8 +108,8 @@ test("workflow logs", async () => {
     expect(step2).toBeDefined();
     expect(step2.log).toBeDefined();
     //correlate each workflowInvocation from step1's log to step2's log
-    Object.keys(step1.log).forEach(workflowInvocation=> {
-            const removeUncomparableTimestamps = JSON.parse(StatedREPL.stringify(step2.log[workflowInvocation], EnhancedPrintFunc.printFunc));
+    Object.keys(step1.log["/myWorkflow$/step1"]).forEach(workflowInvocation=> {
+            const removeUncomparableTimestamps = JSON.parse(StatedREPL.stringify(step2.log["/myWorkflow$/step2"][workflowInvocation], EnhancedPrintFunc.printFunc));
             expect(removeUncomparableTimestamps).toMatchObject({
                 "start": {
                     "args": {

@@ -15,6 +15,7 @@ export default class Step {
         let {log, function: fn, shouldRetry=(invocationLog)=>false} = this.stepJson;
         log = this.initLog(log);
         let invocationLog;
+
         if (log[workflowInvocation] == undefined) {
             invocationLog = {start};
             log[workflowInvocation] = invocationLog
@@ -54,6 +55,10 @@ export default class Step {
         if (log === undefined) {
             log = {};
             this.stepJson.log = log; //init to empty log, no workflowInvocations in it
+        }
+        if (this.jsonPath !== undefined) {
+            log[this.jsonPath] = {};
+            return log[this.jsonPath];
         }
         return log;
     }
