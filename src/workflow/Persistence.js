@@ -6,9 +6,16 @@
  * Queue persists the log in a queue service. The queue can recover from the process/instance restart.
  */
 
+import fs from 'fs';
+import path from 'path';
+import util from 'util';
+
+const writeFile = util.promisify(fs.writeFile);
+const readFile = util.promisify(fs.readFile);
+
 // IPersistence.js
 export class IPersistence {
-    store(stepJson, invocationId, log) {
+    store(stepJson, invocationId, log, jsonPath) {
         throw new Error("Method 'store()' must be implemented.");
     }
 
@@ -31,65 +38,18 @@ export function createPersistence(persistenceParams = {persistenceType: "memory"
 }
 
 export class MemoryPersistence extends IPersistence {
+
+    log = {};
     constructor(params) {
         super();
-    }
-
-    store() {
-    }
-
-    restore() {
-    }
-}
-
-export class FilePersistence extends IPersistence {
-    constructor(params) {
-        super();
-        // File specific initialization
-    }
-
-    store(stepJson, invocationId, log) {
 
     }
 
-    restore() {
-        // TODO: implement
-    }
-}
-
-export class QueuePersistence extends IPersistence {
-    serviceUrl;
-    constructor(params) {
-        super();
-        this.serviceUrl = 'pulsar://localhost:6650'
-    }
-
-    store(stepJson, invocationId, log) {
-        StatedWorkflow.publish(
-          {'type': stepJson.workflowName, 'data': log},
-          {type:'pulsar', params: {serviceUrl: this.serviceUrl}}
-        );
-    }
-
-    restore() {
-        // TODO: implement
-    }
-}
-
-export class Persistence {
-
-    persistenceImpl;
-
-    constructor(persistenceParams = {persistenceType: "memory"}) {
-        this.log = {};
-        switch (persistenceParams.persistenceType) {
-            case 'memory':
-                this.persistenceImpl = new MemoryPersistence(persistenceParams);
-            case 'file':
-                this.persistenceImpl = new FilePersistence(persistenceParams);
-
-
+    store(stepJson, invocationId, log, jsonPath) {
+        if (!(stepJson in this.log)) {
+            this.log[stepJson] = {};
         }
+        this.log[stepJson][invocationId] = log;
     }
 
     async load(workflowInvocation, stepJson) {
@@ -109,27 +69,41 @@ export class Persistence {
         return log;
     }
 
-    async save(workflowInvocation, stepJson, invocationLog) {
-        if (!(stepJson in this.log)) {
-            this.log[stepJson] = {};
-        }
-        this.log[stepJson][workflowInvocation] = invocationLog;
+    restore() {
+        // TODO: implement
+    }
+}
+
+export class FilePersistence extends IPersistence {
+    constructor(params) {
+        super();
+        // File specific initialization
     }
 
+    store(stepJson, invocationId, log, jsonPath) {
 
-    /** copy of the functions from the StatedWorkflow class below **/
+    }
 
-    // ensures that the log object has the right structure for the workflow invocation
-    static initializeLog(log, workflowName, id) {
-        if (!log[workflowName]) log[workflowName] = {};
-        if (!log[workflowName][id]) log[workflowName][id] = {
-            info: {
-                start: new Date().getTime(),
-                status: 'in-progress'
-            },
-            execution: {}
-        };
-    };
+    restore() {
+        // TODO: implement
+    }
+}
 
+export class QueuePersistence extends IPersistence {
+    serviceUrl;
+    constructor(params) {
+        super();
+        this.serviceUrl = 'pulsar://localhost:6650'
+    }
 
+    store(stepJson, invocationId, log, jsonPath) {
+        StatedWorkflow.publish(
+          {'type': stepJson.workflowName, 'data': log},
+          {type:'pulsar', params: {serviceUrl: this.serviceUrl}}
+        );
+    }
+
+    restore() {
+        // TODO: implement
+    }
 }
