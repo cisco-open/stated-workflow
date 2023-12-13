@@ -103,6 +103,10 @@ test("workflow logs", async () => {
     const tp = StatedWorkflow.newWorkflow(template);
     await tp.initialize();
     const {step1, step2} = tp.output;
+    expect(step1).toBeDefined();
+    expect(step1.log).toBeDefined();
+    expect(step2).toBeDefined();
+    expect(step2.log).toBeDefined();
     //correlate each workflowInvocation from step1's log to step2's log
     Object.keys(step1.log).forEach(workflowInvocation=> {
             const removeUncomparableTimestamps = JSON.parse(StatedREPL.stringify(step2.log[workflowInvocation], EnhancedPrintFunc.printFunc));

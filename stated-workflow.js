@@ -6,6 +6,8 @@ import {StatedWorkflow} from "./src/workflow/StatedWorkflow.js";
     //starts a single-user REPL session in its own dedicated process therefore replacing
     //the static DEFAULT_FUNCTIONS won't have side effects
     TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
+    const tp = new TemplateProcessor();
+    tp.functionGenerators.set("serialGenerator", StatedWorkflow.serialGenerator);
     const repl = new StatedREPL();
     await repl.initialize();
 })();

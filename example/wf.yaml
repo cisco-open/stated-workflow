@@ -10,7 +10,7 @@ subscribeParams: #parameters for subscribing to a cloud event
   subscriberId: ../${name}
 myWorkflow$: |
   function($e){
-      $e ~> $serial([step1, step2])
+      $e ~> $serialGenerator([step1, step2])
   }
 step1:
   name: primeTheNozzle
@@ -18,4 +18,3 @@ step1:
 step2:
   name: sprayTheNozzle
   function: ${function($e){ $e~>|$|{'sprayed':true}|  }}
-
