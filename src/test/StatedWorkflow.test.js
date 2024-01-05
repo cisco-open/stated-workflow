@@ -32,7 +32,7 @@ test("wf", async () => {
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     let template = yaml.load(templateYaml);
     // instantiate template processor
-    const tp = StatedWorkflow.newWorkflow(template);
+    const tp = await StatedWorkflow.newWorkflow(template);
     await tp.initialize();
     while(tp.output.stop$ === 'still going'){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
@@ -69,7 +69,7 @@ test("pubsub", async () => {
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     let template = yaml.load(templateYaml);
     // instantiate template processor
-    const tp = StatedWorkflow.newWorkflow(template);
+    const tp = await StatedWorkflow.newWorkflow(template);
     await tp.initialize();
     while(tp.output.stop$ === 'still going'){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
@@ -83,7 +83,7 @@ test("correlate", async () => {
     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'correlate.yaml');
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     var template = yaml.load(templateYaml);
-    const tp = StatedWorkflow.newWorkflow(template);
+    const tp = await StatedWorkflow.newWorkflow(template);
     await tp.initialize();
     while(tp.output.state !== 'RECEIVED_RESPONSE'){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
@@ -100,7 +100,7 @@ test("workflow logs", async () => {
     // Parse the YAML
     var template = yaml.load(templateYaml);
 
-    const tp = StatedWorkflow.newWorkflow(template);
+    const tp = await StatedWorkflow.newWorkflow(template);
     await tp.initialize();
     const {step1, step2} = tp.output;
     expect(step1).toBeDefined();
@@ -286,7 +286,7 @@ test("recover completed workflow - should do nothing", async () => {
     // Parse the YAML
     var template = yaml.load(templateYaml);
 
-    const tp = StatedWorkflow.newWorkflow(template);
+    const tp = await StatedWorkflow.newWorkflow(template);
 
     await tp.initialize();
 
@@ -350,7 +350,7 @@ test("recover incomplete workflow - should rerun all steps", async () => {
     // Parse the YAML
     var template = yaml.load(templateYaml);
 
-    const tp = StatedWorkflow.newWorkflow(template);
+    const tp = await StatedWorkflow.newWorkflow(template);
     await tp.initialize();
     const {step0, step1, step2} = tp.output;
     expect(step0.log['1697402819332-9q6gg'].end).exists;
@@ -409,7 +409,7 @@ test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 
     // Parse the YAML
     var template = yaml.load(templateYaml);
 
-    const tp = StatedWorkflow.newWorkflow(template);
+    const tp = await StatedWorkflow.newWorkflow(template);
     await tp.initialize();
     const {step0, step1, step2} = tp.output;
     expect(step0.log['1697402819332-9q6gg'].end).toBeDefined();
@@ -442,7 +442,7 @@ test("workflow perf", async () => {
 
     // Initialize the template
     const initWorkflowStart = Date.now(); // Start the timer for initializing the workflow
-    const tp = StatedWorkflow.newWorkflow(template);
+    const tp = await StatedWorkflow.newWorkflow(template);
     await tp.initialize();
     const initWorkflowTimeMs = Date.now() - initWorkflowStart; // time taken to init workflow
     console.log("Initialize workflow: " + (initWorkflowTimeMs) + "ms");
@@ -469,7 +469,7 @@ test("webserver", async () => {
 
     // Initialize the template
     console.time("Initialize workflow"); // Start the timer for initializing the workflow
-    const tp = StatedWorkflow.newWorkflow(template);
+    const tp await = StatedWorkflow.newWorkflow(template);
     await tp.initialize();
     console.timeEnd("Initialize workflow"); // End the timer for initializing the workflow
 
@@ -494,7 +494,7 @@ test("downloaders", async () => {
 
     // Initialize the template
     console.time("Initialize workflow"); // Start the timer for initializing the workflow
-    const tp = StatedWorkflow.newWorkflow(template);
+    const tp = await StatedWorkflow.newWorkflow(template);
     await tp.initialize();
     console.timeEnd("Initialize workflow"); // End the timer for initializing the workflow
 

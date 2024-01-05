@@ -59,8 +59,9 @@ export class StatedWorkflow {
     };
 
 
-    static newWorkflow(template) {
-        // this.context = this.FUNCTIONS;
+    static async newWorkflow(template) {
+        this.persistence = new createPersistence({persistenceType: 'file'});
+        await this.persistence.init();
         TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
         const tp = new TemplateProcessor(template);
         tp.functionGenerators.set("serialGenerator", StatedWorkflow.serialGenerator);
