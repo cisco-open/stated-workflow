@@ -16,13 +16,15 @@ const writeFile = util.promisify(fs.writeFile);
 const unlink = util.promisify(fs.unlink);
 const mkdir = util.promisify(fs.mkdir);
 
-// IPersistence.js
+// Persistence interface defines functions to be implemented by persistence classes.
 export class IPersistence {
 
+    // most of the Persistence classes require initialization.
     async init() {
         throw new Error("Method 'init()' must be implemented.");
     }
 
+    // store the log for a workflow invocation
     async store(stepJson, invocationId, log, jsonPath) {
         throw new Error("Method 'store()' must be implemented.");
     }
@@ -55,6 +57,10 @@ export class MemoryPersistence extends IPersistence {
     constructor(params) {
         super();
 
+    }
+
+    async init() {
+        this.log = {};
     }
 
     store(stepJson, invocationId, log, jsonPath) {
