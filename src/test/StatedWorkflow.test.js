@@ -621,32 +621,32 @@ test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 
     })
 }, 10000);
 
-// test("workflow perf", async () => {
-//     const startTime = Date.now(); // Start the total timer
-//
-//     // Load the YAML from the file
-//     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wfPerf01.yaml');
-//     const readFileStart = Date.now(); // Start the timer for reading the file
-//     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
-//     const readFileEnd = Date.now(); // End the timer for reading the file
-//     console.log("Read YAML file: " + (readFileEnd - readFileStart) + "ms");
-//
-//     // Parse the YAML
-//     const parseYamlStart = Date.now(); // Start the timer for parsing the YAML
-//     var template = yaml.load(templateYaml);
-//     const parseYamlEnd = Date.now(); // End the timer for parsing the YAML
-//     console.log("Parse YAML: " + (parseYamlEnd - parseYamlStart) + "ms");
-//
-//     // Initialize the template
-//     const initWorkflowStart = Date.now(); // Start the timer for initializing the workflow
-//     const tp = await StatedWorkflow.newWorkflow(template);
-//     await tp.initialize();
-//     const initWorkflowTimeMs = Date.now() - initWorkflowStart; // time taken to init workflow
-//     console.log("Initialize workflow: " + (initWorkflowTimeMs) + "ms");
-//     expect(initWorkflowTimeMs).toBeLessThan(3000); // usually takes ~800ms, but providing some safety here
-//     expect(Object.keys(tp.output.step1.log).length).toEqual(10000);
-//     expect(Object.keys(tp.output.step2.log).length).toEqual(10000);
-// }, 10000);
+test("workflow perf", async () => {
+    const startTime = Date.now(); // Start the total timer
+
+    // Load the YAML from the file
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wfPerf01.yaml');
+    const readFileStart = Date.now(); // Start the timer for reading the file
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+    const readFileEnd = Date.now(); // End the timer for reading the file
+    console.log("Read YAML file: " + (readFileEnd - readFileStart) + "ms");
+
+    // Parse the YAML
+    const parseYamlStart = Date.now(); // Start the timer for parsing the YAML
+    var template = yaml.load(templateYaml);
+    const parseYamlEnd = Date.now(); // End the timer for parsing the YAML
+    console.log("Parse YAML: " + (parseYamlEnd - parseYamlStart) + "ms");
+
+    // Initialize the template
+    const initWorkflowStart = Date.now(); // Start the timer for initializing the workflow
+    const tp = await StatedWorkflow.newWorkflow(template);
+    await tp.initialize();
+    const initWorkflowTimeMs = Date.now() - initWorkflowStart; // time taken to init workflow
+    console.log("Initialize workflow: " + (initWorkflowTimeMs) + "ms");
+    expect(initWorkflowTimeMs).toBeLessThan(3000); // usually takes ~800ms, but providing some safety here
+    expect(Object.keys(tp.output.step1.log).length).toEqual(10000);
+    expect(Object.keys(tp.output.step2.log).length).toEqual(10000);
+}, 10000);
 //
 // // TODO: webserver does not shut down after initialization. We will need to implement a shutdown callback
 // /*
