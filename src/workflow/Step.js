@@ -56,7 +56,7 @@ export default class Step {
             log = {};
             this.stepJson.log = log; //init to empty log, no workflowInvocations in it
         }
-        if (this.jsonPath !== undefined) {
+        if (this.jsonPath) {
             log[this.jsonPath] = {};
             return log[this.jsonPath];
         }

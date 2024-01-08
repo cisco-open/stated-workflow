@@ -61,7 +61,7 @@ export class StatedWorkflow {
 
     // this methd returns a TemplateProcessor instance with the default functions and Stated Workflow functions. It also
     // initializes persistence store, and set generator functions.
-    static async newWorkflow(template, persistenceType = 'memory') {
+    static async newWorkflow(template, persistenceType = 'noop') {
         this.persistence = new createPersistence({persistenceType: persistenceType});
         await this.persistence.init();
         TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
@@ -384,7 +384,6 @@ export class StatedWorkflow {
             const ast = metaInf.compiledExpr__.ast();
             let depFinder = new DependencyFinder(ast);
             depFinder = await depFinder.withAstFilterExpression("**[procedure.value='serialGenerator']");
-            //this is just an example of how we can find the dependencies of $serial([foo, bar]) and cache them for later use
             const absDeps = depFinder.findDependencies().map(d => [...jp.parse(metaInf.exprTargetJsonPointer__), ...d]);
             serialDeps[metaInf.jsonPointer__] = absDeps.map(jp.compile);
             return serial(input, steps, context, serialDeps);

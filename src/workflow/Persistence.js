@@ -40,6 +40,8 @@ export class IPersistence {
 
 export function createPersistence(persistenceParams = {persistenceType: "memory"}) {
     switch (persistenceParams.persistenceType) {
+        case 'noop':
+            return new Noop();
         case 'memory':
             return new MemoryPersistence(persistenceParams);
         case 'file':
@@ -51,6 +53,23 @@ export function createPersistence(persistenceParams = {persistenceType: "memory"
     }
 }
 
+export class Noop extends IPersistence {
+    constructor(params) {
+        super();
+    }
+
+    async init() {
+    }
+
+    store(stepJson, invocationId, log, jsonPath) {
+    }
+
+    async erase(invocationId, jsonPath) {
+    }
+
+    async restore() {
+    }
+}
 export class MemoryPersistence extends IPersistence {
 
     log = {};
@@ -126,7 +145,103 @@ export class FilePersistence extends IPersistence {
         return path.join(dir, `${safeName}.json`);
     }
 
-    async store(jsonPath, invocationId, log) {
+    async store(stepJson, invocationId, log, jsonPath) {
+        const filePath = this.generateFilePath(jsonPath, invocationId);
+        try {
+            const data = JSON.stringify(log, null, 2);
+            await writeFile(filePath, data, 'utf8');
+
+            if (log.end) {
+                const completedFilePath = this.generateFilePath(jsonPath, invocationId, true);
+                await writeFile(completedFilePath, data, 'utf8');
+                await unlink(filePath);
+                await this.manageCompletedFiles();
+            }
+        } catch (error) {
+            console.error('Error writing to file:', error);
+            throw error;
+        }
+    }
+
+    async manageCompletedFiles() {
+        try {
+            const files = await readdir(this.completedPath);
+            if (files.length > 100) {
+                const sortedFiles = files.sort((a, b) => {
+                    const aTime = parseInt(a.split('-').pop(), 10);
+                    const bTime = parseInt(b.split('-').pop(), 10);
+                    return bTime - aTime;
+                });
+                const filesToDelete = sortedFiles.slice(100);
+                for (const file of filesToDelete) {
+                    await unlink(path.join(this.completedPath, file));
+                }
+            }
+        } catch (error) {
+            console.error('Error managing completed files:', error);
+            throw error;
+        }
+    }
+
+    async erase(jsonPath, invocationId) {
+        const filePath = this.generateFilePath(jsonPath, invocationId);
+        try {
+            await unlink(filePath);
+        } catch (error) {
+            console.error('Error deleting file:', error);
+            throw error;
+        }
+    }
+
+    async restore(output) {
+        try {
+            const basePathFiles = await readdir(this.basePath);
+            const completedPathFiles = await readdir(this.completedPath);
+            const allFiles = basePathFiles.concat(completedPathFiles);
+
+            for (const file of allFiles) {
+                const filePath = path.join(file.startsWith('completed') ? this.completedPath : this.basePath, file);
+                const data = await readFile(filePath, 'utf8');
+                const log = JSON.parse(data);
+
+                // Extract the jsonPath from the filename
+                const jsonPath = decodeURIComponent(file.split('-')[0]);
+
+                // Add log data to the output object
+                if (!output[jsonPath]) {
+                    output[jsonPath] = [];
+                }
+                output[jsonPath].push(log);
+            }
+        } catch (error) {
+            console.error('Error restoring data:', error);
+            throw error;
+        }
+    }
+}
+
+export class SingleFilePersistence extends IPersistence {
+    constructor(params) {
+        super();
+        this.basePath = params.basePath || path.join(process.cwd(), '.state');
+        this.filePath = path.join(this.basePath, 'state.json');
+    }
+
+    async init() {
+        await this.ensureDirectoryExists(this.basePath);
+    }
+
+    async ensureDirectoryExists(dir) {
+        try {
+            await mkdir(dir, { recursive: true });
+        } catch (error) {
+            if (error.code !== 'EEXIST') {
+                throw error;
+            }
+        }
+    }
+
+    async store(stepJson, invocationId, log, jsonPath) {
         const filePath = this.generateFilePath(jsonPath, invocationId);
         try {
             const data = JSON.stringify(log, null, 2);
