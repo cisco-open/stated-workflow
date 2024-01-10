@@ -57,28 +57,36 @@ export default class Step {
             log = {};
             this.stepJson.log = log; //init to empty log, no workflowInvocations in it
         }
-        if (this.jsonPath) {
-            log[this.jsonPath] = {};
-            return new Proxy(log[this.jsonPath], {
-                set: (target, property, value) => {
-                    this.changeLog(target, property, value);
-                    target[property] = value;
-                    return true; // indicates success
-                }
-            });
+        if (this.tp === undefined) {
+            return log;
         }
+        // if (this.jsonPath) {
+        //     log[this.jsonPath] = {};
+        //     return new Proxy(log[this.jsonPath], {
+        //         set: (target, property, value) => {
+        //             this.changeLog(target, property, value);
+        //             target[property] = value;
+        //             return true; // indicates success
+        //         }
+        //     });
+        // }
         return new Proxy(log, {
             set: (target, property, value) => {
-                this.changeLog(target, property, value);
-                target[property] = value;
+                try {
+                    this.changeLog(target, property, value);
+                } catch (e) {
+                    console.log(`Error in changeLog: ${e}`);
+                    return false;
+                }
                 return true; // indicates success
             }
         });
     }
 
     changeLog(target, property, value) {
-        // TODO: this has to implement chaning data through the TemplateProcessor.setData 
-        // console.log(`Log changed - this.jsonPath: ${this.jsonPath}, Property: ${property}, Value: ${JSON.stringify(value)}`);
-        // this.tp.setData(this.jsonPath, value, "set");
+        // TODO: this has to implement chaning data through the TemplateProcessor.setData
+        // console.log(`Log changed - this.jsonPath: ${this.jsonPath}, target: ${JSON.stringify(target)}, property: ${property}, value: ${JSON.stringify(value)}`);
+        // jsonPath points to the step description. We store logs in jsonPath + '/log, and need to key it by workflowInvocation, which comes in property value.
+        this.tp.setData(this.jsonPath + '/log/' + 'property', value, "set");
     }
 }

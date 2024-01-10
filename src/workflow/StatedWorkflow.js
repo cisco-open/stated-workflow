@@ -390,7 +390,7 @@ export class StatedWorkflow {
         }
     }
 
-    static async serial(input, steps, context={}, stepDeps = {}, tp = {}) {
+    static async serial(input, steps, context={}, stepDeps = {}, tp = undefined) {
         let {workflowInvocation} = context;
 
         if (workflowInvocation === undefined) {
@@ -403,7 +403,8 @@ export class StatedWorkflow {
         for (let i = 0; i < steps.length; i++) {
             const stepJson = steps[i];
             if(currentInput !== undefined) {
-                currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, funcJsonPath ? funcJsonPath + funcStepsJsonPath?.[i] : undefined, tp);
+                // currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, funcJsonPath ? funcJsonPath + funcStepsJsonPath?.[i] : undefined, tp);
+                currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, funcStepsJsonPath?.[i], tp);
             }
         }
         // for (let stepJson of steps) {
