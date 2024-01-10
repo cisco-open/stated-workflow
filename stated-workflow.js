@@ -8,6 +8,6 @@ import {StatedWorkflow} from "./src/workflow/StatedWorkflow.js";
     TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
     const tp = new TemplateProcessor();
     tp.functionGenerators.set("serialGenerator", StatedWorkflow.serialGenerator);
-    const repl = new StatedREPL();
+    const repl = new StatedREPL(tp);
     await repl.initialize();
 })();
