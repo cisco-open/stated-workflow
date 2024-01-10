@@ -1,9 +1,10 @@
 
 export default class Step {
-    constructor(stepJson, persistence, jsonPath = null) {
+    constructor(stepJson, persistence, jsonPath = null, tp) {
         this.stepJson = stepJson;
         this.persistence = persistence;
         this.jsonPath = jsonPath;
+        this.tp = tp;
     }
 
     async run(workflowInvocation, args) {
@@ -58,8 +59,26 @@ export default class Step {
         }
         if (this.jsonPath) {
             log[this.jsonPath] = {};
-            return log[this.jsonPath];
+            return new Proxy(log[this.jsonPath], {
+                set: (target, property, value) => {
+                    this.changeLog(target, property, value);
+                    target[property] = value;
+                    return true; // indicates success
+                }
+            });
         }
-        return log;
+        return new Proxy(log, {
+            set: (target, property, value) => {
+                this.changeLog(target, property, value);
+                target[property] = value;
+                return true; // indicates success
+            }
+        });
+    }
+
+    changeLog(target, property, value) {
+        // TODO: this has to implement chaning data through the TemplateProcessor.setData 
+        // console.log(`Log changed - this.jsonPath: ${this.jsonPath}, Property: ${property}, Value: ${JSON.stringify(value)}`);
+        // this.tp.setData(this.jsonPath, value, "set");
     }
 }

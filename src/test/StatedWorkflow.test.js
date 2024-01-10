@@ -727,3 +727,30 @@ test("test all", async () => {
     expect(tp.output.workflow2)
         .toEqual(expect.arrayContaining(['tada->c', 'tada->d']));
 });
+
+test("persist and recover from file", async () => {
+    const tp = await StatedWorkflow.newWorkflow({
+        "startEvent": "tada",
+        // a,b,c,d are workflow stages, which include a callable stated expression, and an output object to
+        // store the results of the expression and any errors that occur
+        // it will allow workflow stages to be skipped if they have already been run or stop processing next
+        // stages if the current stage fails.
+        "a": {
+            "function": "${ function($in) { ( $console.log($in); [$in, 'a'] ~> $join('->') )} }"
+        },
+        "b": {
+            "function": "${ function($in) { [$in, 'b'] ~> $join('->') } }"
+        },
+        "workflow1": "${ startEvent ~> $serialGenerator([a, b]) }",
+    });
+
+
+    // const dataChangeCallback2 = debounce(fs.writeFileSync('.state/output.json', JSON.stringify(tp.output)), 1000);
+    const dataChangeCallback = async () => {
+        await fs.writeFileSync('.state/output.json', JSON.stringify(tp.output)), 1000};
+
+    tp.setDataChangeCallback(dataChangeCallback);
+    await tp.initialize();
+    expect(tp.output.workflow1)
+      .toEqual('tada->a->b');
+});

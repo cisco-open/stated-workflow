@@ -29,7 +29,7 @@ import jp from "stated-js/dist/src/JsonPointer.js";
 export class StatedWorkflow {
     // static express = require('express');
     static app = express();
-    static port = 3000;
+    static port = 8080;
     static logger = winston.createLogger({
         format: winston.format.json(),
         transports: [
@@ -386,11 +386,11 @@ export class StatedWorkflow {
             depFinder = await depFinder.withAstFilterExpression("**[procedure.value='serialGenerator']");
             const absDeps = depFinder.findDependencies().map(d => [...jp.parse(metaInf.exprTargetJsonPointer__), ...d]);
             serialDeps[metaInf.jsonPointer__] = absDeps.map(jp.compile);
-            return serial(input, steps, context, serialDeps);
+            return serial(input, steps, context, serialDeps, tp);
         }
     }
 
-    static async serial(input, steps, context={}, stepDeps = {}) {
+    static async serial(input, steps, context={}, stepDeps = {}, tp = {}) {
         let {workflowInvocation} = context;
 
         if (workflowInvocation === undefined) {
@@ -403,7 +403,7 @@ export class StatedWorkflow {
         for (let i = 0; i < steps.length; i++) {
             const stepJson = steps[i];
             if(currentInput !== undefined) {
-                currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, funcJsonPath ? funcJsonPath + funcStepsJsonPath?.[i] : undefined);
+                currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, funcJsonPath ? funcJsonPath + funcStepsJsonPath?.[i] : undefined, tp);
             }
         }
         // for (let stepJson of steps) {
@@ -466,14 +466,14 @@ export class StatedWorkflow {
         }
     }
 
-    static async runStep(workflowInvocation, stepJson, input, jsonPath){
+    static async runStep(workflowInvocation, stepJson, input, jsonPath, tp){
         const stepLog = new StepLog(stepJson);
         const {instruction, event:loggedEvent} = stepLog.getCourseOfAction(workflowInvocation);
         if(instruction === "START"){
-            const step = new Step(stepJson, StatedWorkflow.persistence, jsonPath);
+            const step = new Step(stepJson, StatedWorkflow.persistence, jsonPath, tp);
             return await step.run(workflowInvocation, input);
         }else if (instruction === "RESTART"){
-            const step = new Step(stepJson, StatedWorkflow.persistence, jsonPath);
+            const step = new Step(stepJson, StatedWorkflow.persistence, jsonPath, tp);
             return await step.run(workflowInvocation, loggedEvent.args);
         } else if(instruction === "SKIP"){
             return loggedEvent.out;
