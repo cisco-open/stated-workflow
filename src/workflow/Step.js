@@ -55,51 +55,49 @@ export default class Step {
 
     }
 
-
     async runTP(workflowInvocation, args) {
-        const start = {
-            timestamp: new Date().getTime(),
-            args
-        };
 
-        let {log, function: fn, shouldRetry=(invocationLog)=>false} = this.stepJson;
-        log = this.tp.out(this.jsonPath + '/log/');
-        log = this.initLog(log);
-        let invocationLog;
+        let {function: fn, shouldRetry=(invocationLog)=>false} = this.stepJson;
 
-        if (log[workflowInvocation] == undefined) {
-            invocationLog = {start};
-            await this.tp.setData(this.jsonPath + '/log/' + workflowInvocation, invocationLog);
-        } else {
-            invocationLog = log[workflowInvocation];
+        const invocationLogJsonPtr = this.jsonPath + "/log/" + workflowInvocation;
+        let invocationLog = this.tp.out(invocationLogJsonPtr);
+
+        if (invocationLog == undefined || invocationLog == null) {
+            invocationLog = {start:
+                  {
+                      timestamp: new Date().getTime(),
+                      args
+                  }
+            };
+            await this.tp.setData(invocationLogJsonPtr, invocationLog);
         }
 
+        let {retryCount}  = invocationLog;
         do {
             try {
-                if (invocationLog['retryCount'] !== undefined) {
-                    invocationLog['retryCount']++;
+                if (retryCount !== undefined) {
+                    await this.tp.setData(invocationLogJsonPtr+"/retryCount", ++retryCount);
                 }
                 let out = await fn.apply(this, [args, {workflowInvocation}]);
                 const end = {
                     timestamp: new Date().getTime(),
                     out
                 };
-                delete invocationLog.fail;
-                invocationLog['end'] = end;
-
-                this.persistence.store(this.stepJson, workflowInvocation, invocationLog, this.jsonPath);
-                await this.tp.setData(this.jsonPath + '/log/' + workflowInvocation, invocationLog);
+                await this.tp.setData(invocationLogJsonPtr+"/end", end);
+                // TODO: uncomment
+                // await this.tp.setData(invocationLogJsonPtr+"/fail", undefined);
 
                 return out;
             } catch (error) {
-                invocationLog['fail'] = {error, timestamp: new Date().getTime()}
+                this.tp.setData(invocationLogJsonPtr+"/fail" , {error, timestamp: new Date().getTime()});
             }
 
-            if (invocationLog['retryCount'] === undefined) {
-                invocationLog['retryCount'] = 0;
+            if (retryCount === undefined || retryCount === null) {
+                this.tp.setData(invocationLogJsonPtr + "/retryCount", 0);
+                // invocationLog['retryCount'] = 0;
             }
             this.persistence.store(this.stepJson, workflowInvocation, invocationLog, this.jsonPath);
-            await this.tp.setData(this.jsonPath + '/log/' + workflowInvocation, invocationLog);
+            // await this.tp.setData(this.jsonPath + '/log/' + workflowInvocation, invocationLog);
 
             const shouldRetryResult = await shouldRetry.apply(this, [invocationLog]);
             if (!shouldRetryResult) break;
