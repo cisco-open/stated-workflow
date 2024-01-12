@@ -37,6 +37,7 @@ export default class Step {
                 };
                 tp.setData(jsonPtr+"/end", end);
                 //tp.removeData(jsonPtr+"/fail") FIXME TODDO
+                // tp.setData(jsonPtr+"/fail", undefined)
                 return out;
             } catch (error) {
                 tp.setData(jsonPtr+"/fail" , {error, timestamp: new Date().getTime()});
