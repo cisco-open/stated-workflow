@@ -59,7 +59,7 @@ export class StatedWorkflow {
     }
 
     async serial(metaInf, tp){
-        const resolvedJsonPointers = await this.resolveEachStepToOneLocationInTemplate(metaInf);
+        const resolvedJsonPointers = await this.resolveEachStepToOneLocationInTemplate(metaInf); //fixme todo we should avoid doing this for every jsonata evaluation
         return async (input, steps, context={}) => {
             this.validateStepPointers(resolvedJsonPointers, steps, metaInf);
             let {workflowInvocation} = context;
