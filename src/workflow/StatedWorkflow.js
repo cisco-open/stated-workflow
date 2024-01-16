@@ -55,7 +55,6 @@ export class StatedWorkflow {
         "recover": StatedWorkflow.recover.bind(this),
         "logFunctionInvocation": StatedWorkflow.logFunctionInvocation.bind(this),
         //"workflow": StatedWorkflow.workflow.bind(this)
-        "serialGenerator": StatedWorkflow.serialGenerator.bind(this),
     };
 
 
@@ -378,6 +377,63 @@ export class StatedWorkflow {
 
     }
 
+    /**
+     *
+     * @param resolvedJsonPointers
+     * @param steps
+     * @param metaInf
+     */
+    static validateStepPointers(resolvedJsonPointers, steps, metaInf) {
+        if (resolvedJsonPointers.length !== steps.length) {
+            throw new Error(`At ${metaInf.jsonPointer__},
+            '$serial(...)' was passed ${steps.length} steps, but found ${resolvedJsonPointers.length} step locations in the document.`);
+        }
+    }
+
+    static async resolveEachStepToOneLocationInTemplate(metaInf, tp){
+        const jsonPointers = await StatedWorkflow.findSerialStepDependenciesInTemplate(metaInf);
+        const resolvedPointers = StatedWorkflow.drillIntoStepArrays(jsonPointers, tp);
+        return resolvedPointers;
+    }
+
+    static async findSerialStepDependenciesInTemplate(metaInf){
+        const ast = metaInf.compiledExpr__.ast();
+        let depFinder = new DependencyFinder(ast);
+        depFinder = await depFinder.withAstFilterExpression("**[procedure.value='serialGenerator']");
+        if(depFinder.ast){
+            return depFinder.findDependencies().map(jp.compile)
+        }
+        return [];
+    }
+
+    /**
+     * make sure that if the serial function has numSteps, that have located storage for each of the steps in the
+     * document.
+     * @param jsonPointers
+     */
+    static drillIntoStepArrays(jsonPointers=[], tp){
+        const resolved = [];
+        jsonPointers.forEach(p=>{
+            if(!jp.has(tp.output, p)){
+                throw new Error(`Cannot find ${p} in the template`);
+            }
+            const loc = jp.get(tp.output, p);
+            //if serial has a dependency on an array, for example $serial(stepsArray) or
+            // $serial(step1~>append(otherStepsArray)), the we drill into the array and mine out json pointers
+            // to each element of the array
+            if(Array.isArray(loc)){
+                for(let i=0;i<loc.length;i++){
+                    resolved.push(p+"/"+i);
+                }
+            }else{
+                resolved.push(p);
+            }
+
+        });
+        return resolved;
+
+    }
+
     static async serialGenerator(metaInf, tp) {
         let serialDeps = {};
         return async (input, steps, context) => {
@@ -386,11 +442,15 @@ export class StatedWorkflow {
             depFinder = await depFinder.withAstFilterExpression("**[procedure.value='serialGenerator']");
             const absDeps = depFinder.findDependencies().map(d => [...jp.parse(metaInf.exprTargetJsonPointer__), ...d]);
             serialDeps[metaInf.jsonPointer__] = absDeps.map(jp.compile);
-            return serial(input, steps, context, serialDeps, tp);
+
+            const resolvedJsonPointers = await StatedWorkflow.resolveEachStepToOneLocationInTemplate(metaInf, tp); //fixme todo we should avoid doing this for every jsonata evaluation
+            StatedWorkflow.validateStepPointers(resolvedJsonPointers, steps, metaInf);
+
+            return serial(input, steps, context, resolvedJsonPointers, tp);
         }
     }
 
-    static async serial(input, steps, context={}, stepDeps = {}, tp = undefined) {
+    static async serial(input, steps, context={}, resolvedJsonPointers = {}, tp = undefined) {
         let {workflowInvocation} = context;
 
         if (workflowInvocation === undefined) {
@@ -398,13 +458,13 @@ export class StatedWorkflow {
         }
 
         let currentInput = input;
-        const funcJsonPath = Object.keys(stepDeps)?.[0] ?? null;
-        const funcStepsJsonPath = stepDeps?.[funcJsonPath] ?? [];
+        // const funcJsonPath = Object.keys(resolvedJsonPointers)?.[0] ?? null;
+        // const funcStepsJsonPath = resolvedJsonPointers?.[funcJsonPath] ?? [];
         for (let i = 0; i < steps.length; i++) {
             const stepJson = steps[i];
             if(currentInput !== undefined) {
                 // currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, funcJsonPath ? funcJsonPath + funcStepsJsonPath?.[i] : undefined, tp);
-                currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, funcStepsJsonPath?.[i], tp);
+                currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, resolvedJsonPointers?.[i], tp);
             }
         }
         // for (let stepJson of steps) {
@@ -467,14 +527,15 @@ export class StatedWorkflow {
         }
     }
 
-    static async runStep(workflowInvocation, stepJson, input, jsonPath, tp){
+    static async runStep(workflowInvocation, stepJson, input, stepJsonPtr, tp){
+
         const stepLog = new StepLog(stepJson);
         const {instruction, event:loggedEvent} = stepLog.getCourseOfAction(workflowInvocation);
         if(instruction === "START"){
-            const step = new Step(stepJson, StatedWorkflow.persistence, jsonPath, tp);
+            const step = new Step(stepJson, StatedWorkflow.persistence, stepJsonPtr, tp);
             return await step.run(workflowInvocation, input);
         }else if (instruction === "RESTART"){
-            const step = new Step(stepJson, StatedWorkflow.persistence, jsonPath, tp);
+            const step = new Step(stepJson, StatedWorkflow.persistence, stepJsonPtr, tp);
             return await step.run(workflowInvocation, loggedEvent.args);
         } else if(instruction === "SKIP"){
             return loggedEvent.out;

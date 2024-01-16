@@ -3,7 +3,7 @@ export default class Step {
     constructor(stepJson, persistence, jsonPath = null, tp) {
         this.stepJson = stepJson;
         this.persistence = persistence;
-        this.jsonPath = jsonPath;
+        this.stepJsonPtr = jsonPath;
         this.tp = tp;
     }
 
@@ -39,7 +39,7 @@ export default class Step {
                 };
                 delete invocationLog.fail;
                 invocationLog['end'] = end;
-                this.persistence.store(this.stepJson, workflowInvocation, invocationLog, this.jsonPath);
+                this.persistence.store(this.stepJson, workflowInvocation, invocationLog, this.stepJsonPtr);
                 return out;
             } catch (error) {
                 invocationLog['fail'] = {error, timestamp: new Date().getTime()}
@@ -48,7 +48,7 @@ export default class Step {
             if (invocationLog['retryCount'] === undefined) {
                 invocationLog['retryCount'] = 0;
             }
-            this.persistence.store(this.stepJson, workflowInvocation, invocationLog, this.jsonPath);
+            this.persistence.store(this.stepJson, workflowInvocation, invocationLog, this.stepJsonPtr);
             const shouldRetryResult = await shouldRetry.apply(this, [invocationLog]);
             if (!shouldRetryResult) break;
         } while (true);
@@ -59,7 +59,7 @@ export default class Step {
 
         let {function: fn, shouldRetry=(invocationLog)=>false} = this.stepJson;
 
-        const invocationLogJsonPtr = this.jsonPath + "/log/" + workflowInvocation;
+        const invocationLogJsonPtr = this.stepJsonPtr + "/log/" + workflowInvocation;
         let invocationLog = this.tp.out(invocationLogJsonPtr);
 
         if (invocationLog == undefined || invocationLog == null) {
@@ -96,7 +96,7 @@ export default class Step {
                 this.tp.setData(invocationLogJsonPtr + "/retryCount", 0);
                 // invocationLog['retryCount'] = 0;
             }
-            this.persistence.store(this.stepJson, workflowInvocation, invocationLog, this.jsonPath);
+            this.persistence.store(this.stepJson, workflowInvocation, invocationLog, this.stepJsonPtr);
             // await this.tp.setData(this.jsonPath + '/log/' + workflowInvocation, invocationLog);
 
             const shouldRetryResult = await shouldRetry.apply(this, [invocationLog]);
@@ -119,10 +119,10 @@ export default class Step {
 
         // let invocationLog;
 
-        let invocationLog = this.tp.out(this.jsonPath + '/log/' + workflowInvocation);
+        let invocationLog = this.tp.out(this.stepJsonPtr + '/log/' + workflowInvocation);
         if (invocationLog == undefined || invocationLog == null) {
             invocationLog = {start};
-            await this.tp.setData(this.jsonPath + '/log/' + workflowInvocation, invocationLog);
+            await this.tp.setData(this.stepJsonPtr + '/log/' + workflowInvocation, invocationLog);
         }
 
         do {
@@ -145,20 +145,20 @@ export default class Step {
                     out
                 };
 
-                await this.tp.setData(this.jsonPath + '/log/' + workflowInvocation + '/end', end);
-                this.persistence.store(this.stepJson, workflowInvocation, invocationLog, this.jsonPath);
+                await this.tp.setData(this.stepJsonPtr + '/log/' + workflowInvocation + '/end', end);
+                this.persistence.store(this.stepJson, workflowInvocation, invocationLog, this.stepJsonPtr);
                 return out;
             } catch (error) {
                 // invocationLog['fail'] = {error, timestamp: new Date().getTime()}
-                await this.tp.setData(this.jsonPath + '/log/' + workflowInvocation + '/fail', {error, timestamp: new Date().getTime()});
+                await this.tp.setData(this.stepJsonPtr + '/log/' + workflowInvocation + '/fail', {error, timestamp: new Date().getTime()});
             }
 
             if (retryCount === undefined || retryCount === null) {
                 // invocationLog['retryCount'] = 0;
-                await this.tp.setData(this.jsonPath + '/log/' + workflowInvocation + '/retryCount', 0);
+                await this.tp.setData(this.stepJsonPtr + '/log/' + workflowInvocation + '/retryCount', 0);
             }
-            this.persistence.store(this.stepJson, workflowInvocation, invocationLog, this.jsonPath);
-            const shouldRetryResult = await shouldRetry.apply(this, [this.tp.out(this.jsonPath + '/log/' + workflowInvocation)]);
+            this.persistence.store(this.stepJson, workflowInvocation, invocationLog, this.stepJsonPtr);
+            const shouldRetryResult = await shouldRetry.apply(this, [this.tp.out(this.stepJsonPtr + '/log/' + workflowInvocation)]);
             if (!shouldRetryResult) break;
         } while (true);
 
@@ -194,8 +194,8 @@ export default class Step {
 
     async changeLog(target, property, value) {
         // TODO: this has to implement chaning data through the TemplateProcessor.setData
-        console.log(`Log changed - this.jsonPath: ${this.jsonPath}, target: ${JSON.stringify(target)}, property: ${property}, value: ${JSON.stringify(value)}`);
+        console.log(`Log changed - this.jsonPath: ${this.stepJsonPtr}, target: ${JSON.stringify(target)}, property: ${property}, value: ${JSON.stringify(value)}`);
         // jsonPath points to the step description. We store logs in jsonPath + '/log, and need to key it by workflowInvocation, which comes in property value.
-        await this.tp.setData(this.jsonPath + '/log/' + property, value, "set");
+        await this.tp.setData(this.stepJsonPtr + '/log/' + property, value, "set");
     }
 }
