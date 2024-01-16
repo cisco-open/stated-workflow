@@ -437,11 +437,11 @@ export class StatedWorkflow {
     static async serialGenerator(metaInf, tp) {
         let serialDeps = {};
         return async (input, steps, context) => {
-            const ast = metaInf.compiledExpr__.ast();
-            let depFinder = new DependencyFinder(ast);
-            depFinder = await depFinder.withAstFilterExpression("**[procedure.value='serialGenerator']");
-            const absDeps = depFinder.findDependencies().map(d => [...jp.parse(metaInf.exprTargetJsonPointer__), ...d]);
-            serialDeps[metaInf.jsonPointer__] = absDeps.map(jp.compile);
+            // const ast = metaInf.compiledExpr__.ast();
+            // let depFinder = new DependencyFinder(ast);
+            // depFinder = await depFinder.withAstFilterExpression("**[procedure.value='serialGenerator']");
+            // const absDeps = depFinder.findDependencies().map(d => [...jp.parse(metaInf.exprTargetJsonPointer__), ...d]);
+            // serialDeps[metaInf.jsonPointer__] = absDeps.map(jp.compile);
 
             const resolvedJsonPointers = await StatedWorkflow.resolveEachStepToOneLocationInTemplate(metaInf, tp); //fixme todo we should avoid doing this for every jsonata evaluation
             StatedWorkflow.validateStepPointers(resolvedJsonPointers, steps, metaInf);
