@@ -21,6 +21,11 @@ app.post('/workflow', async (req, res) => {
     }
 });
 
+app.get('/workflow', (req, res) => {
+    const workflowIds = Object.keys(workflows);
+    res.json({ workflowIds });
+});
+
 app.get('/workflow/:workflowId', (req, res) => {
     const workflowId = req.params.workflowId;
     const workflow = workflows[workflowId];
