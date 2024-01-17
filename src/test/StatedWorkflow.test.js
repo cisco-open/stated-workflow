@@ -120,19 +120,19 @@ test("pubsub", async () => {
     expect(Object.keys(tp.output.rxLog).length).toBe(5);
 }, 8000);
 
-// test("correlate", async () => {
-//
-//     // Load the YAML from the file
-//     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'correlate.yaml');
-//     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
-//     var template = yaml.load(templateYaml);
-//     const tp = await StatedWorkflow.newWorkflow(template);
-//     await tp.initialize();
-//     while(tp.output.state !== 'RECEIVED_RESPONSE'){
-//         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
-//     }
-//     expect(tp.output.state).toBe("RECEIVED_RESPONSE");
-// }, 8000);
+test("correlate", async () => {
+
+    // Load the YAML from the file
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'correlate.yaml');
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+    var template = yaml.load(templateYaml);
+    const tp = await StatedWorkflow.newWorkflow(template);
+    await tp.initialize();
+    while(tp.output.state !== 'RECEIVED_RESPONSE'){
+        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+    }
+    expect(tp.output.state).toBe("RECEIVED_RESPONSE");
+}, 8000);
 
 test("workflow logs", async () => {
 

@@ -31,8 +31,7 @@ listenForCommand:
           $e.type = 'DO_IT'?(
             $console.log('RECEIVED_COMMAND ' & $e);
             $set('/state', 'RECEIVED_COMMAND');
-            $set('/resp/data/correlationId', $e.correlationId);
-            $publish(resp);
+            $publish(resp ~> |data[0]|{correlationId: $e.correlationId}|);
           ):0;           
       )}  }
   subscriberId: commandReceiver
