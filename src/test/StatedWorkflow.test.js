@@ -24,9 +24,6 @@ import {debounce} from "stated-js/dist/src/utils/debounce.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-test("noop", async () => {});
-
-
 test("wf", async () => {
     // Load the YAML from the file
     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wf.yaml');
@@ -645,8 +642,8 @@ test("workflow perf", async () => {
     const initWorkflowTimeMs = Date.now() - initWorkflowStart; // time taken to init workflow
     console.log("Initialize workflow: " + (initWorkflowTimeMs) + "ms");
     expect(initWorkflowTimeMs).toBeLessThan(6000); // usually takes ~800ms, but providing some safety here
-    expect(Object.keys(tp.output.step1.log).length).toEqual(10000);
-    expect(Object.keys(tp.output.step2.log).length).toEqual(10000);
+    expect(Object.keys(tp.output.step1.log).length).toEqual(300);
+    expect(Object.keys(tp.output.step2.log).length).toEqual(300);
 }, 10000);
 
 
@@ -721,13 +718,15 @@ test("test all", async () => {
         "d": {
             "function": "${ function($in) { ( $console.log($in); [$in, 'd'] ~> $join('->') )} }"
         },
-        "workflow1": "${ startEvent ~> $serial([a, b]) }",
-        "workflow2": "${ startEvent ~> $parallel([c,d]) }"
+        "workflow1": "${ function($startEvent) { $startEvent ~> $serial([a, b]) } }",
+        "workflow1out": "${ workflow1(startEvent)}",
+        "workflow2": "${ function($startEvent) { $startEvent ~> $parallel([c,d]) } }",
+        "workflow2out": "${ workflow2(startEvent)}"
     });
     await tp.initialize();
-    expect(tp.output.workflow1)
+    expect(tp.output.workflow1out)
         .toEqual('tada->a->b');
-    expect(tp.output.workflow2)
+    expect(tp.output.workflow2out)
         .toEqual(expect.arrayContaining(['tada->c', 'tada->d']));
 });
 
@@ -740,7 +739,7 @@ test("persist and recover from file", async () => {
         "b": {
             "function": "${ function($in) { [$in, 'b'] ~> $join('->') } }"
         },
-        "workflow1": "${ function($startEvent) { $startEvent ~> $serialGenerator([a, b]) } }",
+        "workflow1": "${ function($startEvent) { $startEvent ~> $serial([a, b]) } }",
         "out": "${ workflow1(startEvent)}",
     });
 

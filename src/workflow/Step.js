@@ -80,11 +80,13 @@ export default class Step {
             await this.tp.setData(invocationLogJsonPtr, invocationLog);
         }
 
-        let {retryCount}  = invocationLog;
         do {
+            let {retryCount}  = invocationLog;
             try {
                 if (retryCount !== undefined) {
-                    await this.tp.setData(invocationLogJsonPtr+"/retryCount", ++retryCount);
+                    await this.tp.setData(invocationLogJsonPtr+"/retryCount", retryCount++);
+                } else {
+                    invocationLog['retryCount'] = 0;
                 }
                 let out = await fn.apply(this, [args, {workflowInvocation}]);
                 const end = {
@@ -100,13 +102,18 @@ export default class Step {
             }
 
             if (retryCount === undefined || retryCount === null) {
-                this.tp.setData(invocationLogJsonPtr + "/retryCount", 0);
-                // invocationLog['retryCount'] = 0;
+                this.tp.setData(invocationLogJsonPtr+"/retryCount", 0);
+                invocationLog['retryCount'] = 0;
             }
             // await this.tp.setData(this.jsonPath + '/log/' + workflowInvocation, invocationLog);
 
-            const shouldRetryResult = await shouldRetry.apply(this, [invocationLog]);
-            if (!shouldRetryResult) break;
+            try {
+                const shouldRetryResult = await shouldRetry.apply(this, [invocationLog]);
+                if (!shouldRetryResult) break;
+            } catch (e) {
+                console.log(e);
+                break;
+            }
         } while (true);
 
     }

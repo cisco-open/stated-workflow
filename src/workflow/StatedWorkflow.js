@@ -47,7 +47,7 @@ export class StatedWorkflow {
 
     static FUNCTIONS = {
         "id": StatedWorkflow.generateDateAndTimeBasedID.bind(this),
-        "serial": StatedWorkflow.serial.bind(this),
+        // "serial": StatedWorkflow.serial.bind(this),
         "parallel": StatedWorkflow.parallel.bind(this),
         "onHttp": StatedWorkflow.onHttp.bind(this),
         "subscribe": StatedWorkflow.subscribe.bind(this),
@@ -65,7 +65,7 @@ export class StatedWorkflow {
         await this.persistence.init();
         TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
         const tp = new TemplateProcessor(template);
-        tp.functionGenerators.set("serialGenerator", StatedWorkflow.serialGenerator);
+        tp.functionGenerators.set("serial", StatedWorkflow.serialGenerator);
         tp.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
         return tp;
     }
@@ -399,7 +399,7 @@ export class StatedWorkflow {
     static async findSerialStepDependenciesInTemplate(metaInf){
         const ast = metaInf.compiledExpr__.ast();
         let depFinder = new DependencyFinder(ast);
-        depFinder = await depFinder.withAstFilterExpression("**[procedure.value='serialGenerator']");
+        depFinder = await depFinder.withAstFilterExpression("**[procedure.value='serial']");
         if(depFinder.ast){
             return depFinder.findDependencies().map(jp.compile)
         }

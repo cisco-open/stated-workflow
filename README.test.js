@@ -19,6 +19,10 @@ import {StatedWorkflow} from "./src/workflow/StatedWorkflow.js";
 
 
 TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
+const tp = new TemplateProcessor();
+tp.functionGenerators.set("serial", StatedWorkflow.serialGenerator);
 
-parseMarkdownAndTestCodeblocks('./README.md', new CliCore());
+const cliCore = new CliCore(tp);
+
+parseMarkdownAndTestCodeblocks('./README.md', cliCore);
 

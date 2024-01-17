@@ -7,7 +7,7 @@ import {StatedWorkflow} from "./src/workflow/StatedWorkflow.js";
     //the static DEFAULT_FUNCTIONS won't have side effects
     TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
     const tp = new TemplateProcessor();
-    tp.functionGenerators.set("serialGenerator", StatedWorkflow.serialGenerator);
+    tp.functionGenerators.set("serial", StatedWorkflow.serialGenerator);
     const repl = new StatedREPL(tp);
     await repl.initialize();
 })();
