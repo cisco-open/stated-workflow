@@ -563,7 +563,6 @@ test("recover incomplete workflow - should rerun all steps", async () => {
 test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 and 2", async () => {
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../','../','example', 'experimental', 'wf-recover.yaml');
     const templateYaml =
         `
     recover$: $recover(step0)
@@ -610,6 +609,9 @@ test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 
     expect(step0.log['1697402819332-9q6gg'].end).toBeDefined();
     expect(step1.log['1697402819332-9q6gg'].start).toBeDefined();
     expect(step1.log['1697402819332-9q6gg'].end).toBeDefined();
+    while(tp.output.step2.log['1697402819332-9q6gg'] === undefined || tp.output.step2.log['1697402819332-9q6gg'].end === undefined){
+        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+    }
     expect(step2.log['1697402819332-9q6gg'].start).toBeDefined();
     expect(step2.log['1697402819332-9q6gg'].end).toBeDefined();
     expect(step2.log['1697402819332-9q6gg'].end.out).toMatchObject({

@@ -437,11 +437,6 @@ export class StatedWorkflow {
     static async serialGenerator(metaInf, tp) {
         let serialDeps = {};
         return async (input, steps, context) => {
-            // const ast = metaInf.compiledExpr__.ast();
-            // let depFinder = new DependencyFinder(ast);
-            // depFinder = await depFinder.withAstFilterExpression("**[procedure.value='serialGenerator']");
-            // const absDeps = depFinder.findDependencies().map(d => [...jp.parse(metaInf.exprTargetJsonPointer__), ...d]);
-            // serialDeps[metaInf.jsonPointer__] = absDeps.map(jp.compile);
 
             const resolvedJsonPointers = await StatedWorkflow.resolveEachStepToOneLocationInTemplate(metaInf, tp); //fixme todo we should avoid doing this for every jsonata evaluation
             StatedWorkflow.validateStepPointers(resolvedJsonPointers, steps, metaInf);
@@ -458,20 +453,12 @@ export class StatedWorkflow {
         }
 
         let currentInput = input;
-        // const funcJsonPath = Object.keys(resolvedJsonPointers)?.[0] ?? null;
-        // const funcStepsJsonPath = resolvedJsonPointers?.[funcJsonPath] ?? [];
         for (let i = 0; i < steps.length; i++) {
             const stepJson = steps[i];
             if(currentInput !== undefined) {
-                // currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, funcJsonPath ? funcJsonPath + funcStepsJsonPath?.[i] : undefined, tp);
                 currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, resolvedJsonPointers?.[i], tp);
             }
         }
-        // for (let stepJson of steps) {
-        //     if(currentInput !== undefined) {
-        //         currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput);
-        //     }
-        // }
 
         return currentInput;
     }
