@@ -139,3 +139,6 @@ dist
 
 # IDEs
 .vscode
+
+# Internal state storage
+.state

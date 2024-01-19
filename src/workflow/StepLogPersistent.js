@@ -1,41 +1,32 @@
 
-// stepLog stores JSON object with logs of each step invocation, like this:
-//   {
-//     "name": "entrypoint",
-//     "function": "/${  function($e){$e ~> $serial([step1, step2])}  }",
-//     "log": {
-//       "1697402819332-9q6gg": {
-//         "start": {
-//           "timestamp": 1697402819332,
-//           "args": {
-//             "name": "nozzleTime",
-//             "order": 1
-//           }
-//         },
-//         "end": {
-//           "timestamp": 1697402826805,
-//           "out": {
-//             "name": "nozzleTime",
-//             "order": 1,
-//             "primed": true,
-//             "sprayed": true
-//           }
-//         }
-//       }
-//     }
-//   }
-//
-//
-// each invocation may include start and end logs. If only start is present, it means that the event processing was
-// attempted but has not finished before workflow/processing failure. Event processing for this invocation should be
-// restarted.
-export class StepLog{
+export class StepLogPersistent {
     constructor(stepJson){
         this.step = stepJson;
+        this.fileName = stepJson.name ? `./${stepJson.name}.json` : './step.json';
         const {log} = this.step;
         if(log === undefined){
             this.step.log = {};
         }
+        this.data = {};
+
+        // Return a Proxy to intercept operations on this object
+        return new Proxy(this, {
+            get(target, property) {
+                return target.data[property];
+            },
+            set(target, property, value) {
+                // Custom logic on property assignment
+                target.data[property] = value;
+                target.writeToFile(); // Write to file on change
+                return true; // Indicate successful assignment
+            }
+        });
+    }
+
+    writeToFile() {
+        fs.writeFile(this.fileName, JSON.stringify(this.data), (err) => {
+            if (err) console.error('Error writing to file:', err);
+        });
     }
 
     getInvocations(){

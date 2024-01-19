@@ -21,12 +21,15 @@ import winston from "winston";
 import {WorkflowDispatcher} from "./WorkflowDispatcher.js";
 import {StepLog} from "./StepLog.js";
 import Step from "./Step.js";
+import {createPersistence} from "./Persistence.js";
+import DependencyFinder from "stated-js/dist/src/DependencyFinder.js";
+import jp from "stated-js/dist/src/JsonPointer.js";
 
 //This class is a wrapper around the TemplateProcessor class that provides workflow functionality
 export class StatedWorkflow {
     // static express = require('express');
     static app = express();
-    static port = 3000;
+    static port = 8080;
     static logger = winston.createLogger({
         format: winston.format.json(),
         transports: [
@@ -40,9 +43,11 @@ export class StatedWorkflow {
         level: "error", //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
     });
 
+    static persistence = new createPersistence();
+
     static FUNCTIONS = {
         "id": StatedWorkflow.generateDateAndTimeBasedID.bind(this),
-        "serial": StatedWorkflow.serial.bind(this),
+        // "serial": StatedWorkflow.serial.bind(this),
         "parallel": StatedWorkflow.parallel.bind(this),
         "onHttp": StatedWorkflow.onHttp.bind(this),
         "subscribe": StatedWorkflow.subscribe.bind(this),
@@ -52,11 +57,17 @@ export class StatedWorkflow {
         //"workflow": StatedWorkflow.workflow.bind(this)
     };
 
-    static newWorkflow(template) {
-        this.context = this.FUNCTIONS;
-        const templateProcessor = new TemplateProcessor(template, this.context);
-        templateProcessor.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
-        return templateProcessor;
+
+    // this methd returns a TemplateProcessor instance with the default functions and Stated Workflow functions. It also
+    // initializes persistence store, and set generator functions.
+    static async newWorkflow(template, persistenceType = 'noop') {
+        this.persistence = new createPersistence({persistenceType: persistenceType});
+        await this.persistence.init();
+        TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
+        const tp = new TemplateProcessor(template);
+        tp.functionGenerators.set("serial", StatedWorkflow.serialGenerator);
+        tp.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
+        return tp;
     }
 
     static async logFunctionInvocation(stage, args, result, error = null, log) {
@@ -366,18 +377,86 @@ export class StatedWorkflow {
 
     }
 
-    static async serial(input, steps, context={}) {
+    /**
+     *
+     * @param resolvedJsonPointers
+     * @param steps
+     * @param metaInf
+     */
+    static validateStepPointers(resolvedJsonPointers, steps, metaInf) {
+        if (resolvedJsonPointers.length !== steps.length) {
+            throw new Error(`At ${metaInf.jsonPointer__},
+            '$serial(...)' was passed ${steps.length} steps, but found ${resolvedJsonPointers.length} step locations in the document.`);
+        }
+    }
+
+    static async resolveEachStepToOneLocationInTemplate(metaInf, tp){
+        const jsonPointers = await StatedWorkflow.findSerialStepDependenciesInTemplate(metaInf);
+        const resolvedPointers = StatedWorkflow.drillIntoStepArrays(jsonPointers, tp);
+        return resolvedPointers;
+    }
+
+    static async findSerialStepDependenciesInTemplate(metaInf){
+        const ast = metaInf.compiledExpr__.ast();
+        let depFinder = new DependencyFinder(ast);
+        depFinder = await depFinder.withAstFilterExpression("**[procedure.value='serial']");
+        if(depFinder.ast){
+            return depFinder.findDependencies().map(jp.compile)
+        }
+        return [];
+    }
+
+    /**
+     * make sure that if the serial function has numSteps, that have located storage for each of the steps in the
+     * document.
+     * @param jsonPointers
+     */
+    static drillIntoStepArrays(jsonPointers=[], tp){
+        const resolved = [];
+        jsonPointers.forEach(p=>{
+            if(!jp.has(tp.output, p)){
+                throw new Error(`Cannot find ${p} in the template`);
+            }
+            const loc = jp.get(tp.output, p);
+            //if serial has a dependency on an array, for example $serial(stepsArray) or
+            // $serial(step1~>append(otherStepsArray)), the we drill into the array and mine out json pointers
+            // to each element of the array
+            if(Array.isArray(loc)){
+                for(let i=0;i<loc.length;i++){
+                    resolved.push(p+"/"+i);
+                }
+            }else{
+                resolved.push(p);
+            }
+
+        });
+        return resolved;
+
+    }
+
+    static async serialGenerator(metaInf, tp) {
+        let serialDeps = {};
+        return async (input, steps, context) => {
+
+            const resolvedJsonPointers = await StatedWorkflow.resolveEachStepToOneLocationInTemplate(metaInf, tp); //fixme todo we should avoid doing this for every jsonata evaluation
+            StatedWorkflow.validateStepPointers(resolvedJsonPointers, steps, metaInf);
+
+            return serial(input, steps, context, resolvedJsonPointers, tp);
+        }
+    }
+
+    static async serial(input, steps, context={}, resolvedJsonPointers = {}, tp = undefined) {
         let {workflowInvocation} = context;
 
         if (workflowInvocation === undefined) {
-            workflowInvocation = this.generateDateAndTimeBasedID();
+            workflowInvocation = StatedWorkflow.generateDateAndTimeBasedID();
         }
 
         let currentInput = input;
-
-        for (let stepJson of steps) {
+        for (let i = 0; i < steps.length; i++) {
+            const stepJson = steps[i];
             if(currentInput !== undefined) {
-                currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput);
+                currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, resolvedJsonPointers?.[i], tp);
             }
         }
 
@@ -435,14 +514,15 @@ export class StatedWorkflow {
         }
     }
 
-    static async runStep(workflowInvocation, stepJson, input){
+    static async runStep(workflowInvocation, stepJson, input, stepJsonPtr, tp){
+
         const stepLog = new StepLog(stepJson);
         const {instruction, event:loggedEvent} = stepLog.getCourseOfAction(workflowInvocation);
         if(instruction === "START"){
-            const step = new Step(stepJson);
+            const step = new Step(stepJson, StatedWorkflow.persistence, stepJsonPtr, tp);
             return await step.run(workflowInvocation, input);
         }else if (instruction === "RESTART"){
-            const step = new Step(stepJson);
+            const step = new Step(stepJson, StatedWorkflow.persistence, stepJsonPtr, tp);
             return await step.run(workflowInvocation, loggedEvent.args);
         } else if(instruction === "SKIP"){
             return loggedEvent.out;
@@ -557,3 +637,4 @@ export const subscribe = StatedWorkflow.subscribe;
 export const publish = StatedWorkflow.publish;
 export const logFunctionInvocation = StatedWorkflow.logFunctionInvocation;
 export const workflow = StatedWorkflow.workflow;
+export const serialGenerator = StatedWorkflow.serialGenerator;

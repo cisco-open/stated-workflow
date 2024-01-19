@@ -12,17 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import CliCore from 'stated-js/dist/src/CliCore.js';
-import TemplateProcessor from "stated-js/dist/src/TemplateProcessor.js";
-import {parseMarkdownAndTestCodeblocks} from "stated-js/dist/src/TestUtils.js";
-import {StatedWorkflow} from "./src/workflow/StatedWorkflow.js";
-
-
-TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
-const tp = new TemplateProcessor();
-tp.functionGenerators.set("serial", StatedWorkflow.serialGenerator);
-
-const cliCore = new CliCore(tp);
-
-parseMarkdownAndTestCodeblocks('./README.md', cliCore);
-
+//This class is a wrapper around the TemplateProcessor class that provides workflow functionality
+export class StatedWorkflowPublisher {
+}
