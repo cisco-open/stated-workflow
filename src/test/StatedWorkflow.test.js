@@ -111,7 +111,7 @@ test("pubsub", async () => {
     // instantiate template processor
     const tp = await StatedWorkflow.newWorkflow(template);
     await tp.initialize();
-    while(tp.output.stop$ === 'still going'){
+    while(tp.output.rxLog.length < 5){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
     }
     expect(Object.keys(tp.output.rxLog).length).toBe(5);
