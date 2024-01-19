@@ -16,10 +16,8 @@ subscribeParams: #parameters for subscribing to a cloud event
   client:
       type: test
 # starts producer function
-send$: $setInterval(function(){$publish(produceParams)}, 100)
+send$: $publish(produceParams)
 # starts consumer function
 recv$: $subscribe(subscribeParams)
 # rxLog is a field of the template where the consumer function will be storing results of event processing
 rxLog: [ ]
-# this is a condition that will stop the workflow when rxLog has 5 elements
-stop$: ($count(rxLog)=5?($clearInterval(send$);'done'):'still going')

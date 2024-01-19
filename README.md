@@ -1,16 +1,16 @@
 ![Stated-Workflows](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/stated-workflows.svg)
 
 # Overview
-Stated Workflows is a collection of functions for a lightweight and scalable event-driven workflow engine using 
+Stated Workflows is a collection of functions for a lightweight and scalable event-driven workflow engine using
 [Stated](https://github.com/cisco-open/stated) template engine.
 This README assumes some familiarity with the [Stated REPL](https://github.com/cisco-open/stated#running-the-repl).
-If you don't have Stated, [get it now](https://github.com/cisco-open/stated#getting-started). The key benefits of 
+If you don't have Stated, [get it now](https://github.com/cisco-open/stated#getting-started). The key benefits of
 Stated Worklflows are:
- * __Easy__ - Stated Workflows are easier to express and comprehend than other workflow languages
- * __Testable__ - Stated Workflows are testable. Every Stated Workflow can be tested from a REPL and behaves exactly locally as it does in Stated Workflow cluster.
- * __Interactive__ - As you can see from the exmaples in this README, you can interact directly with workflows from the REPL
- * __Transparent__ - Stated Workflows takes a "What You See Is What You Get" approach to workflows. Stated-Workflows is the only workflow engine with a JSON-centric approach to data and durability.
- * __Highly Available__ - Stated Workflows can be run in an easy-to-scale, k8s-friendly cluster for scaling, durability, and high availability
+* __Easy__ - Stated Workflows are easier to express and comprehend than other workflow languages
+* __Testable__ - Stated Workflows are testable. Every Stated Workflow can be tested from a REPL and behaves exactly locally as it does in Stated Workflow cluster.
+* __Interactive__ - As you can see from the exmaples in this README, you can interact directly with workflows from the REPL
+* __Transparent__ - Stated Workflows takes a "What You See Is What You Get" approach to workflows. Stated-Workflows is the only workflow engine with a JSON-centric approach to data and durability.
+* __Highly Available__ - Stated Workflows can be run in an easy-to-scale, k8s-friendly cluster for scaling, durability, and high availability
 
 ## Getting Started
 
@@ -43,14 +43,14 @@ You can start the REPL by running the `stateflow` command in your terminal:
 stateflow
 ```
 The REPL will launch, allowing you to interact with the stated-js library. In order to launch properly you need to have
-`node` on your path.`stateflow` is a wrapper script that simply calls `stated-workflow.js`, which contains this 
-`#!/usr/bin/env node --experimental-vm-modules`. 
+`node` on your path.`stateflow` is a wrapper script that simply calls `stated-workflow.js`, which contains this
+`#!/usr/bin/env node --experimental-vm-modules`.
 
 For example you can enter this command in the REPL:
 ```bash 
 > .init -f "example/homeworld.json"
 ```
-# Jobs
+## Jobs
 A job is a Stated Workflow template that runs to completion and does not receive any asynchronous inputs.
 A job has a beginning, and an end. Here is a job that uses the Starwars API to search for Luke Skywalker's details,
 extract the homeworld URL, retrieve the homeworld details, and extract the homeworld's name.
@@ -64,7 +64,7 @@ extract the homeworld URL, retrieve the homeworld details, and extract the homew
 ```
 ![homeworld workflow](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow.svg)
 
-Try it, from the [Stated REPL](https://github.com/cisco-open/stated#running-the-repl). The `.init` command loads the 
+Try it, from the [Stated REPL](https://github.com/cisco-open/stated#running-the-repl). The `.init` command loads the
 example
 
 ```json
@@ -203,7 +203,7 @@ shows us that for an origin of `/homeworldDetails`, the DAG flows to `/homeworld
 
 
 Let's compare this to it's equivalent in CNCF Serverless Workflows. As you can see, with no expression analyzer and
-no internal DAG builder, the developer of a CNCF workflow must specify the states, and the transition between states. 
+no internal DAG builder, the developer of a CNCF workflow must specify the states, and the transition between states.
 <details>
 <summary>CNCF Serverless Workflow (click to expand...a lot)</summary>
 <pre>
@@ -269,14 +269,14 @@ no internal DAG builder, the developer of a CNCF workflow must specify the state
 
 </details>
 
-Stated alone is a powerful and concise workflow engine. So why do 
+Stated alone is a powerful and concise workflow engine. So why do
 we need Stated-Workflows and what is it? Stated-Workflows is a set
 of functions that provide integration with cloud events, and high
 availability to workflows, when they are executed in the Stated-Workflows
 clustered runtime.
 
-# Job Concurrency
-Job's can be run concurrently because each job's state is totally encapsulated 
+### Job Concurrency
+Job's can be run concurrently because each job's state is totally encapsulated
 in its template variables. The following JS code shows how to launch 10 jobs
 in parallel.
 
@@ -316,10 +316,10 @@ runParallel(template, 10)
         .catch(error => console.error(error));
 
 ```
-# Internal Job Concurrency
-let's modify our homeworlds example to make a concurrent homeworlds example. 
+### Internal Job Concurrency
+let's modify our homeworlds example to make a concurrent homeworlds example.
 We have used the stated `!` operator to remove `personDetails` and `homeworldDetails` from the output to avoid clutter.
-JSONata automatically makes array 
+JSONata automatically makes array
 ```json
 > .init -f "example/concurrent-homeworlds.json"
 {
@@ -351,13 +351,123 @@ JSONata automatically makes array
   ]
 }
 ```
-# Durability
-Up until now we have showed how to use pure Stated to build simple jobs. Pure Stated does not provide durability
-or high availability. Stated-workflows adds
+# Stated Workflow Functions
+Up until now we have showed how to use pure Stated to build simple self-contained jobs. For more complex workflows
+stated-workflow extends stated with a set of functions that provide integration with cloud events, high availability,
+durability, and concurrency management.
+
+## Cloud Events
+Stated-Workflows provides a set of functions that allow you to integrate with cloud events, consuming and producing from
+Kafka or Pulsar message buses, as well as HTTP. The following example shows how to use the `publish` and `subscribe`  
+functions. Below producer and subscriber configs are using `test` clients, but `kafka` and `pulsar` clients can be used 
+to communicate with the actual message buses.
+
+```json
+> .init -f "example/pubsub.yaml"
+{
+  "produceParams": {
+    "type": "my-topic",
+    "data": "${ [1..5].({'name': 'nozzleTime', 'rando': $random()})  }",
+    "client": {
+      "type": "test"
+    }
+  },
+  "subscribeParams": {
+    "source": "cloudEvent",
+    "type": "/${ produceParams.type }",
+    "to": "/${ function($e){( $set('/rxLog', rxLog~>$append($e)); )}  }",
+    "subscriberId": "dingus",
+    "initialPosition": "latest",
+    "client": {
+      "type": "test"
+    }
+  },
+  "send$": "$publish(produceParams)",
+  "recv$": "$subscribe(subscribeParams)",
+  "rxLog": []
+}
+```
+<details>
+<summary>Execution output (click to expand)</summary>
+```json ["$count(data.rxLog)=6"]
+> .init -f "example/pubsub.yaml" --tail "/ until $count(rxLog)>=5"
+{
+  "produceParams": {
+    "type": "my-topic",
+    "data": [
+      {
+        "name": "nozzleTime",
+        "rando": 0.5776065858162405
+      },
+      {
+        "name": "nozzleTime",
+        "rando": 0.14603495732221994
+      },
+      {
+        "name": "nozzleTime",
+        "rando": 0.6747697712879064
+      },
+      {
+        "name": "nozzleTime",
+        "rando": 0.8244336074302101
+      },
+      {
+        "name": "nozzleTime",
+        "rando": 0.7426610894846484
+      }
+    ],
+    "client": {
+      "type": "test"
+    }
+  },
+  "subscribeParams": {
+    "source": "cloudEvent",
+    "type": "my-topic",
+    "to": "{function:}",
+    "subscriberId": "dingus",
+    "initialPosition": "latest",
+    "client": {
+      "type": "test"
+    }
+  },
+  "send$": null,
+  "recv$": null,
+  "rxLog": [
+    {
+      "name": "nozzleTime",
+      "rando": 0.6677321749548661
+    },
+    {
+      "name": "nozzleTime",
+      "rando": 0.46779260195749184
+    },
+    {
+      "name": "nozzleTime",
+      "rando": 0.3316065714852454
+    },
+    {
+      "name": "nozzleTime",
+      "rando": 0.7331875081132901
+    },
+    {
+      "name": "nozzleTime",
+      "rando": 0.4174872067342268
+    },
+    {
+      "name": "nozzleTime",
+      "rando": 0.5776065858162405
+    }
+  ]
+}
+```
+</details>
+
+## Durability
+Pure Stated does not provide durability or high availability. Stated-workflows adds
 the dimension of _durability_ and _high-availability_ to template execution. To achieve these "ilities", Stated-workflows must
-run in Stated-Workflow cluster. However, it is not necessary to run in a cluster to write, test, and debug 
+run in Stated-Workflow cluster. However, it is not necessary to run in a cluster to write, test, and debug
 Stated-Workflows locally. As long as you don't "unplug" the stated REPL, it will produce functionally the same result
-as running in Stated-Workflow cluster. Stated-Workflows provides a "local cluster" option where you can test the 
+as running in Stated-Workflow cluster. Stated-Workflows provides a "local cluster" option where you can test the
 _durability_ of stated workflows by unceremoniously "killing" the REPL and then restarting the workflow at a later time.
 
 ## Steps
@@ -368,9 +478,9 @@ is nothing more than a json object that has a field named 'function', that is a 
   "function": "${ function($in){ $in + 42 } }"
 }
 ```
-Let's recast our homeworld example using Steps. This will give the Job durability, so that it 
-can fail and be restarted. When a step function is called, the step's log is populated with 
-an entry corresponding to a uniqe `invocationId` for the workflow. The log captures the `args` 
+Let's recast our homeworld example using Steps. This will give the Job durability, so that it
+can fail and be restarted. When a step function is called, the step's log is populated with
+an entry corresponding to a uniqe `invocationId` for the workflow. The log captures the `args`
 that were passed to the step function, as well the functions output (`out`).
 
 ![steps](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow%20-%20Page%202.svg)
@@ -719,8 +829,8 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
 </details>
 
 # Error Handling
-If a step function throws an `Error`, or returns `undefined`, the invocation log will contain a `fail`. In the 
-example below we intentionally break the second step by concatenating "--broken--" to the homeword URL. 
+If a step function throws an `Error`, or returns `undefined`, the invocation log will contain a `fail`. In the
+example below we intentionally break the second step by concatenating "--broken--" to the homeword URL.
 ```json
 > .init -f "example/homeworlds-steps-error.json"
 {
@@ -950,8 +1060,8 @@ $serial execution halts on fail.
 </details>
 
 ## retries
-Each step can provide an optional boolean function `shouldRetry`, which should accept invocationLog argument. If it 
-retruns trues, the function will be retried. 
+Each step can provide an optional boolean function `shouldRetry`, which should accept invocationLog argument. If it
+retruns trues, the function will be retried.
 ```json
 > .init -f example/homeworlds-steps-with-retry.json
 {
@@ -978,7 +1088,6 @@ retruns trues, the function will be retried.
 
 <details>
 <summary>Execution output (click to expand)</summary>
-json ["steps[2].log.*.retryCount = 1 and $not($exists(steps[2].log.*.fail))"]
 ```json ["steps[2].log.*.retryCount = 1 and $not($exists(steps[2].log.*.fail))"]
 > .out
 {
