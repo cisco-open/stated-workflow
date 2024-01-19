@@ -1,5 +1,21 @@
 ![Stated-Workflows](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/stated-workflows.svg)
 
+<!-- TOC -->
+* [Overview](#overview)
+    * [Getting Started](#getting-started)
+        * [Installation](#installation)
+        * [Running the REPL](#running-the-repl)
+* [Stated Template Jobs](#stated-template-jobs-)
+    * [Job Concurrency](#job-concurrency)
+    * [Internal Job Concurrency](#internal-job-concurrency)
+* [Stated Workflow Functions](#stated-workflow-functions)
+    * [Cloud Events](#cloud-events)
+    * [Durability](#durability)
+    * [Workflow Steps](#workflow-steps)
+* [Error Handling](#error-handling)
+    * [retries](#retries)
+<!-- TOC -->
+
 # Overview
 Stated Workflows is a collection of functions for a lightweight and scalable event-driven workflow engine using
 [Stated](https://github.com/cisco-open/stated) template engine.
