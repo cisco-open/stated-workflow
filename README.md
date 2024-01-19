@@ -50,8 +50,8 @@ For example you can enter this command in the REPL:
 ```bash 
 > .init -f "example/homeworld.json"
 ```
-## Jobs
-A job is a Stated Workflow template that runs to completion and does not receive any asynchronous inputs.
+# Stated Template Jobs 
+A job is a pure Stated Template that runs to completion and does not receive any asynchronous inputs.
 A job has a beginning, and an end. Here is a job that uses the Starwars API to search for Luke Skywalker's details,
 extract the homeworld URL, retrieve the homeworld details, and extract the homeworld's name.
 ```json
@@ -269,12 +269,6 @@ no internal DAG builder, the developer of a CNCF workflow must specify the state
 
 </details>
 
-Stated alone is a powerful and concise workflow engine. So why do
-we need Stated-Workflows and what is it? Stated-Workflows is a set
-of functions that provide integration with cloud events, and high
-availability to workflows, when they are executed in the Stated-Workflows
-clustered runtime.
-
 ### Job Concurrency
 Job's can be run concurrently because each job's state is totally encapsulated
 in its template variables. The following JS code shows how to launch 10 jobs
@@ -351,10 +345,13 @@ JSONata automatically makes array
   ]
 }
 ```
+
 # Stated Workflow Functions
-Up until now we have showed how to use pure Stated to build simple self-contained jobs. For more complex workflows
-stated-workflow extends stated with a set of functions that provide integration with cloud events, high availability,
-durability, and concurrency management.
+Stated alone is a powerful and concise workflow engine. So why do
+we need Stated-Workflows and what is it? Stated-Workflows is a set
+of functions that provide integration with cloud events, durability and high
+availability to workflows, when they are executed in the Stated-Workflows
+clustered runtime.
 
 ## Cloud Events
 Stated-Workflows provides a set of functions that allow you to integrate with cloud events, consuming and producing from
@@ -470,7 +467,7 @@ Stated-Workflows locally. As long as you don't "unplug" the stated REPL, it will
 as running in Stated-Workflow cluster. Stated-Workflows provides a "local cluster" option where you can test the
 _durability_ of stated workflows by unceremoniously "killing" the REPL and then restarting the workflow at a later time.
 
-## Steps
+## Workflow Steps
 Stated provides durability by defining the Step as the unit of durability. A step
 is nothing more than a json object that has a field named 'function', that is a JSONata `function`
 ```json
@@ -1059,7 +1056,7 @@ $serial execution halts on fail.
 ```
 </details>
 
-## retries
+### retries
 Each step can provide an optional boolean function `shouldRetry`, which should accept invocationLog argument. If it
 retruns trues, the function will be retried.
 ```json
