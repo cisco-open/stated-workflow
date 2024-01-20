@@ -159,7 +159,7 @@ export class StatedWorkflow {
         if (clientParams  && clientParams.type === 'test') {
             this.logger.debug(`test client provided, will not publish to 'real' message broker for publish parameters ${StatedREPL.stringify(params)}`);
             WorkflowDispatcher.addBatchToAllSubscribers(type, data);
-            return;
+            return "done";
         }
 
         const {type:clientType} = clientParams
@@ -170,6 +170,7 @@ export class StatedWorkflow {
         }else{
             throw new Error(`Unsupported clientType: ${clientType}`);
         }
+        return "done";
     }
 
     static publishKafka(params, clientParams) {
@@ -358,6 +359,7 @@ export class StatedWorkflow {
         }else{
             throw new Error(`unsupported client.type in ${StatedREPL.stringify(subscriptionParams)}`);
         }
+        return `listening clientType=${clientType} ... `
     }
 
     static onHttp(subscriptionParams) {
@@ -374,6 +376,7 @@ export class StatedWorkflow {
             console.log(`Server started on http://localhost:${StatedWorkflow.port}`);
         });
 
+        return "listening http ..."
 
     }
 

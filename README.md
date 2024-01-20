@@ -373,61 +373,19 @@ clustered runtime.
 Stated-Workflows provides a set of functions that allow you to integrate with cloud events, consuming and producing from
 Kafka or Pulsar message buses, as well as HTTP. The following example shows how to use the `publish` and `subscribe`  
 functions. Below producer and subscriber configs are using `test` clients, but `kafka` and `pulsar` clients can be used 
-to communicate with the actual message buses.
+to communicate with the actual message buses. Data for testing can be fed in by setting the `data` field of the `produceParams`.
+As shown below, the test data is set to `['luke', 'han', 'leah']`
 
 ```json
-> .init -f "example/pubsub.yaml"
-{
-  "produceParams": {
-    "type": "my-topic",
-    "data": "${ [1..5].({'name': 'nozzleTime', 'rando': $random()})  }",
-    "client": {
-      "type": "test"
-    }
-  },
-  "subscribeParams": {
-    "source": "cloudEvent",
-    "type": "/${ produceParams.type }",
-    "to": "/${ function($e){( $set('/rxLog', rxLog~>$append($e)); )}  }",
-    "subscriberId": "dingus",
-    "initialPosition": "latest",
-    "client": {
-      "type": "test"
-    }
-  },
-  "send$": "$publish(produceParams)",
-  "recv$": "$subscribe(subscribeParams)",
-  "rxLog": []
-}
-```
-<details>
-<summary>Execution output (click to expand)</summary>
-```json ["$count(data.rxLog)=6"]
-> .init -f "example/pubsub.yaml" --tail "/ until $count(rxLog)>=5"
+> .init -f "example/pubsub.yaml" --tail "/ until rxLog=['luke', 'han', 'leah']"
+Started tailing... Press Ctrl+C to stop.
 {
   "produceParams": {
     "type": "my-topic",
     "data": [
-      {
-        "name": "nozzleTime",
-        "rando": 0.5776065858162405
-      },
-      {
-        "name": "nozzleTime",
-        "rando": 0.14603495732221994
-      },
-      {
-        "name": "nozzleTime",
-        "rando": 0.6747697712879064
-      },
-      {
-        "name": "nozzleTime",
-        "rando": 0.8244336074302101
-      },
-      {
-        "name": "nozzleTime",
-        "rando": 0.7426610894846484
-      }
+      "luke",
+      "han",
+      "leah"
     ],
     "client": {
       "type": "test"
@@ -437,43 +395,24 @@ to communicate with the actual message buses.
     "source": "cloudEvent",
     "type": "my-topic",
     "to": "{function:}",
-    "subscriberId": "dingus",
+    "subscriberId": "rebelArmy",
     "initialPosition": "latest",
     "client": {
       "type": "test"
     }
   },
-  "send$": null,
-  "recv$": null,
+  "send$": "done",
+  "recv$": "listening clientType=test ... ",
   "rxLog": [
-    {
-      "name": "nozzleTime",
-      "rando": 0.6677321749548661
-    },
-    {
-      "name": "nozzleTime",
-      "rando": 0.46779260195749184
-    },
-    {
-      "name": "nozzleTime",
-      "rando": 0.3316065714852454
-    },
-    {
-      "name": "nozzleTime",
-      "rando": 0.7331875081132901
-    },
-    {
-      "name": "nozzleTime",
-      "rando": 0.4174872067342268
-    },
-    {
-      "name": "nozzleTime",
-      "rando": 0.5776065858162405
-    }
+    "luke",
+    "han",
+    "leah",
+    "leah"
   ]
 }
+
 ```
-</details>
+
 
 ## Durability
 Pure Stated does not provide durability or high availability. Stated-workflows adds

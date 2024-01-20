@@ -1,7 +1,7 @@
 # producer will be sending data function output to the "type" topic
 produceParams:
   type: "my-topic"
-  data: "${ [1..5].({'name': 'nozzleTime', 'rando': $random()})  }"
+  data: ['luke', 'han', 'leah']
   client:
     type: test
 # producer will be invoking "to" function for each consumed event
@@ -11,7 +11,7 @@ subscribeParams: #parameters for subscribing to a cloud event
   to: /${ function($e){(
     $set('/rxLog', rxLog~>$append($e));
     )}  }
-  subscriberId: dingus
+  subscriberId: rebelArmy
   initialPosition: latest
   client:
       type: test
