@@ -758,3 +758,42 @@ test("persist and recover from file", async () => {
     expect(tp.output.out)
       .toEqual('tada->a->b');
 });
+
+test("Multiple template processors", async () => {
+    const t  = {
+        "startEvent": "tada",
+        // a,b,c,d are workflow stages, which include a callable stated expression, and an output object to
+        // store the results of the expression and any errors that occur
+        // it will allow workflow stages to be skipped if they have already been run or stop processing next
+        // stages if the current stage fails.
+        "a": {
+            "function": "${ function($in) { ( $console.log($in); [$in, 'a'] ~> $join('->') )} }"
+        },
+        "b": {
+            "function": "${ function($in) { [$in, 'b'] ~> $join('->') } }"
+        },
+        "c": {
+            "function": "${ function($in) { ( $console.log($in); [$in, 'c'] ~> $join('->') )} }"
+        },
+        "d": {
+            "function": "${ function($in) { ( $console.log($in); [$in, 'd'] ~> $join('->') )} }"
+        },
+        "workflow1": "${ function($startEvent) { $startEvent ~> $serial([a, b]) } }",
+        "workflow1out": "${ workflow1(startEvent)}",
+        "workflow2": "${ function($startEvent) { $startEvent ~> $parallel([c,d]) } }",
+        "workflow2out": "${ workflow2(startEvent)}"
+    };
+    const tp1 = await StatedWorkflow.newWorkflow(t);
+    const tp2 = await StatedWorkflow.newWorkflow(t);
+    await tp1.initialize();
+    await tp2.initialize();
+    expect(tp1.output.workflow1out)
+      .toEqual('tada->a->b');
+    expect(tp1.output.workflow2out)
+      .toEqual(expect.arrayContaining(['tada->c', 'tada->d']));
+    expect(tp2.output.workflow1out)
+      .toEqual('tada->a->b');
+    expect(tp2.output.workflow2out)
+      .toEqual(expect.arrayContaining(['tada->c', 'tada->d']));
+
+});
