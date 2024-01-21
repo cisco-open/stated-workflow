@@ -18,10 +18,7 @@ import {parseMarkdownAndTestCodeblocks} from "stated-js/dist/src/TestUtils.js";
 import {StatedWorkflow} from "./src/workflow/StatedWorkflow.js";
 
 
-TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
-const tp = new TemplateProcessor();
-tp.functionGenerators.set("serial", StatedWorkflow.serialGenerator);
-
+const {templateProcessor:tp} = await StatedWorkflow.newWorkflow();
 const cliCore = new CliCore(tp);
 
 parseMarkdownAndTestCodeblocks('./README.md', cliCore);
