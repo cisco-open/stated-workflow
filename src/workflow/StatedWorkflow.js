@@ -61,7 +61,7 @@ export class StatedWorkflow {
     // this methd returns a TemplateProcessor instance with the default functions and Stated Workflow functions. It also
     // initializes persistence store, and set generator functions.
     static async newWorkflow(template, persistenceType = 'noop') {
-        this.persistence = new createPersistence({persistenceType: persistenceType});
+        this.persistence = createPersistence({persistenceType: persistenceType});
         await this.persistence.init();
         TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
         const tp = new TemplateProcessor(template);

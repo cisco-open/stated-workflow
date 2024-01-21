@@ -1,7 +1,7 @@
 # producer will be sending data function output to the "type" topic
 produceParams:
   type: "my-topic"
-  data: ['luke', 'han', 'leah']
+  data: ['lukeX', 'hanX', 'leahX']
   client:
     type: test
 # producer will be invoking "to" function for each consumed event
@@ -9,7 +9,10 @@ subscribeParams: #parameters for subscribing to a cloud event
   source: cloudEvent
   type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
   to: /${ function($e){(
-    $set('/rxLog', rxLog~>$append($e));
+    $console.log('appending ' & $e & ' to ' & $$.rxLog );
+    $foo := rxLog~>$append($e);
+    $console.log('output should be ' & $foo );
+    $set('/rxLog', $foo); 
     )}  }
   subscriberId: rebelArmy
   initialPosition: latest
