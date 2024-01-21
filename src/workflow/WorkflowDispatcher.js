@@ -30,41 +30,42 @@ export class WorkflowDispatcher {
         this.batchCount = 0; // Counter to keep track of items in the batch
     }
 
-    _getKey() {
-        return WorkflowDispatcher._generateKey(this.type, this.subscriberId);
-    }
 
     static dispatchers = new Map();       // key is type, value is a Set of keys
     static dispatcherObjects = new Map(); // key is composite key, value is WorkflowDispatcher object
 
+    static clear() {
+        WorkflowDispatcher.dispatchers = new Map();       // key is type, value is a Set of keys
+        WorkflowDispatcher.dispatcherObjects = new Map(); // key is composite key, value is WorkflowDispatcher object
+    }
     static _generateKey(type, subscriberId) {
         return `${type}-${subscriberId}`;
     }
 
     static _addDispatcher(dispatcher) {
-        if (!this.dispatchers.has(dispatcher.type)) {
-            this.dispatchers.set(dispatcher.type, new Set());
+        if (!WorkflowDispatcher.dispatchers.has(dispatcher.type)) {
+            WorkflowDispatcher.dispatchers.set(dispatcher.type, new Set());
         }
         const key = dispatcher._getKey();
-        this.dispatchers.get(dispatcher.type).add(key);
-        this.dispatcherObjects.set(key, dispatcher);
+        WorkflowDispatcher.dispatchers.get(dispatcher.type).add(key);
+        WorkflowDispatcher.dispatcherObjects.set(key, dispatcher);
     }
 
     static getDispatcher(subscriptionParams) {
         const {type, subscriberId} = subscriptionParams;
-        const key = this._generateKey(type, subscriberId);
-        if (!this.dispatcherObjects.has(key)) {
+        const key = WorkflowDispatcher._generateKey(type, subscriberId);
+        if (!WorkflowDispatcher.dispatcherObjects.has(key)) {
             const newDispatcher = new WorkflowDispatcher(subscriptionParams);
-            this._addDispatcher(newDispatcher);
+            WorkflowDispatcher._addDispatcher(newDispatcher);
         }
-        return this.dispatcherObjects.get(key);
+        return WorkflowDispatcher.dispatcherObjects.get(key);
     }
 
     static addBatchToAllSubscribers(type, testData) {
-        const keysSet = this.dispatchers.get(type);
+        const keysSet = WorkflowDispatcher.dispatchers.get(type);
         if (keysSet) {
             for (let key of keysSet) {
-                const dispatcher = this.dispatcherObjects.get(key);
+                const dispatcher = WorkflowDispatcher.dispatcherObjects.get(key);
                 dispatcher.addBatch(testData); // You can pass the actual data you want to dispatch here
             }
         } else {
@@ -73,15 +74,19 @@ export class WorkflowDispatcher {
     }
 
     static dispatchToAllSubscribers(type, data) {
-        const keysSet = this.dispatchers.get(type);
+        const keysSet = WorkflowDispatcher.dispatchers.get(type);
         if (keysSet) {
             for (let key of keysSet) {
-                const dispatcher = this.dispatcherObjects.get(key);
+                const dispatcher = WorkflowDispatcher.dispatcherObjects.get(key);
                 dispatcher.addToQueue(data); // You can pass the actual data you want to dispatch here
             }
         } else {
             StatedWorkflow.logger.warn(`No subscribers found for type ${type}`);
         }
+    }
+
+    _getKey() {
+        return WorkflowDispatcher._generateKey(this.type, this.subscriberId);
     }
 
     _dispatch() {
@@ -132,8 +137,4 @@ export class WorkflowDispatcher {
         this.batchMode = false;
     }
 
-    static clear() {
-        this.dispatchers = new Map();       // key is type, value is a Set of keys
-        this.dispatcherObjects = new Map(); // key is composite key, value is WorkflowDispatcher object
-    }
 }

@@ -374,42 +374,44 @@ Stated-Workflows provides a set of functions that allow you to integrate with cl
 Kafka or Pulsar message buses, as well as HTTP. The following example shows how to use the `publish` and `subscribe`  
 functions. Below producer and subscriber configs are using `test` clients, but `kafka` and `pulsar` clients can be used 
 to communicate with the actual message buses. Data for testing can be fed in by setting the `data` field of the `produceParams`.
-As shown below, the test data is set to `['luke', 'han', 'leah']`
+As shown below, the test data is set to `['luke', 'han', 'leia']`. The subscriber's `to` function, `joinResistance`, appends
+each received rebel to the `rebelForces` array.
 
-```json
-> .init -f "example/pubsub.yaml" --tail "/ until rxLog=['luke', 'han', 'leah']"
+```yaml
+falken$> cat example/pubsub.yaml
+# producer will be sending some test data
+produceParams:
+  type: "my-topic"
+  data: ['luke', 'han', 'leia']
+  client:
+    type: test
+# the subscriber's 'to' function will be called on each received event
+subscribeParams: #parameters for subscribing to an event
+  source: cloudEvent
+  type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
+  to: /${joinResistance}
+  subscriberId: rebelArmy
+  initialPosition: latest
+  client:
+    type: test
+joinResistance:  /${ function($rebel){ $set('/rebelForces', rebelForces~>$append($rebel))}  }
+# starts producer function
+send$: $publish(produceParams)
+# starts consumer function
+recv$: $subscribe(subscribeParams)
+# the subscriber's `to` function will write the received data here
+rebelForces: [ ]
+````
+We can use the REPL to run the pubsub.yaml example, and monitor the `/rebelForces` by tailing it until it contains all
+three of the published messages.
+```json ["data=['luke', 'han', 'leia']"]
+> .init -f "example/pubsub.yaml" --tail "/rebelForces until $=['luke', 'han', 'leia']"
 Started tailing... Press Ctrl+C to stop.
-{
-  "produceParams": {
-    "type": "my-topic",
-    "data": [
-      "luke",
-      "han",
-      "leah"
-    ],
-    "client": {
-      "type": "test"
-    }
-  },
-  "subscribeParams": {
-    "source": "cloudEvent",
-    "type": "my-topic",
-    "to": "{function:}",
-    "subscriberId": "rebelArmy",
-    "initialPosition": "latest",
-    "client": {
-      "type": "test"
-    }
-  },
-  "send$": "done",
-  "recv$": "listening clientType=test ... ",
-  "rxLog": [
-    "luke",
-    "han",
-    "leah",
-    "leah"
-  ]
-}
+[
+"luke",
+"han",
+"leia"
+]
 
 ```
 
