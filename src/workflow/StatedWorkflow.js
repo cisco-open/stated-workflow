@@ -63,8 +63,7 @@ export class StatedWorkflow {
     static async newWorkflow(template, persistenceType = 'noop') {
         this.persistence = new createPersistence({persistenceType: persistenceType});
         await this.persistence.init();
-        TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
-        const tp = new TemplateProcessor(template);
+        const tp = new TemplateProcessor(template, StatedWorkflow.FUNCTIONS);
         tp.functionGenerators.set("serial", StatedWorkflow.serialGenerator);
         tp.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
         return tp;
