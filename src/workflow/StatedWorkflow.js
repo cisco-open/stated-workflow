@@ -68,12 +68,13 @@ export class StatedWorkflow {
         const persistence = new createPersistence({persistenceType: persistenceType});
         await persistence.init();
         // TODO: fix CliCore.setupContext to respect context passed to the constructor
-        // const tp = new TemplateProcessor(template, StatedWorkflow.FUNCTIONS);
+        // const tp = new TemplateProcessor(template, {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS});
         TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
         const tp = new TemplateProcessor(template);
         tp.functionGenerators.set("serial", StatedWorkflow.serialGenerator);
         tp.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
         tp.onInitialize = WorkflowDispatcher.clear; //must remove all subscribers when template reinitialized
+        await tp.initialize();
         return new StatedWorkflow(tp, persistence);
     }
 
