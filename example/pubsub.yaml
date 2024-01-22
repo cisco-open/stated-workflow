@@ -1,23 +1,22 @@
-# producer will be sending data function output to the "type" topic
+# producer will be sending some test data
 produceParams:
   type: "my-topic"
-  data: "${ [1..5].({'name': 'nozzleTime', 'rando': $random()})  }"
+  data: ['luke', 'han', 'leia']
   client:
     type: test
-# producer will be invoking "to" function for each consumed event
-subscribeParams: #parameters for subscribing to a cloud event
+# the subscriber's 'to' function will be called on each received event
+subscribeParams: #parameters for subscribing to an event
   source: cloudEvent
   type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
-  to: /${ function($e){(
-    $set('/rxLog', rxLog~>$append($e));
-    )}  }
-  subscriberId: dingus
+  to: /${joinResistance}
+  subscriberId: rebelArmy
   initialPosition: latest
   client:
       type: test
+joinResistance:  /${ function($rebel){ $set('/rebelForces', rebelForces~>$append($rebel))}  }
 # starts producer function
 send$: $publish(produceParams)
 # starts consumer function
 recv$: $subscribe(subscribeParams)
-# rxLog is a field of the template where the consumer function will be storing results of event processing
-rxLog: [ ]
+# the subscriber's `to` function will write the received data here
+rebelForces: [ ]

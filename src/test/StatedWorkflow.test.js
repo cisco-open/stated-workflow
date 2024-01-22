@@ -111,10 +111,10 @@ test("pubsub", async () => {
     // instantiate template processor
     const tp = await StatedWorkflow.newWorkflow(template);
     await tp.initialize();
-    while(tp.output.rxLog.length < 5){
+    while(tp.output.rebelForces.length < 3){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
     }
-    expect(Object.keys(tp.output.rxLog).length).toBe(5);
+    expect(tp.output.rebelForces).toEqual(['luke', 'han', 'leia']);
 }, 8000);
 
 test("correlate", async () => {

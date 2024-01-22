@@ -60,13 +60,15 @@ export class StatedWorkflow {
 
     // this methd returns a TemplateProcessor instance with the default functions and Stated Workflow functions. It also
     // initializes persistence store, and set generator functions.
-    static async newWorkflow(template, persistenceType = 'noop') {
-        this.persistence = new createPersistence({persistenceType: persistenceType});
+    //FIXME TODO -- newXXX should return an XXX
+    static async newWorkflow(template={}, persistenceType = 'noop') {
+        this.persistence = createPersistence({persistenceType: persistenceType});
         await this.persistence.init();
         TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
         const tp = new TemplateProcessor(template);
         tp.functionGenerators.set("serial", StatedWorkflow.serialGenerator);
         tp.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
+        tp.onInitialize = WorkflowDispatcher.clear; //must remove all subscribers when template reinitialized
         return tp;
     }
 
@@ -159,7 +161,7 @@ export class StatedWorkflow {
         if (clientParams  && clientParams.type === 'test') {
             this.logger.debug(`test client provided, will not publish to 'real' message broker for publish parameters ${StatedREPL.stringify(params)}`);
             WorkflowDispatcher.addBatchToAllSubscribers(type, data);
-            return;
+            return "done";
         }
 
         const {type:clientType} = clientParams
@@ -170,6 +172,7 @@ export class StatedWorkflow {
         }else{
             throw new Error(`Unsupported clientType: ${clientType}`);
         }
+        return "done";
     }
 
     static publishKafka(params, clientParams) {
@@ -358,6 +361,7 @@ export class StatedWorkflow {
         }else{
             throw new Error(`unsupported client.type in ${StatedREPL.stringify(subscriptionParams)}`);
         }
+        return `listening clientType=${clientType} ... `
     }
 
     static onHttp(subscriptionParams) {
@@ -374,6 +378,7 @@ export class StatedWorkflow {
             console.log(`Server started on http://localhost:${StatedWorkflow.port}`);
         });
 
+        return "listening http ..."
 
     }
 

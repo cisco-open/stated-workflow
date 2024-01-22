@@ -373,107 +373,48 @@ clustered runtime.
 Stated-Workflows provides a set of functions that allow you to integrate with cloud events, consuming and producing from
 Kafka or Pulsar message buses, as well as HTTP. The following example shows how to use the `publish` and `subscribe`  
 functions. Below producer and subscriber configs are using `test` clients, but `kafka` and `pulsar` clients can be used 
-to communicate with the actual message buses.
+to communicate with the actual message buses. Data for testing can be fed in by setting the `data` field of the `produceParams`.
+As shown below, the test data is set to `['luke', 'han', 'leia']`. The subscriber's `to` function, `joinResistance`, appends
+each received rebel to the `rebelForces` array.
 
-```json
-> .init -f "example/pubsub.yaml"
-{
-  "produceParams": {
-    "type": "my-topic",
-    "data": "${ [1..5].({'name': 'nozzleTime', 'rando': $random()})  }",
-    "client": {
-      "type": "test"
-    }
-  },
-  "subscribeParams": {
-    "source": "cloudEvent",
-    "type": "/${ produceParams.type }",
-    "to": "/${ function($e){( $set('/rxLog', rxLog~>$append($e)); )}  }",
-    "subscriberId": "dingus",
-    "initialPosition": "latest",
-    "client": {
-      "type": "test"
-    }
-  },
-  "send$": "$publish(produceParams)",
-  "recv$": "$subscribe(subscribeParams)",
-  "rxLog": []
-}
+```yaml
+falken$> cat example/pubsub.yaml
+# producer will be sending some test data
+produceParams:
+  type: "my-topic"
+  data: ['luke', 'han', 'leia']
+  client:
+    type: test
+# the subscriber's 'to' function will be called on each received event
+subscribeParams: #parameters for subscribing to an event
+  source: cloudEvent
+  type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
+  to: /${joinResistance}
+  subscriberId: rebelArmy
+  initialPosition: latest
+  client:
+    type: test
+joinResistance:  /${ function($rebel){ $set('/rebelForces', rebelForces~>$append($rebel))}  }
+# starts producer function
+send$: $publish(produceParams)
+# starts consumer function
+recv$: $subscribe(subscribeParams)
+# the subscriber's `to` function will write the received data here
+rebelForces: [ ]
+````
+We can use the REPL to run the pubsub.yaml example, and monitor the `/rebelForces` by tailing it until it contains all
+three of the published messages.
+```json ["data=['luke', 'han', 'leia']"]
+> .init -f "example/pubsub.yaml" --tail "/rebelForces until $=['luke', 'han', 'leia']"
+Started tailing... Press Ctrl+C to stop.
+[
+"luke",
+"han",
+"leia"
+]
+
 ```
-<details>
-<summary>Execution output (click to expand)</summary>
-```json ["$count(data.rxLog)=6"]
-> .init -f "example/pubsub.yaml" --tail "/ until $count(rxLog)>=5"
-{
-  "produceParams": {
-    "type": "my-topic",
-    "data": [
-      {
-        "name": "nozzleTime",
-        "rando": 0.5776065858162405
-      },
-      {
-        "name": "nozzleTime",
-        "rando": 0.14603495732221994
-      },
-      {
-        "name": "nozzleTime",
-        "rando": 0.6747697712879064
-      },
-      {
-        "name": "nozzleTime",
-        "rando": 0.8244336074302101
-      },
-      {
-        "name": "nozzleTime",
-        "rando": 0.7426610894846484
-      }
-    ],
-    "client": {
-      "type": "test"
-    }
-  },
-  "subscribeParams": {
-    "source": "cloudEvent",
-    "type": "my-topic",
-    "to": "{function:}",
-    "subscriberId": "dingus",
-    "initialPosition": "latest",
-    "client": {
-      "type": "test"
-    }
-  },
-  "send$": null,
-  "recv$": null,
-  "rxLog": [
-    {
-      "name": "nozzleTime",
-      "rando": 0.6677321749548661
-    },
-    {
-      "name": "nozzleTime",
-      "rando": 0.46779260195749184
-    },
-    {
-      "name": "nozzleTime",
-      "rando": 0.3316065714852454
-    },
-    {
-      "name": "nozzleTime",
-      "rando": 0.7331875081132901
-    },
-    {
-      "name": "nozzleTime",
-      "rando": 0.4174872067342268
-    },
-    {
-      "name": "nozzleTime",
-      "rando": 0.5776065858162405
-    }
-  ]
-}
-```
-</details>
+
 
 ## Durability
 Pure Stated does not provide durability or high availability. Stated-workflows adds
