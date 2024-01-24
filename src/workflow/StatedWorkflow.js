@@ -457,7 +457,7 @@ export class StatedWorkflow {
     }
 
     static async serial(input, steps, context={}, resolvedJsonPointers = {}, tp = undefined) {
-        let {workflowInvocation} = context;
+        let {workflowInvocation, deleteLogs} = context;
 
         if (workflowInvocation === undefined) {
             workflowInvocation = StatedWorkflow.generateDateAndTimeBasedID();
@@ -465,9 +465,13 @@ export class StatedWorkflow {
 
         let currentInput = input;
         for (let i = 0; i < steps.length; i++) {
-            const stepJson = steps[i];
             if(currentInput !== undefined) {
-                currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, resolvedJsonPointers?.[i], tp);
+                currentInput = await StatedWorkflow.runStep(workflowInvocation, steps[i], currentInput, resolvedJsonPointers?.[i], tp);
+            }
+        }
+        if (deleteLogs) {
+            for (let i = 0; i < steps.length; i++) {
+                currentInput = await StatedWorkflow.deleteStepLogs(workflowInvocation, steps[i], currentInput, resolvedJsonPointers?.[i], tp);
             }
         }
 
@@ -540,6 +544,11 @@ export class StatedWorkflow {
         }else{
             throw new Error(`unknown courseOfAction: ${instruction}`);
         }
+    }
+
+    static async deleteStepLogs(workflowInvocation, stepJson, input, stepJsonPtr, tp){
+        const step = new Step(stepJson, StatedWorkflow.persistence, stepJsonPtr, tp);
+        await step.deleteLogs(workflowInvocation);
     }
 
     static async executeStep(step, input, currentLog, stepRecord) {

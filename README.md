@@ -438,8 +438,9 @@ an entry corresponding to a uniqe `invocationId` for the workflow. The log captu
 that were passed to the step function, as well the functions output (`out`).
 
 ![steps](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow%20-%20Page%202.svg)
-WHen a workflow invocation completes, its logs are deleted from each step. Here we show invoking
-the `homeworld-steps.json` workflow, with `--options` that preserve the logs of completed steps.
+When a workflow invocation completes, its logs can be deleted from each step. However, to ease the learning curve, the 
+logs are preservered by default. Her we show the `homeworld-steps.json` workflow which preserves the logs of completed 
+steps.
 ```json
 > .init -f "example/homeworlds-steps.json"
 {
