@@ -57,19 +57,25 @@ export class StatedWorkflow {
         //"workflow": StatedWorkflow.workflow.bind(this)
     };
 
+    constructor(templateProcessor, persistence ){
+        this.templateProcessor = templateProcessor;
+        this.persistence = persistence;
+    }
 
-    // this methd returns a TemplateProcessor instance with the default functions and Stated Workflow functions. It also
-    // initializes persistence store, and set generator functions.
-    //FIXME TODO -- newXXX should return an XXX
-    static async newWorkflow(template={}, persistenceType = 'noop') {
-        this.persistence = createPersistence({persistenceType: persistenceType});
-        await this.persistence.init();
+    // this method returns a StatedWorkflow instance with TemplateProcesor with the default functions and Stated Workflow
+    // functions. It also initializes persistence store, and set generator functions.
+    static async newWorkflow(template, persistenceType = 'noop') {
+        const persistence = new createPersistence({persistenceType: persistenceType});
+        await persistence.init();
+        // TODO: fix CliCore.setupContext to respect context passed to the constructor
+        // const tp = new TemplateProcessor(template, {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS});
         TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
         const tp = new TemplateProcessor(template);
         tp.functionGenerators.set("serial", StatedWorkflow.serialGenerator);
         tp.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
         tp.onInitialize = WorkflowDispatcher.clear; //must remove all subscribers when template reinitialized
-        return tp;
+        await tp.initialize();
+        return new StatedWorkflow(tp, persistence);
     }
 
     static async logFunctionInvocation(stage, args, result, error = null, log) {

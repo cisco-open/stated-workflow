@@ -30,8 +30,7 @@ test("wf", async () => {
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     let template = yaml.load(templateYaml);
     // instantiate template processor
-    const tp = await StatedWorkflow.newWorkflow(template);
-    await tp.initialize();
+    const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
     while(tp.output.stop$ === 'still going'){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
     }
@@ -109,8 +108,7 @@ test("pubsub", async () => {
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     let template = yaml.load(templateYaml);
     // instantiate template processor
-    const tp = await StatedWorkflow.newWorkflow(template);
-    await tp.initialize();
+    const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
     while(tp.output.rebelForces.length < 3){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
     }
@@ -123,8 +121,7 @@ test("correlate", async () => {
     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'correlate.yaml');
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     var template = yaml.load(templateYaml);
-    const tp = await StatedWorkflow.newWorkflow(template);
-    await tp.initialize();
+    const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
     while(tp.output.state !== 'RECEIVED_RESPONSE'){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
     }
@@ -140,8 +137,7 @@ test("workflow logs", async () => {
     // Parse the YAML
     var template = yaml.load(templateYaml);
 
-    const tp = await StatedWorkflow.newWorkflow(template);
-    await tp.initialize();
+    const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
     const {step1, step2} = tp.output;
     expect(step1).toBeDefined();
     expect(step1.log).toBeDefined();
@@ -295,7 +291,7 @@ test("workflow logs", async () => {
 //     // Parse the YAML
 //     var template = yaml.load(templateYaml);
 //
-//     const tp = await StatedWorkflow.newWorkflow(template);
+//     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
 //     await tp.initialize();
 //     const {step1, step2} = tp.output;
 //     expect(step1).toBeDefined();
@@ -481,9 +477,8 @@ test("recover completed workflow - should do nothing", async () => {
     // Parse the YAML
     var template = yaml.load(templateYaml);
 
-    const tp = await StatedWorkflow.newWorkflow(template);
+    const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
 
-    await tp.initialize();
 
     const {recover$, step0, step1, step2} = tp.output;
     expect(recover$).toBeUndefined(); // make sure no error is returned
@@ -545,8 +540,7 @@ test("recover incomplete workflow - should rerun all steps", async () => {
     // Parse the YAML
     var template = yaml.load(templateYaml);
 
-    const tp = await StatedWorkflow.newWorkflow(template);
-    await tp.initialize();
+    const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
     const {step0, step1, step2} = tp.output;
     expect(step0.log['1697402819332-9q6gg'].end).exists;
     expect(step1.log['1697402819332-9q6gg'].start).exists;
@@ -603,8 +597,7 @@ test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 
     // Parse the YAML
     var template = yaml.load(templateYaml);
 
-    const tp = await StatedWorkflow.newWorkflow(template);
-    await tp.initialize();
+    const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
     const {step0, step1, step2} = tp.output;
     expect(step0.log['1697402819332-9q6gg'].end).toBeDefined();
     expect(step1.log['1697402819332-9q6gg'].start).toBeDefined();
@@ -639,8 +632,7 @@ test("workflow perf", async () => {
 
     // Initialize the template
     const initWorkflowStart = Date.now(); // Start the timer for initializing the workflow
-    const tp = await StatedWorkflow.newWorkflow(template);
-    await tp.initialize();
+    const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
     const initWorkflowTimeMs = Date.now() - initWorkflowStart; // time taken to init workflow
     console.log("Initialize workflow: " + (initWorkflowTimeMs) + "ms");
     expect(initWorkflowTimeMs).toBeLessThan(6000); // usually takes ~800ms, but providing some safety here
@@ -669,7 +661,7 @@ test("workflow perf", async () => {
 //     // Initialize the template
 //     console.time("Initialize workflow"); // Start the timer for initializing the workflow
 //     const tp await = StatedWorkflow.newWorkflow(template);
-//     await tp.initialize();
+// //     await tp.initialize();
 //     console.timeEnd("Initialize workflow"); // End the timer for initializing the workflow
 //
 //     console.timeEnd("workflow perf total time"); // End the total time timer
@@ -693,8 +685,7 @@ test("downloaders", async () => {
 
     // Initialize the template
     console.time("Initialize workflow"); // Start the timer for initializing the workflow
-    const tp = await StatedWorkflow.newWorkflow(template);
-    await tp.initialize();
+    const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
     console.timeEnd("Initialize workflow"); // End the timer for initializing the workflow
 
     console.timeEnd("workflow perf total time"); // End the total time timer
@@ -702,7 +693,7 @@ test("downloaders", async () => {
 
 
 test("test all", async () => {
-    const tp = await StatedWorkflow.newWorkflow({
+    const {templateProcessor:tp} = await StatedWorkflow.newWorkflow({
         "startEvent": "tada",
         // a,b,c,d are workflow stages, which include a callable stated expression, and an output object to
         // store the results of the expression and any errors that occur
@@ -725,7 +716,6 @@ test("test all", async () => {
         "workflow2": "${ function($startEvent) { $startEvent ~> $parallel([c,d]) } }",
         "workflow2out": "${ workflow2(startEvent)}"
     });
-    await tp.initialize();
     expect(tp.output.workflow1out)
         .toEqual('tada->a->b');
     expect(tp.output.workflow2out)
@@ -733,7 +723,7 @@ test("test all", async () => {
 });
 
 test("persist and recover from file", async () => {
-    const tp = await StatedWorkflow.newWorkflow({
+    const {templateProcessor:tp} = await StatedWorkflow.newWorkflow({
         "startEvent": "tada",
         "a": {
             "function": "${ function($in) { ( $console.log($in); [$in, 'a'] ~> $join('->') )} }"
@@ -754,7 +744,43 @@ test("persist and recover from file", async () => {
 
 
     // tp.setDataChangeCallback('/', dataChangeCallback);
-    await tp.initialize();
     expect(tp.output.out)
       .toEqual('tada->a->b');
+});
+
+test("Multiple template processors", async () => {
+    const t  = {
+        "startEvent": "tada",
+        // a,b,c,d are workflow stages, which include a callable stated expression, and an output object to
+        // store the results of the expression and any errors that occur
+        // it will allow workflow stages to be skipped if they have already been run or stop processing next
+        // stages if the current stage fails.
+        "a": {
+            "function": "${ function($in) { ( $console.log($in); [$in, 'a'] ~> $join('->') )} }"
+        },
+        "b": {
+            "function": "${ function($in) { [$in, 'b'] ~> $join('->') } }"
+        },
+        "c": {
+            "function": "${ function($in) { ( $console.log($in); [$in, 'c'] ~> $join('->') )} }"
+        },
+        "d": {
+            "function": "${ function($in) { ( $console.log($in); [$in, 'd'] ~> $join('->') )} }"
+        },
+        "workflow1": "${ function($startEvent) { $startEvent ~> $serial([a, b]) } }",
+        "workflow1out": "${ workflow1(startEvent)}",
+        "workflow2": "${ function($startEvent) { $startEvent ~> $parallel([c,d]) } }",
+        "workflow2out": "${ workflow2(startEvent)}"
+    };
+    const {templateProcessor:tp1} = await StatedWorkflow.newWorkflow(t);
+    const {templateProcessor:tp2} = await StatedWorkflow.newWorkflow(t);
+    expect(tp1.output.workflow1out)
+      .toEqual('tada->a->b');
+    expect(tp1.output.workflow2out)
+      .toEqual(expect.arrayContaining(['tada->c', 'tada->d']));
+    expect(tp2.output.workflow1out)
+      .toEqual('tada->a->b');
+    expect(tp2.output.workflow2out)
+      .toEqual(expect.arrayContaining(['tada->c', 'tada->d']));
+
 });
