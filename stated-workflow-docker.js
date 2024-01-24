@@ -37,7 +37,7 @@ app.get('/workflow/:workflowId', (req, res) => {
     const workflow = workflows[workflowId];
     if (workflow) {
         console.log(`Workflow ${workflowId}:`, StatedREPL.stringify(workflow));
-        res.json(workflow.output);
+        res.json(workflow.templateProcessor?.output);
     } else {
         console.log(`Workflow ${workflowId} not found`);
         res.status(404).send('Workflow not found');
