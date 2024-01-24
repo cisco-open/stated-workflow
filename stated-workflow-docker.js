@@ -16,7 +16,6 @@ app.post('/workflow', async (req, res) => {
         const workflowId = generateUniqueId();
         console.log(`Creating new workflow with ID ${workflowId}`);
         const tp = await StatedWorkflow.newWorkflow(template);
-        await tp.initialize();
         workflows[workflowId] = tp;
         console.log(`Workflow ${workflowId} started`);
         res.json({ workflowId, status: 'Started' });

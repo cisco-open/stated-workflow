@@ -16,4 +16,4 @@ RUN npm install
 RUN chmod +x stated-workflow-docker.js
 
 # Start an example workflow which listens on port 8080 for cloud events
-CMD ["node", "--experimental-vm-modules", "./stated-workflow-docker.js", "-f", "example/wfHttp01.yaml"]
+CMD ["node", "--experimental-vm-modules", "./stated-workflow-docker.js"]
