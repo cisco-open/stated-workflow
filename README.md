@@ -1048,6 +1048,7 @@ retruns trues, the function will be retried.
 
 <details>
 <summary>Execution output (click to expand)</summary>
+
 ```json ["steps[2].log.*.retryCount = 1 and $not($exists(steps[2].log.*.fail))"]
 > .out
 {
