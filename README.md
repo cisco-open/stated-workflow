@@ -444,24 +444,23 @@ steps.
 ```json
 > .init -f "example/homeworlds-steps.json" --options={"keepLogs":true}
 {
-  "output": "${   ['luke']~>$map(workflow) }",
+  "run": "!${   ['luke', 'han']~>$map(workflow) }",
   "workflow": "${ function($person){$person~>$serial(steps)} }",
-  "connectionError": true,
   "steps": [
     {
       "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
     },
     {
-      "function": "${  function($personDetail){$personDetail.homeworld }  }"
+      "function": "${  function($personDetail){$personDetail.homeworld}  }"
     },
     {
-      "function": "/${ function($homeworldURL){ ($url := connectionError ? $homeworldURL & '--broken--' : $homeworldURL ; $set('/connectionError', $not(connectionError)); $fetch($url).json(); ) }  }",
-      "shouldRetry": "${  function($log){ $log.end ? false : $log.retryCount < 4 }  }"
+      "function": "${  function($homeworldURL){$homeworldURL.$fetch($).json() }  }"
     },
     {
-      "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"
+      "function": "${  function($homeworldDetail){ $set('/output/-', $homeworldDetail.name) }  }"
     }
-  ]
+  ],
+  "output": []
 }
 ```
 <details>
@@ -470,22 +469,18 @@ steps.
 ```json ["output=['Tatooine','Corellia']"]
 > .out
 {
-  "output": [
-    "Tatooine",
-    "Corellia"
-  ],
   "workflow": "{function:}",
   "steps": [
     {
       "function": "{function:}",
       "log": {
-        "2023-11-09-1699500721593-ok2z": {
+        "2024-01-25-1706154305087-60d8": {
           "start": {
-            "timestamp": 1699500721593,
+            "timestamp": 1706154305087,
             "args": "luke"
           },
           "end": {
-            "timestamp": 1699500723568,
+            "timestamp": 1706154307096,
             "out": {
               "name": "Luke Skywalker",
               "height": "172",
@@ -517,13 +512,13 @@ steps.
             }
           }
         },
-        "2023-11-09-1699500725173-m7x6": {
+        "2024-01-25-1706154308474-r2kd": {
           "start": {
-            "timestamp": 1699500725173,
+            "timestamp": 1706154308475,
             "args": "han"
           },
           "end": {
-            "timestamp": 1699500726505,
+            "timestamp": 1706154309569,
             "out": {
               "name": "Han Solo",
               "height": "180",
@@ -556,9 +551,9 @@ steps.
     {
       "function": "{function:}",
       "log": {
-        "2023-11-09-1699500721593-ok2z": {
+        "2024-01-25-1706154305087-60d8": {
           "start": {
-            "timestamp": 1699500723568,
+            "timestamp": 1706154307096,
             "args": {
               "name": "Luke Skywalker",
               "height": "172",
@@ -590,13 +585,13 @@ steps.
             }
           },
           "end": {
-            "timestamp": 1699500723568,
+            "timestamp": 1706154307097,
             "out": "https://swapi.dev/api/planets/1/"
           }
         },
-        "2023-11-09-1699500725173-m7x6": {
+        "2024-01-25-1706154308474-r2kd": {
           "start": {
-            "timestamp": 1699500726505,
+            "timestamp": 1706154309570,
             "args": {
               "name": "Han Solo",
               "height": "180",
@@ -624,7 +619,7 @@ steps.
             }
           },
           "end": {
-            "timestamp": 1699500726505,
+            "timestamp": 1706154309570,
             "out": "https://swapi.dev/api/planets/22/"
           }
         }
@@ -633,13 +628,13 @@ steps.
     {
       "function": "{function:}",
       "log": {
-        "2023-11-09-1699500721593-ok2z": {
+        "2024-01-25-1706154305087-60d8": {
           "start": {
-            "timestamp": 1699500723568,
+            "timestamp": 1706154307097,
             "args": "https://swapi.dev/api/planets/1/"
           },
           "end": {
-            "timestamp": 1699500725173,
+            "timestamp": 1706154308469,
             "out": {
               "name": "Tatooine",
               "rotation_period": "23",
@@ -675,13 +670,13 @@ steps.
             }
           }
         },
-        "2023-11-09-1699500725173-m7x6": {
+        "2024-01-25-1706154308474-r2kd": {
           "start": {
-            "timestamp": 1699500726505,
+            "timestamp": 1706154309571,
             "args": "https://swapi.dev/api/planets/22/"
           },
           "end": {
-            "timestamp": 1699500727297,
+            "timestamp": 1706154310624,
             "out": {
               "name": "Corellia",
               "rotation_period": "25",
@@ -708,9 +703,9 @@ steps.
     {
       "function": "{function:}",
       "log": {
-        "2023-11-09-1699500721593-ok2z": {
+        "2024-01-25-1706154305087-60d8": {
           "start": {
-            "timestamp": 1699500725173,
+            "timestamp": 1706154308471,
             "args": {
               "name": "Tatooine",
               "rotation_period": "23",
@@ -746,13 +741,15 @@ steps.
             }
           },
           "end": {
-            "timestamp": 1699500725173,
-            "out": "Tatooine"
+            "timestamp": 1706154308472,
+            "out": [
+              "/output/-"
+            ]
           }
         },
-        "2023-11-09-1699500725173-m7x6": {
+        "2024-01-25-1706154308474-r2kd": {
           "start": {
-            "timestamp": 1699500727297,
+            "timestamp": 1706154310625,
             "args": {
               "name": "Corellia",
               "rotation_period": "25",
@@ -774,12 +771,18 @@ steps.
             }
           },
           "end": {
-            "timestamp": 1699500727297,
-            "out": "Corellia"
+            "timestamp": 1706154310627,
+            "out": [
+              "/output/-"
+            ]
           }
         }
       }
     }
+  ],
+  "output": [
+    "Tatooine",
+    "Corellia"
   ]
 }
 ```
