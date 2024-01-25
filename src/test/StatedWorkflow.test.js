@@ -31,6 +31,7 @@ test("wf", async () => {
     let template = yaml.load(templateYaml);
     // instantiate template processor
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    // keep steps execution logs for debugging
     tp.options = {'keepLogs': true}
     await tp.initialize();
     while(tp.output.stop$ === 'still going'){
@@ -111,6 +112,7 @@ test("pubsub", async () => {
     let template = yaml.load(templateYaml);
     // instantiate template processor
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    // keep steps execution logs for debugging
     tp.options = {'keepLogs': true}
     await tp.initialize();
     while(tp.output.rebelForces.length < 3){
@@ -126,6 +128,7 @@ test("correlate", async () => {
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     var template = yaml.load(templateYaml);
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    // keep steps execution logs for debugging
     tp.options = {'keepLogs': true}
     await tp.initialize();
     while(tp.output.state !== 'RECEIVED_RESPONSE'){
@@ -144,6 +147,7 @@ test("workflow logs", async () => {
     var template = yaml.load(templateYaml);
 
     const {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template);
+    // keep steps execution logs for debugging
     tp.options = {'keepLogs': true}
     await tp.initialize();
     const {step1, step2} = tp.output;
@@ -188,6 +192,7 @@ test("workflow logs with keepLogs", async () => {
     var template = yaml.load(templateYaml);
 
     const {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template);
+    // keep steps execution logs for debugging
     tp.options = {'keepLogs': true}
     await tp.initialize();
     const {step1, step2} = tp.output;
@@ -421,6 +426,7 @@ test("recover completed workflow - should do nothing", async () => {
     var template = yaml.load(templateYaml);
 
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    // keep steps execution logs for debugging
     tp.options = {'keepLogs': true}
     await tp.initialize();
 
@@ -486,6 +492,7 @@ test("recover incomplete workflow - should rerun all steps", async () => {
     var template = yaml.load(templateYaml);
 
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    // keep steps execution logs for debugging
     tp.options = {'keepLogs': true}
     await tp.initialize();
     const {step0, step1, step2} = tp.output;
@@ -545,6 +552,7 @@ test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 
     var template = yaml.load(templateYaml);
 
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    // keep steps execution logs for debugging
     tp.options = {'keepLogs': true}
     await tp.initialize();
     const {step0, step1, step2} = tp.output;
@@ -582,6 +590,7 @@ test("workflow perf", async () => {
     // Initialize the template
     const initWorkflowStart = Date.now(); // Start the timer for initializing the workflow
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    // keep steps execution logs for debugging
     tp.options = {'keepLogs': true}
     await tp.initialize();
     const initWorkflowTimeMs = Date.now() - initWorkflowStart; // time taken to init workflow
@@ -637,6 +646,7 @@ test("downloaders", async () => {
     // Initialize the template
     console.time("Initialize workflow"); // Start the timer for initializing the workflow
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    // keep steps execution logs for debugging
     tp.options = {'keepLogs': true}
     await tp.initialize();
     console.timeEnd("Initialize workflow"); // End the timer for initializing the workflow
@@ -669,6 +679,7 @@ test("test all", async () => {
         "workflow2": "${ function($startEvent) { $startEvent ~> $parallel([c,d]) } }",
         "workflow2out": "${ workflow2(startEvent)}"
     });
+    // keep steps execution logs for debugging
     tp.options = {'keepLogs': true};
     await tp.initialize();
     expect(tp.output.workflow1out)
@@ -689,6 +700,7 @@ test("persist and recover from file", async () => {
         "workflow1": "${ function($startEvent) { $startEvent ~> $serial([a, b]) } }",
         "out": "${ workflow1(startEvent)}",
     });
+    // keep steps execution logs for debugging
     tp.options = {'keepLogs': true};
     await tp.initialize();
 

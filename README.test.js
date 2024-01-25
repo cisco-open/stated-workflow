@@ -19,7 +19,6 @@ import {StatedWorkflow} from "./src/workflow/StatedWorkflow.js";
 
 
 const {templateProcessor:tp} = await StatedWorkflow.newWorkflow();
-tp.options = {'keepLogs': true};
 await tp.initialize();
 const cliCore = new CliCore(tp);
 
