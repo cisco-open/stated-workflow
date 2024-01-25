@@ -1,5 +1,5 @@
 {
-  "output": "${   ['luke', 'han']~>$map(workflow) }",
+  "run": "!${   ['luke', 'han']~>$map(workflow) }",
   "workflow": "${ function($person){$person~>$serial(steps)} }",
   "steps": [
     {
@@ -12,7 +12,8 @@
       "function": "${  function($homeworldURL){$homeworldURL.$fetch($).json() }  }"
     },
     {
-      "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"
+      "function": "${  function($homeworldDetail){ $set('/output/-', $homeworldDetail.name) }  }"
     }
-  ]
+  ],
+  "output": []
 }

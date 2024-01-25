@@ -31,6 +31,8 @@ test("wf", async () => {
     let template = yaml.load(templateYaml);
     // instantiate template processor
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    tp.options = {'keepLogs': true}
+    await tp.initialize();
     while(tp.output.stop$ === 'still going'){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
     }
@@ -109,6 +111,8 @@ test("pubsub", async () => {
     let template = yaml.load(templateYaml);
     // instantiate template processor
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    tp.options = {'keepLogs': true}
+    await tp.initialize();
     while(tp.output.rebelForces.length < 3){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
     }
@@ -122,6 +126,8 @@ test("correlate", async () => {
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     var template = yaml.load(templateYaml);
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    tp.options = {'keepLogs': true}
+    await tp.initialize();
     while(tp.output.state !== 'RECEIVED_RESPONSE'){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
     }
@@ -137,14 +143,18 @@ test("workflow logs", async () => {
     // Parse the YAML
     var template = yaml.load(templateYaml);
 
-    const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    const {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template);
+    tp.options = {'keepLogs': true}
+    await tp.initialize();
     const {step1, step2} = tp.output;
     expect(step1).toBeDefined();
     expect(step1.log).toBeDefined();
+    // expect(Object.keys(step1.log).length).toEqual(0);
     expect(step2).toBeDefined();
     expect(step2.log).toBeDefined();
+    // expect(Object.keys(step2.log).length).toEqual(0);
     //correlate each workflowInvocation from step1's log to step2's log
-    Object.keys(step1.log).forEach(workflowInvocation=> {
+    Object.keys(step1.log).forEach(workflowInvocation => {
           const removeUncomparableTimestamps = JSON.parse(StatedREPL.stringify(step2.log[workflowInvocation], EnhancedPrintFunc.printFunc));
           expect(removeUncomparableTimestamps).toMatchObject({
               "start": {
@@ -166,120 +176,52 @@ test("workflow logs", async () => {
           })
       }
     );
+});
 
-    const expectedOutput = {
-        "log": {
-            "retention": {
-                "maxWorkflowLogs": 100
-            }
-        },
-        "myWorkflow$": "{function:}",
-        "name": "nozzleWork",
-        "start$": null,
-        "step1": {
-            "function": "{function:}",
-            "log": {
-                "1697347459331-9nhaf": {
-                    "end": {
-                        "out": {
-                            "name": "nozzleTime",
-                            "order": 1,
-                            "primed": true
-                        },
-                        "timestamp": "--timestamp--"
-                    },
-                    "start": {
-                        "args": {
-                            "name": "nozzleTime",
-                            "order": 1
-                        },
-                        "timestamp": "--timestamp--"
-                    }
-                },
-                "1697347459331-fb9gc": {
-                    "end": {
-                        "out": {
-                            "name": "nozzleTime",
-                            "order": 2,
-                            "primed": true
-                        },
-                        "timestamp": "--timestamp--"
-                    },
-                    "start": {
-                        "args": {
-                            "name": "nozzleTime",
-                            "order": 2
-                        },
-                        "timestamp": "--timestamp--"
-                    }
-                }
-            },
-            "name": "primeTheNozzle"
-        },
-        "step2": {
-            "function": "{function:}",
-            "log": {
-                "1697347459331-9nhaf": {
-                    "end": {
-                        "out": {
-                            "name": "nozzleTime",
-                            "order": 1,
-                            "primed": true,
-                            "sprayed": true
-                        },
-                        "timestamp": "--timestamp--"
-                    },
-                    "start": {
-                        "args": {
-                            "name": "nozzleTime",
-                            "order": 1,
-                            "primed": true
-                        },
-                        "timestamp": "--timestamp--"
-                    }
-                },
-                "1697347459331-fb9gc": {
-                    "end": {
-                        "out": {
-                            "name": "nozzleTime",
-                            "order": 2,
-                            "primed": true,
-                            "sprayed": true
-                        },
-                        "timestamp": "--timestamp--"
-                    },
-                    "start": {
-                        "args": {
-                            "name": "nozzleTime",
-                            "order": 2,
-                            "primed": true
-                        },
-                        "timestamp": "--timestamp--"
-                    }
-                }
-            },
-            "name": "sprayTheNozzle"
-        },
-        "subscribeParams": {
-            "filter$": "{function:}",
-            "parallelism": 2,
-            "source": "cloudEvent",
-            "subscriberId": "nozzleWork",
-            "testData": [
-                {
-                    "name": "nozzleTime",
-                    "order": 1
-                },
-                {
-                    "name": "nozzleTime",
-                    "order": 2
-                }
-            ],
-            "to": "{function:}",
-            "type": "my-topic"
-        }
-    };
-}, 10000);
+test("workflow logs with keepLogs", async () => {
+
+    // Load the YAML from the file
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wf.yaml');
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+
+    // Parse the YAML
+    var template = yaml.load(templateYaml);
+
+    const {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template);
+    tp.options = {'keepLogs': true}
+    await tp.initialize();
+    const {step1, step2} = tp.output;
+    expect(step1).toBeDefined();
+    expect(step1.log).toBeDefined();
+    expect(Object.keys(step2.log).length).toEqual(1);
+    expect(step2).toBeDefined();
+    expect(step2.log).toBeDefined();
+    expect(Object.keys(step2.log).length).toEqual(1);
+    //correlate each workflowInvocation from step1's log to step2's log
+    Object.keys(step1.log).forEach(workflowInvocation => {
+          const removeUncomparableTimestamps = JSON.parse(StatedREPL.stringify(step2.log[workflowInvocation], EnhancedPrintFunc.printFunc));
+          expect(removeUncomparableTimestamps).toMatchObject({
+              "start": {
+                  "args": {
+                      "name": "nozzleTime",
+                      "primed": true
+                      //order: 1 ...note we don't test for order because we can't guarantee which workflowInvocation contains 1 or 2
+                  },
+                  "timestamp": "--timestamp--"
+              },
+              "end": {
+                  "out": {
+                      "name": "nozzleTime",
+                      "primed": true,
+                      "sprayed": true
+                  },
+                  "timestamp": "--timestamp--"
+              }
+          })
+      }
+    );
+});
+
 
 // This is WIP migrating to a new log format
 // test("workflow logs", async () => {
@@ -291,8 +233,9 @@ test("workflow logs", async () => {
 //     // Parse the YAML
 //     var template = yaml.load(templateYaml);
 //
-//     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
-//     await tp.initialize();
+//     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);await
+// tp.initialize();
+await //     await tp.initialize();
 //     const {step1, step2} = tp.output;
 //     expect(step1).toBeDefined();
 //     expect(step1.log).toBeDefined();
@@ -478,6 +421,8 @@ test("recover completed workflow - should do nothing", async () => {
     var template = yaml.load(templateYaml);
 
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    tp.options = {'keepLogs': true}
+    await tp.initialize();
 
 
     const {recover$, step0, step1, step2} = tp.output;
@@ -541,6 +486,8 @@ test("recover incomplete workflow - should rerun all steps", async () => {
     var template = yaml.load(templateYaml);
 
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    tp.options = {'keepLogs': true}
+    await tp.initialize();
     const {step0, step1, step2} = tp.output;
     expect(step0.log['1697402819332-9q6gg'].end).exists;
     expect(step1.log['1697402819332-9q6gg'].start).exists;
@@ -598,6 +545,8 @@ test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 
     var template = yaml.load(templateYaml);
 
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    tp.options = {'keepLogs': true}
+    await tp.initialize();
     const {step0, step1, step2} = tp.output;
     expect(step0.log['1697402819332-9q6gg'].end).toBeDefined();
     expect(step1.log['1697402819332-9q6gg'].start).toBeDefined();
@@ -633,6 +582,8 @@ test("workflow perf", async () => {
     // Initialize the template
     const initWorkflowStart = Date.now(); // Start the timer for initializing the workflow
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    tp.options = {'keepLogs': true}
+    await tp.initialize();
     const initWorkflowTimeMs = Date.now() - initWorkflowStart; // time taken to init workflow
     console.log("Initialize workflow: " + (initWorkflowTimeMs) + "ms");
     expect(initWorkflowTimeMs).toBeLessThan(6000); // usually takes ~800ms, but providing some safety here
@@ -661,7 +612,7 @@ test("workflow perf", async () => {
 //     // Initialize the template
 //     console.time("Initialize workflow"); // Start the timer for initializing the workflow
 //     const tp await = StatedWorkflow.newWorkflow(template);
-// //     await tp.initialize();
+// await //     await tp.initialize();
 //     console.timeEnd("Initialize workflow"); // End the timer for initializing the workflow
 //
 //     console.timeEnd("workflow perf total time"); // End the total time timer
@@ -686,6 +637,8 @@ test("downloaders", async () => {
     // Initialize the template
     console.time("Initialize workflow"); // Start the timer for initializing the workflow
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    tp.options = {'keepLogs': true}
+    await tp.initialize();
     console.timeEnd("Initialize workflow"); // End the timer for initializing the workflow
 
     console.timeEnd("workflow perf total time"); // End the total time timer
@@ -716,6 +669,8 @@ test("test all", async () => {
         "workflow2": "${ function($startEvent) { $startEvent ~> $parallel([c,d]) } }",
         "workflow2out": "${ workflow2(startEvent)}"
     });
+    tp.options = {'keepLogs': true};
+    await tp.initialize();
     expect(tp.output.workflow1out)
         .toEqual('tada->a->b');
     expect(tp.output.workflow2out)
@@ -734,6 +689,8 @@ test("persist and recover from file", async () => {
         "workflow1": "${ function($startEvent) { $startEvent ~> $serial([a, b]) } }",
         "out": "${ workflow1(startEvent)}",
     });
+    tp.options = {'keepLogs': true};
+    await tp.initialize();
 
 
     // const dataChangeCallback2 = debounce(fs.writeFileSync('.state/output.json', JSON.stringify(tp.output)), 1000);
@@ -774,6 +731,10 @@ test("Multiple template processors", async () => {
     };
     const {templateProcessor:tp1} = await StatedWorkflow.newWorkflow(t);
     const {templateProcessor:tp2} = await StatedWorkflow.newWorkflow(t);
+    tp1.options = {'keepLogs': true};
+    await tp1.initialize();
+    tp2.options = {'keepLogs': true};
+    await tp2.initialize();
     expect(tp1.output.workflow1out)
       .toEqual('tada->a->b');
     expect(tp1.output.workflow2out)

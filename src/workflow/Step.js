@@ -115,7 +115,7 @@ export default class Step {
 
     async deleteLogs(workflowInvocation) {
         const jsonPtr = this.stepJsonPtr + "/log/" + workflowInvocation;
-        jp.remove(this.tp.output, jsonPtr);
+        this.tp.setData(jsonPtr, undefined, "delete");
     }
 
     initLog(log) {

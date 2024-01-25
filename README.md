@@ -442,19 +442,21 @@ When a workflow invocation completes, its logs can be deleted from each step. Ho
 logs are preservered by default. Her we show the `homeworld-steps.json` workflow which preserves the logs of completed 
 steps.
 ```json
-> .init -f "example/homeworlds-steps.json"
+> .init -f "example/homeworlds-steps.json" --options={"keepLogs":true}
 {
-  "output": "${   ['luke', 'han']~>$map(workflow) }",
+  "output": "${   ['luke']~>$map(workflow) }",
   "workflow": "${ function($person){$person~>$serial(steps)} }",
+  "connectionError": true,
   "steps": [
     {
       "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
     },
     {
-      "function": "${  function($personDetail){$personDetail.homeworld}  }"
+      "function": "${  function($personDetail){$personDetail.homeworld }  }"
     },
     {
-      "function": "${  function($homeworldURL){$homeworldURL.$fetch($).json() }  }"
+      "function": "/${ function($homeworldURL){ ($url := connectionError ? $homeworldURL & '--broken--' : $homeworldURL ; $set('/connectionError', $not(connectionError)); $fetch($url).json(); ) }  }",
+      "shouldRetry": "${  function($log){ $log.end ? false : $log.retryCount < 4 }  }"
     },
     {
       "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"
@@ -787,7 +789,7 @@ steps.
 If a step function throws an `Error`, or returns `undefined`, the invocation log will contain a `fail`. In the
 example below we intentionally break the second step by concatenating "--broken--" to the homeword URL.
 ```json
-> .init -f "example/homeworlds-steps-error.json"
+> .init -f "example/homeworlds-steps-error.json" --options={"keepLogs":true}
 {
   "output": "${   ['luke', 'han']~>$map(workflow) }",
   "workflow": "${ function($person){$person~>$serial(steps)} }",
@@ -1018,7 +1020,7 @@ $serial execution halts on fail.
 Each step can provide an optional boolean function `shouldRetry`, which should accept invocationLog argument. If it
 retruns trues, the function will be retried.
 ```json
-> .init -f example/homeworlds-steps-with-retry.json
+> .init -f example/homeworlds-steps-with-retry.json --options={"keepLogs":true}
 {
   "output": "${   ['luke']~>$map(workflow) }",
   "workflow": "${ function($person){$person~>$serial(steps)} }",

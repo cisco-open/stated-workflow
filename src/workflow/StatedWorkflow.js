@@ -74,8 +74,11 @@ export class StatedWorkflow {
         tp.functionGenerators.set("serial", StatedWorkflow.serialGenerator);
         tp.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
         tp.onInitialize = WorkflowDispatcher.clear; //must remove all subscribers when template reinitialized
-        await tp.initialize();
         return new StatedWorkflow(tp, persistence);
+    }
+
+    async initialize() {
+        await tp.initialize();
     }
 
     static async logFunctionInvocation(stage, args, result, error = null, log) {
@@ -457,7 +460,7 @@ export class StatedWorkflow {
     }
 
     static async serial(input, steps, context={}, resolvedJsonPointers = {}, tp = undefined) {
-        let {workflowInvocation, deleteLogs} = context;
+        let {workflowInvocation} = context;
 
         if (workflowInvocation === undefined) {
             workflowInvocation = StatedWorkflow.generateDateAndTimeBasedID();
@@ -469,7 +472,7 @@ export class StatedWorkflow {
                 currentInput = await StatedWorkflow.runStep(workflowInvocation, steps[i], currentInput, resolvedJsonPointers?.[i], tp);
             }
         }
-        if (deleteLogs) {
+        if (!tp.options.keepLogs) {
             for (let i = 0; i < steps.length; i++) {
                 currentInput = await StatedWorkflow.deleteStepLogs(workflowInvocation, steps[i], currentInput, resolvedJsonPointers?.[i], tp);
             }
