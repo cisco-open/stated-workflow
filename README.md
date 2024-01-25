@@ -5,13 +5,14 @@
   * [Getting Started](#getting-started)
     * [Installation](#installation)
     * [Running the REPL](#running-the-repl)
+    * [Configuration](#configuration)
 * [Stated Template Jobs](#stated-template-jobs-)
     * [Job Concurrency](#job-concurrency)
     * [Internal Job Concurrency](#internal-job-concurrency)
 * [Stated Workflow Functions](#stated-workflow-functions)
   * [Cloud Events](#cloud-events)
   * [Durability](#durability)
-  * [Workflow Steps](#workflow-steps)
+  * [Workflow Step Logs](#workflow-step-logs)
   * [Error Handling](#error-handling)
     * [retries](#retries)
 <!-- TOC -->
@@ -433,7 +434,7 @@ as running in Stated-Workflow cluster. Stated-Workflows provides a "local cluste
 _durability_ of stated workflows by unceremoniously "killing" the REPL and then restarting the workflow at a later time.
 
 ## Workflow Step Logs
-Stated provides durability by defining the Step as the unit of durability. A step
+Stated Workflow provides durability by defining the Step as the unit of durability. A step
 is nothing more than a json object that has a field named 'function', that is a JSONata `function`
 ```json
 {
@@ -443,11 +444,12 @@ is nothing more than a json object that has a field named 'function', that is a 
 Let's recast our homeworld example using Steps. This will give the Job durability, so that it
 can fail and be restarted. When a step function is called, the step's log is populated with
 an entry corresponding to a uniqe `invocationId` for the workflow. The log captures the `args`
-that were passed to the step function, as well the functions output (`out`).
+that were passed to the step function, as well the functions output (`out`). Once the step function 
+completes, the log is updated with the `end` timestamp, which indicates the step has completed.
 
 ![steps](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow%20-%20Page%202.svg)
-When a workflow invocation completes, its logs can be deleted from each step. However, to ease the learning curve, the 
-logs are preservered by default. Her we show the `homeworld-steps.json` workflow which preserves the logs of completed 
+When a workflow invocation completes, its logs can be deleted from each step. However, the logs can be preserved by 
+setting keepLogs option to true. Here we show the `homeworld-steps.json` workflow with keepLogs enabled. 
 steps.
 ```json
 > .init -f "example/homeworlds-steps.json" --options={"keepLogs":true}

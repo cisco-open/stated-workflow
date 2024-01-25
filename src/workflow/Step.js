@@ -1,4 +1,5 @@
 import {default as jp} from "stated-js/dist/src/JsonPointer.js";
+import {StepLog} from "./StepLog.js";
 
 export default class Step {
     constructor(stepJson, persistence, jsonPath = null, tp) {
@@ -6,6 +7,7 @@ export default class Step {
         this.persistence = persistence;
         this.stepJsonPtr = jsonPath;
         this.tp = tp;
+        this.log = new StepLog(stepJson);
     }
 
     async run(workflowInvocation, args) {
