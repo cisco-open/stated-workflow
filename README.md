@@ -454,7 +454,7 @@ steps.
 ```json
 > .init -f "example/homeworlds-steps.json" --options={"keepLogs":true}
 {
-  "run": "!${   ['luke', 'han']~>$map(workflow) }",
+  "run": "${   ['luke', 'han']~>$map(workflow) }",
   "workflow": "${ function($person){$person~>$serial(steps)} }",
   "steps": [
     {
@@ -467,19 +467,22 @@ steps.
       "function": "${  function($homeworldURL){$homeworldURL.$fetch($).json() }  }"
     },
     {
-      "function": "${  function($homeworldDetail){ $set('/output/-', $homeworldDetail.name) }  }"
+      "function": "${  function($homeworldDetail){ $homeworldDetail.name } }"
     }
-  ],
-  "output": []
+  ]
 }
 ```
 
 <details>
 <summary>Execution output with keepLogs enabled (click to expand)</summary>
 
-```json ["output=['Tatooine','Corellia']"]
+```json ["run=['Tatooine','Corellia']"]
 > .out
 {
+  "run": [
+    "Tatooine",
+    "Corellia"
+  ],
   "workflow": "{function:}",
   "steps": [
     {
@@ -790,10 +793,6 @@ steps.
         }
       }
     }
-  ],
-  "output": [
-    "Tatooine",
-    "Corellia"
   ]
 }
 ```

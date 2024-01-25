@@ -484,10 +484,10 @@ export class StatedWorkflow {
         }
 
         let currentInput = input;
-        let steps = [];
+        const steps = [];
         for (let i = 0; i < stepJsons.length; i++) {
             if(currentInput !== undefined) {
-                let step = new Step(stepJsons[i], StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
+                const step = new Step(stepJsons[i], StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
                 steps.push(step);
                 currentInput = await StatedWorkflow.runStep(workflowInvocation, step, currentInput);
             }
@@ -542,7 +542,8 @@ export class StatedWorkflow {
 
     static async deleteStepsLogs(workflowInvocation, steps){
         for (let i = 0; i < steps.length; i++) {
-            await step.deleteLogs(workflowInvocation);
+
+            await steps[i].deleteLogs(workflowInvocation);
         }
     }
 
