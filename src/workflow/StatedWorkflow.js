@@ -78,7 +78,7 @@ export class StatedWorkflow {
     }
 
     async initialize() {
-        await tp.initialize();
+        await this.templateProcessor.initialize();
     }
 
     static async logFunctionInvocation(stage, args, result, error = null, log) {
