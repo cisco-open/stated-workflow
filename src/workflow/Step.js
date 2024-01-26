@@ -91,7 +91,7 @@ export default class Step {
                 if (retryCount !== undefined) {
                     await this.tp.setData(jsonPtr + "/retryCount", ++retryCount);
                 }
-                let out = await fn.apply(this, [args]);
+                let out = await fn.apply(this, [args, {workflowInvocation}]);
                 const end = {
                     timestamp: new Date().getTime(),
                     out

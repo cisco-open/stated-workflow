@@ -496,6 +496,9 @@ test("recover incomplete workflow - should rerun all steps", async () => {
     tp.options = {'keepLogs': true}
     await tp.initialize();
     const {step0, step1, step2} = tp.output;
+    while(tp.output.step2.log['1697402819332-9q6gg'] === undefined || tp.output.step2.log['1697402819332-9q6gg'].end === undefined){
+        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+    }
     expect(step0.log['1697402819332-9q6gg'].end).exists;
     expect(step1.log['1697402819332-9q6gg'].start).exists;
     expect(step1.log['1697402819332-9q6gg'].end).exists;
@@ -555,14 +558,15 @@ test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 
     // keep steps execution logs for debugging
     tp.options = {'keepLogs': true}
     await tp.initialize();
-    console.log(tp.output);
     const {step0, step1, step2} = tp.output;
-    expect(step0.log['1697402819332-9q6gg'].end).toBeDefined();
-    expect(step1.log['1697402819332-9q6gg'].start).toBeDefined();
-    expect(step1.log['1697402819332-9q6gg'].end).toBeDefined();
     while(tp.output.step2.log['1697402819332-9q6gg'] === undefined || tp.output.step2.log['1697402819332-9q6gg'].end === undefined){
         await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
     }
+
+    expect(step0.log['1697402819332-9q6gg'].end).toBeDefined();
+    expect(step1.log['1697402819332-9q6gg'].start).toBeDefined();
+    expect(step1.log['1697402819332-9q6gg'].end).toBeDefined();
+
     expect(step2.log['1697402819332-9q6gg'].start).toBeDefined();
     expect(step2.log['1697402819332-9q6gg'].end).toBeDefined();
     expect(step2.log['1697402819332-9q6gg'].end.out).toMatchObject({
