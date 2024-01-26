@@ -555,6 +555,7 @@ test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 
     // keep steps execution logs for debugging
     tp.options = {'keepLogs': true}
     await tp.initialize();
+    console.log(tp.output);
     const {step0, step1, step2} = tp.output;
     expect(step0.log['1697402819332-9q6gg'].end).toBeDefined();
     expect(step1.log['1697402819332-9q6gg'].start).toBeDefined();
