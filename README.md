@@ -2,17 +2,18 @@
 
 <!-- TOC -->
 * [Overview](#overview)
-    * [Getting Started](#getting-started)
-        * [Installation](#installation)
-        * [Running the REPL](#running-the-repl)
+  * [Getting Started](#getting-started)
+    * [Installation](#installation)
+    * [Running the REPL](#running-the-repl)
+    * [Configuration](#configuration)
 * [Stated Template Jobs](#stated-template-jobs-)
     * [Job Concurrency](#job-concurrency)
     * [Internal Job Concurrency](#internal-job-concurrency)
 * [Stated Workflow Functions](#stated-workflow-functions)
-    * [Cloud Events](#cloud-events)
-    * [Durability](#durability)
-    * [Workflow Steps](#workflow-steps)
-* [Error Handling](#error-handling)
+  * [Cloud Events](#cloud-events)
+  * [Durability](#durability)
+  * [Workflow Step Logs](#workflow-step-logs)
+  * [Error Handling](#error-handling)
     * [retries](#retries)
 <!-- TOC -->
 
@@ -66,6 +67,14 @@ For example you can enter this command in the REPL:
 ```bash 
 > .init -f "example/homeworld.json"
 ```
+
+### Configuration
+Stated Workflows extend Stated and stated Repl works out of the box. It provides all of the functionality of Stated, 
+including the ability to provide an additional configuration with `--options` flag. 
+
+Workflow Functions can be configured with `--option={"keepLogs":true}`. This will preserve the logs of completed steps 
+for debugging in the template, instead of deleting them on a function completion.
+
 # Stated Template Jobs 
 A job is a pure Stated Template that runs to completion and does not receive any asynchronous inputs.
 A job has a beginning, and an end. Here is a job that uses the Starwars API to search for Luke Skywalker's details,
@@ -424,8 +433,8 @@ Stated-Workflows locally. As long as you don't "unplug" the stated REPL, it will
 as running in Stated-Workflow cluster. Stated-Workflows provides a "local cluster" option where you can test the
 _durability_ of stated workflows by unceremoniously "killing" the REPL and then restarting the workflow at a later time.
 
-## Workflow Steps
-Stated provides durability by defining the Step as the unit of durability. A step
+## Workflow Step Logs
+Stated Workflow provides durability by defining the Step as the unit of durability. A step
 is nothing more than a json object that has a field named 'function', that is a JSONata `function`
 ```json
 {
@@ -435,13 +444,15 @@ is nothing more than a json object that has a field named 'function', that is a 
 Let's recast our homeworld example using Steps. This will give the Job durability, so that it
 can fail and be restarted. When a step function is called, the step's log is populated with
 an entry corresponding to a uniqe `invocationId` for the workflow. The log captures the `args`
-that were passed to the step function, as well the functions output (`out`).
+that were passed to the step function, as well the functions output (`out`). Once the step function 
+completes, the log is updated with the `end` timestamp, which indicates the step has completed.
 
 ![steps](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow%20-%20Page%202.svg)
-WHen a workflow invocation completes, its logs are deleted from each step. Here we show invoking
-the `homeworld-steps.json` workflow, with `--options` that preserve the logs of completed steps.
+When a workflow invocation completes, its logs can be deleted from each step. However, the logs can be preserved by 
+setting keepLogs option to true. Here we show the `homeworld-steps.json` workflow with keepLogs enabled. 
+steps.
 ```json
-> .init -f "example/homeworlds-steps.json"
+> .init -f "example/homeworlds-steps.json" --options={"keepLogs":true}
 {
   "output": "${   ['luke', 'han']~>$map(workflow) }",
   "workflow": "${ function($person){$person~>$serial(steps)} }",
@@ -461,8 +472,9 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
   ]
 }
 ```
+
 <details>
-<summary>Execution output (click to expand)</summary>
+<summary>Execution output with keepLogs enabled (click to expand)</summary>
 
 ```json ["output=['Tatooine','Corellia']"]
 > .out
@@ -476,13 +488,13 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
     {
       "function": "{function:}",
       "log": {
-        "2023-11-09-1699500721593-ok2z": {
+        "2024-01-25-1706159105500-40ff": {
           "start": {
-            "timestamp": 1699500721593,
+            "timestamp": 1706159105500,
             "args": "luke"
           },
           "end": {
-            "timestamp": 1699500723568,
+            "timestamp": 1706159106777,
             "out": {
               "name": "Luke Skywalker",
               "height": "172",
@@ -514,13 +526,13 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
             }
           }
         },
-        "2023-11-09-1699500725173-m7x6": {
+        "2024-01-25-1706159108206-se1m": {
           "start": {
-            "timestamp": 1699500725173,
+            "timestamp": 1706159108206,
             "args": "han"
           },
           "end": {
-            "timestamp": 1699500726505,
+            "timestamp": 1706159109303,
             "out": {
               "name": "Han Solo",
               "height": "180",
@@ -553,9 +565,9 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
     {
       "function": "{function:}",
       "log": {
-        "2023-11-09-1699500721593-ok2z": {
+        "2024-01-25-1706159105500-40ff": {
           "start": {
-            "timestamp": 1699500723568,
+            "timestamp": 1706159106777,
             "args": {
               "name": "Luke Skywalker",
               "height": "172",
@@ -587,13 +599,13 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
             }
           },
           "end": {
-            "timestamp": 1699500723568,
+            "timestamp": 1706159106778,
             "out": "https://swapi.dev/api/planets/1/"
           }
         },
-        "2023-11-09-1699500725173-m7x6": {
+        "2024-01-25-1706159108206-se1m": {
           "start": {
-            "timestamp": 1699500726505,
+            "timestamp": 1706159109304,
             "args": {
               "name": "Han Solo",
               "height": "180",
@@ -621,7 +633,7 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
             }
           },
           "end": {
-            "timestamp": 1699500726505,
+            "timestamp": 1706159109308,
             "out": "https://swapi.dev/api/planets/22/"
           }
         }
@@ -630,13 +642,13 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
     {
       "function": "{function:}",
       "log": {
-        "2023-11-09-1699500721593-ok2z": {
+        "2024-01-25-1706159105500-40ff": {
           "start": {
-            "timestamp": 1699500723568,
+            "timestamp": 1706159106781,
             "args": "https://swapi.dev/api/planets/1/"
           },
           "end": {
-            "timestamp": 1699500725173,
+            "timestamp": 1706159108189,
             "out": {
               "name": "Tatooine",
               "rotation_period": "23",
@@ -672,13 +684,13 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
             }
           }
         },
-        "2023-11-09-1699500725173-m7x6": {
+        "2024-01-25-1706159108206-se1m": {
           "start": {
-            "timestamp": 1699500726505,
+            "timestamp": 1706159109313,
             "args": "https://swapi.dev/api/planets/22/"
           },
           "end": {
-            "timestamp": 1699500727297,
+            "timestamp": 1706159111220,
             "out": {
               "name": "Corellia",
               "rotation_period": "25",
@@ -705,9 +717,9 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
     {
       "function": "{function:}",
       "log": {
-        "2023-11-09-1699500721593-ok2z": {
+        "2024-01-25-1706159105500-40ff": {
           "start": {
-            "timestamp": 1699500725173,
+            "timestamp": 1706159108190,
             "args": {
               "name": "Tatooine",
               "rotation_period": "23",
@@ -743,13 +755,15 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
             }
           },
           "end": {
-            "timestamp": 1699500725173,
-            "out": "Tatooine"
+            "timestamp": 1706159108197,
+            "out": [
+              "/output/-"
+            ]
           }
         },
-        "2023-11-09-1699500725173-m7x6": {
+        "2024-01-25-1706159108206-se1m": {
           "start": {
-            "timestamp": 1699500727297,
+            "timestamp": 1706159111221,
             "args": {
               "name": "Corellia",
               "rotation_period": "25",
@@ -771,8 +785,10 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
             }
           },
           "end": {
-            "timestamp": 1699500727297,
-            "out": "Corellia"
+            "timestamp": 1706159111232,
+            "out": [
+              "/output/-"
+            ]
           }
         }
       }
@@ -782,11 +798,11 @@ the `homeworld-steps.json` workflow, with `--options` that preserve the logs of 
 ```
 </details>
 
-# Error Handling
+## Error Handling
 If a step function throws an `Error`, or returns `undefined`, the invocation log will contain a `fail`. In the
 example below we intentionally break the second step by concatenating "--broken--" to the homeword URL.
 ```json
-> .init -f "example/homeworlds-steps-error.json"
+> .init -f "example/homeworlds-steps-error.json" --options={"keepLogs":true}
 {
   "output": "${   ['luke', 'han']~>$map(workflow) }",
   "workflow": "${ function($person){$person~>$serial(steps)} }",
@@ -806,11 +822,11 @@ example below we intentionally break the second step by concatenating "--broken-
   ]
 }
 ```
-Note the
-`fail` that occurs in logs for luke and han in the below execution output. Also note that the final fourth step contains no `start` entry as
-$serial execution halts on fail.
+Note the `fail` that occurs in logs for luke and han in the below execution output. Also note that the final fourth step 
+contains no `start` entry as $serial execution halts on fail.
+
 <details>
-<summary>Execution output (click to expand)</summary>
+<summary>Execution output with keepLogs enabled (click to expand)</summary>
 
 ```json ["steps[2].log.*.fail ~> $count = 2"]
 > .out
@@ -1014,10 +1030,13 @@ $serial execution halts on fail.
 </details>
 
 ### retries
-Each step can provide an optional boolean function `shouldRetry`, which should accept invocationLog argument. If it
-retruns trues, the function will be retried.
+Each step can provide an optional boolean function `shouldRetry`. On a workflow invocation failure the function will be 
+called with an invocation log passed as an argument. If the function returns true, the function will be retried.
+The invocatiopn log contains a `retryCount` field that can be used to limit the number of retries. 
+
+The following example shows how to use the `shouldRetry` function to retry a step 4 times before failing.
 ```json
-> .init -f example/homeworlds-steps-with-retry.json
+> .init -f example/homeworlds-steps-with-retry.json --options={"keepLogs":true}
 {
   "output": "${   ['luke']~>$map(workflow) }",
   "workflow": "${ function($person){$person~>$serial(steps)} }",
@@ -1042,6 +1061,7 @@ retruns trues, the function will be retried.
 
 <details>
 <summary>Execution output (click to expand)</summary>
+
 ```json ["steps[2].log.*.retryCount = 1 and $not($exists(steps[2].log.*.fail))"]
 > .out
 {

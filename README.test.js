@@ -18,7 +18,10 @@ import {parseMarkdownAndTestCodeblocks} from "stated-js/dist/src/TestUtils.js";
 import {StatedWorkflow} from "./src/workflow/StatedWorkflow.js";
 
 
-const {templateProcessor:tp} = await StatedWorkflow.newWorkflow();
+const workflow = await StatedWorkflow.newWorkflow();
+await workflow.initialize();
+
+let {templateProcessor:tp} = workflow;
 const cliCore = new CliCore(tp);
 
 parseMarkdownAndTestCodeblocks('./README.md', cliCore);

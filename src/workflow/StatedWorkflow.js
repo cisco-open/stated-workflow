@@ -48,7 +48,7 @@ export class StatedWorkflow {
     static FUNCTIONS = {
         "id": StatedWorkflow.generateDateAndTimeBasedID.bind(this),
         // "serial": StatedWorkflow.serial.bind(this),
-        "parallel": StatedWorkflow.parallel.bind(this),
+        // "parallel": StatedWorkflow.parallel.bind(this),
         "onHttp": StatedWorkflow.onHttp.bind(this),
         "subscribe": StatedWorkflow.subscribe.bind(this),
         "publish": StatedWorkflow.publish.bind(this),
@@ -72,10 +72,15 @@ export class StatedWorkflow {
         TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
         const tp = new TemplateProcessor(template);
         tp.functionGenerators.set("serial", StatedWorkflow.serialGenerator);
+        tp.functionGenerators.set("parallel", StatedWorkflow.parallelGenerator);
+        tp.functionGenerators.set("recover", StatedWorkflow.recoverGenerator);
         tp.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
         tp.onInitialize = WorkflowDispatcher.clear; //must remove all subscribers when template reinitialized
-        await tp.initialize();
         return new StatedWorkflow(tp, persistence);
+    }
+
+    async initialize() {
+        await this.templateProcessor.initialize();
     }
 
     static async logFunctionInvocation(stage, args, result, error = null, log) {
@@ -394,23 +399,24 @@ export class StatedWorkflow {
      * @param steps
      * @param metaInf
      */
-    static validateStepPointers(resolvedJsonPointers, steps, metaInf) {
+    static validateStepPointers(resolvedJsonPointers, steps, metaInf, procedureName) {
         if (resolvedJsonPointers.length !== steps.length) {
             throw new Error(`At ${metaInf.jsonPointer__},
-            '$serial(...)' was passed ${steps.length} steps, but found ${resolvedJsonPointers.length} step locations in the document.`);
+            '${$procedureName}(...)' was passed ${steps.length} steps, but found ${resolvedJsonPointers.length} step locations in the document.`);
         }
     }
 
-    static async resolveEachStepToOneLocationInTemplate(metaInf, tp){
-        const jsonPointers = await StatedWorkflow.findSerialStepDependenciesInTemplate(metaInf);
+    static async resolveEachStepToOneLocationInTemplate(metaInf, tp, procedureName){
+        const filterExpression = `**[procedure.value='${procedureName}']`;
+        const jsonPointers = await StatedWorkflow.findStepDependenciesInTemplate(metaInf, filterExpression);
         const resolvedPointers = StatedWorkflow.drillIntoStepArrays(jsonPointers, tp);
         return resolvedPointers;
     }
 
-    static async findSerialStepDependenciesInTemplate(metaInf){
+    static async findStepDependenciesInTemplate(metaInf, filterExpression){
         const ast = metaInf.compiledExpr__.ast();
         let depFinder = new DependencyFinder(ast);
-        depFinder = await depFinder.withAstFilterExpression("**[procedure.value='serial']");
+        depFinder = await depFinder.withAstFilterExpression(filterExpression);
         if(depFinder.ast){
             return depFinder.findDependencies().map(jp.compile)
         }
@@ -446,17 +452,16 @@ export class StatedWorkflow {
     }
 
     static async serialGenerator(metaInf, tp) {
-        let serialDeps = {};
         return async (input, steps, context) => {
 
-            const resolvedJsonPointers = await StatedWorkflow.resolveEachStepToOneLocationInTemplate(metaInf, tp); //fixme todo we should avoid doing this for every jsonata evaluation
-            StatedWorkflow.validateStepPointers(resolvedJsonPointers, steps, metaInf);
+            const resolvedJsonPointers = await StatedWorkflow.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'serial'); //fixme todo we should avoid doing this for every jsonata evaluation
+            StatedWorkflow.validateStepPointers(resolvedJsonPointers, steps, metaInf, 'serial');
 
             return serial(input, steps, context, resolvedJsonPointers, tp);
         }
     }
 
-    static async serial(input, steps, context={}, resolvedJsonPointers = {}, tp = undefined) {
+    static async serial(input, stepJsons, context={}, resolvedJsonPointers = {}, tp = undefined) {
         let {workflowInvocation} = context;
 
         if (workflowInvocation === undefined) {
@@ -464,27 +469,44 @@ export class StatedWorkflow {
         }
 
         let currentInput = input;
-        for (let i = 0; i < steps.length; i++) {
-            const stepJson = steps[i];
+        const steps = [];
+        for (let i = 0; i < stepJsons.length; i++) {
             if(currentInput !== undefined) {
-                currentInput = await StatedWorkflow.runStep(workflowInvocation, stepJson, currentInput, resolvedJsonPointers?.[i], tp);
+                const step = new Step(stepJsons[i], StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
+                steps.push(step);
+                currentInput = await StatedWorkflow.runStep(workflowInvocation, step, currentInput);
             }
         }
+
+        if (!tp.options.keepLogs) await StatedWorkflow.deleteStepsLogs(workflowInvocation, steps);
 
         return currentInput;
     }
 
+
+    static async parallelGenerator(metaInf, tp) {
+        let parallelDeps = {};
+        return async (input, steps, context) => {
+
+            const resolvedJsonPointers = await StatedWorkflow.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'parallel'); //fixme todo we should avoid doing this for every jsonata evaluation
+            StatedWorkflow.validateStepPointers(resolvedJsonPointers, steps, metaInf, 'parallel');
+
+            return parallel(input, steps, context, resolvedJsonPointers, tp);
+        }
+    }
+
     // This function is called by the template processor to execute an array of steps in parallel
-    static async parallel(input, steps, context = {}) {
+    static async parallel(input, stepJsons, context = {}, resolvedJsonPointers = {}, tp = undefined) {
         let {workflowInvocation} = context;
 
         if (workflowInvocation === undefined) {
-            workflowInvocation = this.generateDateAndTimeBasedID();
+            workflowInvocation = StatedWorkflow.generateDateAndTimeBasedID();
         }
 
         let promises = [];
-        for (let stepJson of steps) {
-            const promise = StatedWorkflow.runStep(workflowInvocation, stepJson, input)
+        for (let i = 0; i < stepJsons.length; i++) {
+            let step = new Step(stepJsons[i], StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
+            const promise = StatedWorkflow.runStep(workflowInvocation, step, input)
               .then(result => {
                   // step.output.results.push(result);
                   return result;
@@ -496,7 +518,18 @@ export class StatedWorkflow {
             promises.push(promise);
         }
 
-        return await Promise.all(promises);
+        let result = await Promise.all(promises);
+
+        if (!tp.options.keepLogs) await StatedWorkflow.deleteStepsLogs(workflowInvocation, steps);
+
+        return result;
+    }
+
+    static async deleteStepsLogs(workflowInvocation, steps){
+        for (let i = 0; i < steps.length; i++) {
+
+            await steps[i].deleteLogs(workflowInvocation);
+        }
     }
 
     // ensures that the log object has the right structure for the workflow invocation
@@ -518,22 +551,29 @@ export class StatedWorkflow {
         );
     }
 
-    static async recover(stepJson){
-        const stepLog = new StepLog(stepJson);
-        for  (let workflowInvocation of stepLog.getInvocations()){
-            await this.runStep(workflowInvocation, stepJson);
+    static async recoverGenerator(metaInf, tp) {
+        let parallelDeps = {};
+        return async (step, context) => {
+            const resolvedJsonPointers = await StatedWorkflow.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'recover'); //fixme todo we should avoid doing this for every jsonata evaluation
+            StatedWorkflow.validateStepPointers(resolvedJsonPointers, [step], metaInf, 'recover');
+            return StatedWorkflow.recover(step, context, resolvedJsonPointers?.[0], tp);
         }
     }
 
-    static async runStep(workflowInvocation, stepJson, input, stepJsonPtr, tp){
 
-        const stepLog = new StepLog(stepJson);
-        const {instruction, event:loggedEvent} = stepLog.getCourseOfAction(workflowInvocation);
+    static async recover(stepJson, context, resolvedJsonPointer, tp){
+        let step = new Step(stepJson, StatedWorkflow.persistence, resolvedJsonPointer, tp);
+        for  (let workflowInvocation of step.log.getInvocations()){
+            await StatedWorkflow.runStep(workflowInvocation, step);
+        }
+    }
+
+    static async runStep(workflowInvocation, step, input){
+
+        const {instruction, event:loggedEvent} = step.log.getCourseOfAction(workflowInvocation);
         if(instruction === "START"){
-            const step = new Step(stepJson, StatedWorkflow.persistence, stepJsonPtr, tp);
             return await step.run(workflowInvocation, input);
         }else if (instruction === "RESTART"){
-            const step = new Step(stepJson, StatedWorkflow.persistence, stepJsonPtr, tp);
             return await step.run(workflowInvocation, loggedEvent.args);
         } else if(instruction === "SKIP"){
             return loggedEvent.out;
