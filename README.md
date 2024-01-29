@@ -339,7 +339,7 @@ runParallel(template, 10)
 let's modify our homeworlds example to make a concurrent homeworlds example.
 We have used the stated `!` operator to remove `personDetails` and `homeworldDetails` from the output to avoid clutter.
 JSONata automatically makes array
-```json
+```json 
 > .init -f "example/concurrent-homeworlds.json"
 {
   "people": [

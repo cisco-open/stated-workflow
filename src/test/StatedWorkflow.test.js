@@ -712,12 +712,12 @@ test.skip("persist and recover from file", async () => {
 
 
     const persistence = new WorkflowPersistence({workflowName: tp.input.name});
-    const dataChangeCallback = rateLimit(async (output, theseThatChanged) => {
-        console.log(`dataChangeCallback invocation: ${JSON.stringify(tp.output)}`);
-        // await fs.writeFileSync('.state/output.json', JSON.stringify(tp.output));
-        persistence.persist(tp);
-    }, 1000);
-    tp.setDataChangeCallback('/', dataChangeCallback);
+    // const dataChangeCallback = rateLimit(async (output, theseThatChanged) => {
+    //     console.log(`dataChangeCallback invocation: ${JSON.stringify(tp.output)}`);
+    //     // await fs.writeFileSync('.state/output.json', JSON.stringify(tp.output));
+    //     persistence.persist(tp);
+    // }, 1000);
+    // tp.setDataChangeCallback('/', dataChangeCallback);
 
     await tp.initialize();
     expect(tp.output.out)
