@@ -364,7 +364,7 @@ export class StatedWorkflow {
             if(testData !== undefined){
                 this.logger.debug(`No 'real' subscription created because testData provided for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
                 const dispatcher = WorkflowDispatcher.getDispatcher(subscriptionParams);
-                dispatcher.addBatch(testData);
+                await dispatcher.addBatch(testData);
                 await dispatcher.drainBatch(); // in test mode we wanna actually wait for all the test events to process
                 return;
             }

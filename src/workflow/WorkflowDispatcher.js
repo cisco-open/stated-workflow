@@ -61,12 +61,12 @@ export class WorkflowDispatcher {
         return WorkflowDispatcher.dispatcherObjects.get(key);
     }
 
-    static addBatchToAllSubscribers(type, testData) {
+    static async addBatchToAllSubscribers(type, testData) {
         const keysSet = WorkflowDispatcher.dispatchers.get(type);
         if (keysSet) {
             for (let key of keysSet) {
                 const dispatcher = WorkflowDispatcher.dispatcherObjects.get(key);
-                dispatcher.addBatch(testData); // You can pass the actual data you want to dispatch here
+                await dispatcher.addBatch(testData); // You can pass the actual data you want to dispatch here
             }
         } else {
             console.log(`No subscribers found for type ${type}`);
@@ -120,13 +120,21 @@ export class WorkflowDispatcher {
     }
 
     //this is used for testing
-    addBatch(testData) {
-        if(!Array.isArray(testData)){
-            throw new Error(`testData must be an array: ${StatedREPL.stringify(testData)}`);
+    async addBatch(testData) {
+        // check if testData is a function, and apply it to get the actual data
+        if (typeof testData === 'function') {
+            testData = await testData.apply();
         }
-        this.batchMode = true;
-        this.batchCount += testData.length;
-        testData.forEach(data => this.addToQueue(data));
+        if (Array.isArray(testData)) {
+            this.batchMode = true;
+            this.batchCount += testData.length;
+            testData.forEach(data => this.addToQueue(data));
+        } else {
+            this.batchMode = true;
+            this.batchCount += 1;
+            this.addToQueue(testData);
+        }
+
     }
 
     //this is used for testing
