@@ -20,8 +20,6 @@ import {WorkflowDispatcher} from "../workflow/WorkflowDispatcher.js";
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import {EnhancedPrintFunc} from "./TestTools.js";
 import {rateLimit} from "stated-js/dist/src/utils/rateLimit.js";
-import {WorkflowPersistence} from "../workflow/WorkflowPersistence.js";
-import {jest} from '@jest/globals';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -738,7 +736,7 @@ test("Multiple template processors", async () => {
 
 test("Template Data Change Callback with rate limit", async () => {
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub-wip.yaml');
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub-data-function.yaml');
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     let template = yaml.load(templateYaml);
     // instantiate template processor
