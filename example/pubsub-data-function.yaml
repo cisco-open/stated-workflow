@@ -1,16 +1,24 @@
 # Droid R2-D2 is sending messages to the Rebel Alliance's communication channel
 produceParams:
   type: "rebel-comm-channel"
-  data: "${ function(){  {'message': 'Rebel Fleet Coordinates', 'location': $random()} } }"
+  data: | 
+    ${ 
+      function(){  
+        {'message': 'Rebel Fleet Coordinates', 'location': $random()} 
+      } 
+    }
   client:
     type: test
 # Droid C-3PO will intercept and log each received message for the Rebel Alliance
 subscribeParams: #parameters for subscribing to a holocomm transmission
   source: cloudEvent
   type: /${ produceParams.type } # subscribe to the same channel as R2-D2 to intercept messages
-  to: /${ function($e){(
-    $set('/interceptedMessages', interceptedMessages~>$append($e));
-    )}  }
+  to: |
+    /${ 
+      function($e){(
+        $set('/interceptedMessages', interceptedMessages~>$append($e));
+      )}  
+    }
   subscriberId: protocolDroid
   initialPosition: latest
   client:

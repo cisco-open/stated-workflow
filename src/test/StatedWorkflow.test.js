@@ -761,7 +761,10 @@ test("Template Data Change Callback with rate limit", async () => {
 
     // Assertions
     expect(tp.output.stop$).toEqual('missionAccomplished');
-    // Assert that the data change callback was called twice, with the first and the last events only
+    // Assert that the data change callback was called twice by rate limit function, on the first and the last events
+    // on the first data change callback this happens before setData (which is called after the change callback)
+    // on the last data change callback this happens after all setData calls succeeded (change callback is hold until
+    // wait time in rate limit function is over).
     expect(counts).toEqual([0,10]);
 
 });
