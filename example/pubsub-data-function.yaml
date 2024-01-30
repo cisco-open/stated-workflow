@@ -1,25 +1,25 @@
-# producer will be sending data function output to the "type" topic
+# Droid R2-D2 is sending messages to the Rebel Alliance's communication channel
 produceParams:
-  type: "my-topic"
-  data: "${ function(){  {'msg': 'hello', 'rando': $random()} } }"
+  type: "rebel-comm-channel"
+  data: "${ function(){  {'message': 'Rebel Fleet Coordinates', 'location': $random()} } }"
   client:
     type: test
-# producer will be invoking "to" function for each consumed event
-subscribeParams: #parameters for subscribing to a cloud event
+# Droid C-3PO will intercept and log each received message for the Rebel Alliance
+subscribeParams: #parameters for subscribing to a holocomm transmission
   source: cloudEvent
-  type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
+  type: /${ produceParams.type } # subscribe to the same channel as R2-D2 to intercept messages
   to: /${ function($e){(
-    $set('/rxLog', rxLog~>$append($e));
+    $set('/interceptedMessages', interceptedMessages~>$append($e));
     )}  }
-  subscriberId: dingus
+  subscriberId: protocolDroid
   initialPosition: latest
   client:
-      type: test
-# starts producer function
+    type: test
+# Activates R2-D2's message transmission function every 50 milliseconds
 send: "${ $setInterval( function(){ $publish(produceParams)}, 50) }"
-# starts consumer function
+# Activates C-3PO's message interception function
 recv$: $subscribe(subscribeParams)
-# rxLog is a field of the template where the consumer function will be storing results of event processing
-rxLog: [ ]
-# this is a condition that will stop the workflow when rxLog has 5 elements
-stop$: ($count(rxLog)=10?($clearInterval(send);'done'):'still going')
+# interceptedMessages is where C-3PO will store the results of message decoding
+interceptedMessages: [ ]
+# This condition stops the operation when interceptedMessages has 10 elements
+stop$: ($count(interceptedMessages)>=10?($clearInterval(send);'missionAccomplished'):'operationOngoing')

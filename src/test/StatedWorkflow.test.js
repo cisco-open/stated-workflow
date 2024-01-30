@@ -747,7 +747,7 @@ test("Template Data Change Callback with rate limit", async () => {
     const counts = [];
 
     const dataChangeCallback = rateLimit(async (output, theseThatChanged) => {
-        counts.push(output.rxLog.length);
+        counts.push(output.interceptedMessages.length);
     }, 1000);
     tp.setDataChangeCallback('/', dataChangeCallback);
 
@@ -760,7 +760,7 @@ test("Template Data Change Callback with rate limit", async () => {
     }
 
     // Assertions
-    expect(tp.output.stop$).toEqual('done');
+    expect(tp.output.stop$).toEqual('missionAccomplished');
     // Assert that the data change callback was called twice, with the first and the last events only
     expect(counts).toEqual([0,10]);
 
