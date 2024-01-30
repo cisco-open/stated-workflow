@@ -6,6 +6,8 @@ const readFile = util.promisify(fs.readFile);
 const writeFile = util.promisify(fs.writeFile);
 const mkdir = util.promisify(fs.mkdir);
 
+import StatedREPL from "stated-js/dist/src/StatedREPL.js";
+
 export class WorkflowPersistence {
 
 
@@ -18,10 +20,15 @@ export class WorkflowPersistence {
         await this.ensureDirectoryExists(this.basePath);
     }
 
+    /**
+     * Ensure the directory exists, creating it if necessary
+     * @param {string} dir - the directory to ensure exists
+     */
     async ensureDirectoryExists(dir) {
         try {
             await mkdir(dir, { recursive: true });
         } catch (error) {
+            // if the file exists, we can continue without error
             if (error.code !== 'EEXIST') {
                 throw error;
             }
@@ -33,7 +40,7 @@ export class WorkflowPersistence {
     }
     // store the log for a workflow invocation
     async persist(tp) {
-        await writeFile(this.filePath(), JSON.stringify(tp.output));
+        await writeFile(this.filePath(), StatedREPL.stringify(tp.output));
     }
 
 

@@ -123,14 +123,13 @@ export class WorkflowDispatcher {
     async addBatch(testData) {
         // check if testData is a function, and apply it to get the actual data
         if (typeof testData === 'function') {
-            testData = await testData.apply();
+            testData = await testData();
         }
+        this.batchMode = true;
         if (Array.isArray(testData)) {
-            this.batchMode = true;
             this.batchCount += testData.length;
             testData.forEach(data => this.addToQueue(data));
         } else {
-            this.batchMode = true;
             this.batchCount += 1;
             this.addToQueue(testData);
         }

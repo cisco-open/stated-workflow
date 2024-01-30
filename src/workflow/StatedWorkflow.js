@@ -90,7 +90,7 @@ export class StatedWorkflow {
         const cbFn = async (data, jsonPtr, removed) => {
             await persistence.persist(this.templateProcessor);
         }
-        this.templateProcessor.removeDataChangeCallback('/'); 
+        this.templateProcessor.removeDataChangeCallback('/');
         this.templateProcessor.setDataChangeCallback('/',cbFn);
 
     }
