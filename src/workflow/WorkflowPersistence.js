@@ -45,6 +45,15 @@ export class WorkflowPersistence {
 
 
     async restore() {
-        return JSON.parse(await readFile(this.filePath()));
+        try {
+            const template = JSON.parse(await readFile(this.filePath()));
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                console.log(`No previous state found at ${this.filePath()}`);
+            } else {
+                console.log(`Error reading state from ${this.filePath()}, error: ${error}`);
+                throw error;
+            }
+        }
     }
 }
