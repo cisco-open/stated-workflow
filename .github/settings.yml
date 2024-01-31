@@ -10,7 +10,7 @@ repository:
   description: Stated Workflow  is a collection of functions for a lightweight and scalable event-driven workflow engine using Stated template engine
 
   # Either `true` to make the repository private, or `false` to make it public.
-  private: true
+  private: false
 
   # A URL with more information about the repository
   homepage: https://github.com/cisco-open/stated-workflow
