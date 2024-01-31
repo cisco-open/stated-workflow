@@ -38,7 +38,7 @@ export class IPersistence {
     }
 }
 
-export function createPersistence(persistenceParams = {persistenceType: "noop"}) {
+export function createStepPersistence(persistenceParams = {persistenceType: "noop"}) {
     switch (persistenceParams.persistenceType) {
         case 'noop':
             return new Noop();

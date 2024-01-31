@@ -10,63 +10,14 @@ export default class Step {
         this.log = new StepLog(stepJson);
     }
 
-    async run(workflowInvocation, args) {
-        if (this.tp !== undefined) {
-            return this.runTP(workflowInvocation, args);
-        }
-        const start = {
-            timestamp: new Date().getTime(),
-            args
-        };
-
-        let {log, function: fn, shouldRetry=(invocationLog)=>false} = this.stepJson;
-        log = this.initLog(log);
-        let invocationLog;
-
-        if (log[workflowInvocation] == undefined) {
-            invocationLog = {start};
-            log[workflowInvocation] = invocationLog
-        } else {
-            invocationLog = log[workflowInvocation];
-        }
-
-        do {
-            try {
-                if (invocationLog['retryCount'] !== undefined) {
-                    invocationLog['retryCount']++;
-                }
-                let out = await fn.apply(this, [args, {workflowInvocation}]);
-                const end = {
-                    timestamp: new Date().getTime(),
-                    out
-                };
-                delete invocationLog.fail;
-                invocationLog['end'] = end;
-                this.persistence.store(this.stepJson, workflowInvocation, invocationLog, this.stepJsonPtr);
-                return out;
-            } catch (error) {
-                invocationLog['fail'] = {error, timestamp: new Date().getTime()}
-            }
-
-            if (invocationLog['retryCount'] === undefined) {
-                invocationLog['retryCount'] = 0;
-            }
-            this.persistence.store(this.stepJson, workflowInvocation, invocationLog, this.stepJsonPtr);
-            const shouldRetryResult = await shouldRetry.apply(this, [invocationLog]);
-            if (!shouldRetryResult) break;
-        } while (true);
-
-    }
-
-
     /**
-     * This function run the code if we have a TemplateProcessor defined. It uses template processor
-     * setData() and out() functions for step log.
+     * Runs the step function for the given workflowInvocation and args.
+     *
      * @param workflowInvocation
      * @param args
      * @returns {Promise<*>}
      */
-    async runTP(workflowInvocation, args) {
+    async run(workflowInvocation, args) {
 
         const jsonPtr = this.stepJsonPtr + "/log/" + workflowInvocation;
         let invocationLog;
@@ -120,20 +71,4 @@ export default class Step {
         this.tp.setData(jsonPtr, undefined, "delete");
     }
 
-    initLog(log) {
-        if (log === undefined || log === null) {
-            log = {};
-        }
-        if (this.tp === undefined) {
-            this.stepJson.log = log; //init to empty log, no workflowInvocations in it
-        }
-        return log;
-    }
-
-    async changeLog(target, property, value) {
-        // TODO: this has to implement chaning data through the TemplateProcessor.setData
-        console.log(`Log changed - this.jsonPath: ${this.stepJsonPtr}, target: ${JSON.stringify(target)}, property: ${property}, value: ${JSON.stringify(value)}`);
-        // jsonPath points to the step description. We store logs in jsonPath + '/log, and need to key it by workflowInvocation, which comes in property value.
-        await this.tp.setData(this.stepJsonPtr + '/log/' + property, value, "set");
-    }
 }

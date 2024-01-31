@@ -19,7 +19,7 @@ import path from 'path';
 import {WorkflowDispatcher} from "../workflow/WorkflowDispatcher.js";
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import {EnhancedPrintFunc} from "./TestTools.js";
-import {debounce} from "stated-js/dist/src/utils/debounce.js";
+import {rateLimit} from "stated-js/dist/src/utils/rateLimit.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -693,35 +693,6 @@ test("test all", async () => {
         .toEqual(expect.arrayContaining(['tada->c', 'tada->d']));
 });
 
-test("persist and recover from file", async () => {
-    const {templateProcessor:tp} = await StatedWorkflow.newWorkflow({
-        "startEvent": "tada",
-        "a": {
-            "function": "${ function($in) { ( $console.log($in); [$in, 'a'] ~> $join('->') )} }"
-        },
-        "b": {
-            "function": "${ function($in) { [$in, 'b'] ~> $join('->') } }"
-        },
-        "workflow1": "${ function($startEvent) { $startEvent ~> $serial([a, b]) } }",
-        "out": "${ workflow1(startEvent)}",
-    });
-    // keep steps execution logs for debugging
-    tp.options = {'keepLogs': true};
-    await tp.initialize();
-
-
-    // const dataChangeCallback2 = debounce(fs.writeFileSync('.state/output.json', JSON.stringify(tp.output)), 1000);
-    const dataChangeCallback = debounce(async (output, theseThatChanged) => {
-        console.log(`dataChangeCallback invocation: ${JSON.stringify(tp.output)}`);
-        // await fs.writeFileSync('.state/output.json', JSON.stringify(tp.output));
-    }, 1000);
-
-
-    // tp.setDataChangeCallback('/', dataChangeCallback);
-    expect(tp.output.out)
-      .toEqual('tada->a->b');
-});
-
 test("Multiple template processors", async () => {
     const t  = {
         "startEvent": "tada",
@@ -760,5 +731,40 @@ test("Multiple template processors", async () => {
       .toEqual('tada->a->b');
     expect(tp2.output.workflow2out)
       .toEqual(expect.arrayContaining(['tada->c', 'tada->d']));
+
+});
+
+test("Template Data Change Callback with rate limit", async () => {
+    // Load the YAML from the file
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub-data-function.yaml');
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+    let template = yaml.load(templateYaml);
+    // instantiate template processor
+    const {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template);
+    // keep steps execution logs for debugging
+    tp.options = {'keepLogs': true}
+
+    const counts = [];
+
+    const dataChangeCallback = rateLimit(async (output, theseThatChanged) => {
+        counts.push(output.interceptedMessages.length);
+    }, 1000);
+    tp.setDataChangeCallback('/', dataChangeCallback);
+
+    await tp.initialize();
+    while (tp.output.stop$ === 'still going') {
+        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+    }
+    while (counts.length < 2) {
+        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+    }
+
+    // Assertions
+    expect(tp.output.stop$).toEqual('missionAccomplished');
+    // Assert that the data change callback was called twice by rate limit function, on the first and the last events
+    // on the first data change callback this happens before setData (which is called after the change callback)
+    // on the last data change callback this happens after all setData calls succeeded (change callback is hold until
+    // wait time in rate limit function is over).
+    expect(counts).toEqual([0,10]);
 
 });

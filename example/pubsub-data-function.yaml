@@ -1,0 +1,33 @@
+# Droid R2-D2 is sending messages to the Rebel Alliance's communication channel
+produceParams:
+  type: "rebel-comm-channel"
+  data: | 
+    ${ 
+      function(){  
+        {'message': 'Rebel Fleet Coordinates', 'location': $random()} 
+      } 
+    }
+  client:
+    type: test
+# Droid C-3PO will intercept and log each received message for the Rebel Alliance
+subscribeParams: #parameters for subscribing to a holocomm transmission
+  source: cloudEvent
+  type: /${ produceParams.type } # subscribe to the same channel as R2-D2 to intercept messages
+  to: |
+    /${ 
+      function($e){(
+        $set('/interceptedMessages/-', $e);
+      )}  
+    }
+  subscriberId: protocolDroid
+  initialPosition: latest
+  client:
+    type: test
+# Activates R2-D2's message transmission function every 50 milliseconds
+send: "${ $setInterval( function(){ $publish(produceParams)}, 50) }"
+# Activates C-3PO's message interception function
+recv$: $subscribe(subscribeParams)
+# interceptedMessages is where C-3PO will store the results of message decoding
+interceptedMessages: [ ]
+# This condition stops the operation when interceptedMessages has 10 elements
+stop$: ($count(interceptedMessages)>=10?($clearInterval(send);'missionAccomplished'):'operationOngoing')
