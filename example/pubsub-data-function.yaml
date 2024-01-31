@@ -16,7 +16,7 @@ subscribeParams: #parameters for subscribing to a holocomm transmission
   to: |
     /${ 
       function($e){(
-        $set('/interceptedMessages', interceptedMessages~>$append($e));
+        $set('/interceptedMessages/-', $e);
       )}  
     }
   subscriberId: protocolDroid

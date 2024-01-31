@@ -22,8 +22,6 @@ import {WorkflowDispatcher} from "./WorkflowDispatcher.js";
 import {StepLog} from "./StepLog.js";
 import Step from "./Step.js";
 import {createStepPersistence} from "./StepPersistence.js";
-import DependencyFinder from "stated-js/dist/src/DependencyFinder.js";
-import jp from "stated-js/dist/src/JsonPointer.js";
 import {TemplateUtils} from "./utils/TemplateUtils.js";
 import {WorkflowPersistence} from "./WorkflowPersistence.js";
 
@@ -45,7 +43,7 @@ export class StatedWorkflow {
         level: "error", //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
     });
 
-    static persistence = new createStepPersistence();
+    static persistence = createStepPersistence();
 
     static FUNCTIONS = {
         "id": StatedWorkflow.generateDateAndTimeBasedID.bind(this),
@@ -88,7 +86,11 @@ export class StatedWorkflow {
     setWorkflowPersistence() {
         const persistence = new WorkflowPersistence({workflowName: this.templateProcessor.input.name});
         const cbFn = async (data, jsonPtr, removed) => {
-            await persistence.persist(this.templateProcessor);
+            try {
+                await persistence.persist(this.templateProcessor);
+            } catch (error) {
+                console.error(`Error persisting workflow state: ${error}`);
+            }
         }
         this.templateProcessor.removeDataChangeCallback('/');
         this.templateProcessor.setDataChangeCallback('/',cbFn);
