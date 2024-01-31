@@ -65,7 +65,7 @@ export class StatedWorkflow {
     // this method returns a StatedWorkflow instance with TemplateProcesor with the default functions and Stated Workflow
     // functions. It also initializes persistence store, and set generator functions.
     static async newWorkflow(template, stepPersistenceType = 'noop', context = {}) {
-        const stepPersistence = new createStepPersistence({persistenceType: stepPersistenceType});
+        const stepPersistence = createStepPersistence({persistenceType: stepPersistenceType});
         await stepPersistence.init();
         // TODO: fix CliCore.setupContext to respect context passed to the constructor
         // const tp = new TemplateProcessor(template, {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS});
