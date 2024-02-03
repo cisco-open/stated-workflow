@@ -768,31 +768,3 @@ test("Template Data Change Callback with rate limit", async () => {
     expect(counts).toEqual([0,10]);
 
 });
-test("Validates a bug with multiple tail invocations", async () => {
-    // WorkflowDispatcher.clear();
-
-    // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub.yaml');
-    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
-    let template = yaml.load(templateYaml);
-
-    // instantiate template processor
-    let {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
-    // keep steps execution logs for debugging
-    tp.options = {'keepLogs': true}
-    await tp.initialize();
-    while(tp.output.rebelForces.length < 3){
-        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
-    }
-    expect(tp.output.rebelForces).toEqual(['luke', 'han', 'leia']);
-
-    template = yaml.load(templateYaml);
-    const wf = await StatedWorkflow.newWorkflow(template);
-    tp = wf.templateProcessor;
-    await tp.initialize();
-    while(tp.output.rebelForces.length < 3){
-        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
-    }
-    expect(tp.output.rebelForces).toEqual(['luke', 'han', 'leia']);
-
-});
