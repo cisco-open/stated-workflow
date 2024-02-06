@@ -33,7 +33,7 @@ export class StatedWorkflow {
 
 
     static persistence = createStepPersistence();
-    
+
     constructor(template, context, stepPersistence ){
         // this.templateProcessor = templateProcessor;
         this.stepPersistence = stepPersistence;
@@ -49,13 +49,16 @@ export class StatedWorkflow {
             ],
             level: "error", //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
         });
+        // TODO: fix CliCore.setupContext to respect context passed to the constructor
+        // const tp = new TemplateProcessor(template, {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS});
+
         TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...{
                 "id": StatedWorkflow.generateDateAndTimeBasedID.bind(this),
                 "onHttp": this.onHttp.bind(this),
                 "subscribe": this.subscribe.bind(this),
                 "publish": this.publish.bind(this),
                 "recover": this.recover.bind(this),
-                "logFunctionInvocation": StatedWorkflow.logFunctionInvocation.bind(this),
+                "logFunctionInvocation": this.logFunctionInvocation.bind(this),
                 //"workflow": StatedWorkflow.workflow.bind(this)
             }
         };
@@ -72,10 +75,6 @@ export class StatedWorkflow {
     static async newWorkflow(template, stepPersistenceType = 'noop', context = {}) {
         const stepPersistence = createStepPersistence({persistenceType: stepPersistenceType});
         await stepPersistence.init();
-        // TODO: fix CliCore.setupContext to respect context passed to the constructor
-        // const tp = new TemplateProcessor(template, {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS});
-
-
         return new StatedWorkflow(template, context, stepPersistence);
     }
 
@@ -97,7 +96,7 @@ export class StatedWorkflow {
 
     }
 
-    static async logFunctionInvocation(stage, args, result, error = null, log) {
+    async logFunctionInvocation(stage, args, result, error = null, log) {
         const logMessage = {
             context: stage.name,
             function: stage.function.name,
@@ -162,14 +161,14 @@ export class StatedWorkflow {
     static consumers = new Map(); //key is type, value is pulsar consumer
     static dispatchers = new Map(); //key is type, value Set of WorkflowDispatcher
 
-    static createPulsarClient(params) {
+    createPulsarClient(params) {
         if (StatedWorkflow.pulsarClient) return;
     
         StatedWorkflow.pulsarClient = new Pulsar.Client({
             serviceUrl: 'pulsar://localhost:6650',
         });
     }
-    static createKafkaClient(params) {
+    createKafkaClient(params) {
         if (StatedWorkflow.kafkaClient) return;
 
         StatedWorkflow.kafkaClient = new Kafka({
@@ -191,16 +190,16 @@ export class StatedWorkflow {
 
         const {type:clientType} = clientParams
         if (clientType=== 'kafka') {
-            StatedWorkflow.publishKafka(params, clientParams);
+            this.publishKafka(params, clientParams);
         } else if(clientType==="pulsar") {
-            StatedWorkflow.publishPulsar(params, clientParams);
+            this.publishPulsar(params, clientParams);
         }else{
             throw new Error(`Unsupported clientType: ${clientType}`);
         }
         return "done";
     }
 
-    static publishKafka(params, clientParams) {
+    publishKafka(params, clientParams) {
         this.logger.debug(`kafka publish params ${StatedREPL.stringify(params)}`);
         const {type, data} = params;
 
@@ -232,7 +231,7 @@ export class StatedWorkflow {
         })();
     }
 
-    static publishPulsar(params, clientParams) {
+    publishPulsar(params, clientParams) {
         this.logger.debug(`pulsar publish params ${StatedREPL.stringify(params)}`);
         const {type, data} = params;
         (async () => {
@@ -324,7 +323,7 @@ export class StatedWorkflow {
         })();
     }
 
-    static async subscribeKafka(subscriptionParams) {
+    async subscribeKafka(subscriptionParams) {
         const { type, initialOffset = 'earliest', maxConsume = -1 } = subscriptionParams;
         this.logger.debug(`Kafka subscribe params ${StatedREPL.stringify(subscriptionParams)} with clientParams ${StatedREPL.stringify(clientParams)}`);
 
@@ -391,11 +390,11 @@ export class StatedWorkflow {
             const dispatcher = WorkflowDispatcher.getDispatcher(subscriptionParams); // we need a dispatched even if no real message bus
         }else if (clientType === 'kafka') {
             this.logger.debug(`subscribing to kafka using ${clientParams}`)
-            StatedWorkflow.createKafkaClient(clientParams);
-            StatedWorkflow.subscribeKafka(subscriptionParams);
+            this.createKafkaClient(clientParams);
+            this.subscribeKafka(subscriptionParams);
         }else if(clientType === 'pulsar') {
             this.logger.debug(`subscribing to pulsar (default) using ${clientParams}`)
-            StatedWorkflow.createPulsarClient(clientParams);
+            this.createPulsarClient(clientParams);
             this.subscribePulsar(subscriptionParams);
         }else{
             throw new Error(`unsupported client.type in ${StatedREPL.stringify(subscriptionParams)}`);
