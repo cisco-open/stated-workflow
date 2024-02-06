@@ -30,7 +30,8 @@ test("wf", async () => {
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     let template = yaml.load(templateYaml);
     // instantiate template processor
-    const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+    const statedWorkflow = await StatedWorkflow.newWorkflow(template);
+    const {templateProcessor:tp} = statedWorkflow;
     // keep steps execution logs for debugging
     tp.options = {'keepLogs': true}
     await tp.initialize();

@@ -10,5 +10,7 @@ import {WorkflowDispatcher} from "./src/workflow/WorkflowDispatcher.js";
     const repl = new StatedREPL(tp);
     // FIXME: This is a workaround and probably should better be set in StatedWorkflow.newWorkflow()
     repl.cliCore.onInit = WorkflowDispatcher.clear;
+    // TODO: stop the subscriber
+    // TODO:
     await repl.initialize();
 })();
