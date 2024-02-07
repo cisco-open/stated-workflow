@@ -59,7 +59,7 @@ export class StatedWorkflow {
                 "publish": this.publish.bind(this),
                 "recover": this.recover.bind(this),
                 "logFunctionInvocation": this.logFunctionInvocation.bind(this),
-                //"workflow": StatedWorkflow.workflow.bind(this)
+                "workflow": this.workflow.bind(this)
             }
         };
         this.templateProcessor = new TemplateProcessor(template, context);
