@@ -452,7 +452,7 @@ export class StatedWorkflow {
             if(currentInput !== undefined) {
                 const step = new Step(stepJsons[i], StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
                 steps.push(step);
-                currentInput = await StatedWorkflow.runStep(workflowInvocation, step, currentInput);
+                currentInput = await this.runStep(workflowInvocation, step, currentInput);
             }
         }
 
@@ -484,7 +484,7 @@ export class StatedWorkflow {
         let promises = [];
         for (let i = 0; i < stepJsons.length; i++) {
             let step = new Step(stepJsons[i], StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
-            const promise = StatedWorkflow.runStep(workflowInvocation, step, input)
+            const promise = this.runStep(workflowInvocation, step, input)
               .then(result => {
                   // step.output.results.push(result);
                   return result;
@@ -542,11 +542,11 @@ export class StatedWorkflow {
     async recover(stepJson, context, resolvedJsonPointer, tp){
         let step = new Step(stepJson, StatedWorkflow.persistence, resolvedJsonPointer, tp);
         for  (let workflowInvocation of step.log.getInvocations()){
-            await StatedWorkflow.runStep(workflowInvocation, step);
+            await this.runStep(workflowInvocation, step);
         }
     }
 
-    static async runStep(workflowInvocation, step, input){
+    async runStep(workflowInvocation, step, input){
 
         const {instruction, event:loggedEvent} = step.log.getCourseOfAction(workflowInvocation);
         if(instruction === "START"){
