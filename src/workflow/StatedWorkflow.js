@@ -560,7 +560,7 @@ export class StatedWorkflow {
         }
     }
 
-    static async executeStep(step, input, currentLog, stepRecord) {
+    async executeStep(step, input, currentLog, stepRecord) {
         /*
         const stepLog = {
             step: step.name,
@@ -596,15 +596,14 @@ export class StatedWorkflow {
             throw error;
         }
     }
-
-    static finalizeLog(currentLog) {
+    finalizeLog(currentLog) {
         currentLog.info.end = new Date().getTime();
         if (currentLog.info.status !== 'failed') {
             currentLog.info.status = 'succeeded';
         }
     }
 
-    static ensureRetention(workflowLogs) {
+    ensureRetention(workflowLogs) {
         const maxLogs = 100;
         const sortedKeys = Object.keys(workflowLogs).sort((a, b) => workflowLogs[b].info.start - workflowLogs[a].info.start);
         while (sortedKeys.length > maxLogs) {
@@ -626,33 +625,33 @@ export class StatedWorkflow {
         return `${dateStr}-${timeInMs}-${randomPart}`;
     }
 
-    // async workflow(input, steps, options={}) {
-    //     const {name: workflowName, log} = options;
-    //     let {id} = options;
-    //
-    //     if (log === undefined) {
-    //         throw new Error('log is missing from options');
-    //     }
-    //
-    //     if (id === undefined) {
-    //         id = StatedWorkflow.generateUniqueId();
-    //         options.id = id;
-    //     }
-    //
-    //     StatedWorkflow.initializeLog(log, workflowName, id);
-    //
-    //     let currentInput = input;
-    //     let serialOrdinal = 0;
-    //     for (let step of steps) {
-    //         const stepRecord = {invocationId: id, workflowName, stepName: step.name, serialOrdinal, branchType:"SERIAL"};
-    //         currentInput = await StatedWorkflow.executeStep(step, currentInput, log[workflowName][id], stepRecord);
-    //         serialOrdinal++;
-    //         if (step.next) this.workflow(currentInput, step.next, options);
-    //     }
-    //
-    //     StatedWorkflow.finalizeLog(log[workflowName][id]);
-    //     StatedWorkflow.ensureRetention(log[workflowName]);
-    //
-    //     return currentInput;
-    // }
+    async workflow(input, steps, options={}) {
+        const {name: workflowName, log} = options;
+        let {id} = options;
+
+        if (log === undefined) {
+            throw new Error('log is missing from options');
+        }
+
+        if (id === undefined) {
+            id = StatedWorkflow.generateUniqueId();
+            options.id = id;
+        }
+
+        StatedWorkflow.initializeLog(log, workflowName, id);
+
+        let currentInput = input;
+        let serialOrdinal = 0;
+        for (let step of steps) {
+            const stepRecord = {invocationId: id, workflowName, stepName: step.name, serialOrdinal, branchType:"SERIAL"};
+            currentInput = await this.executeStep(step, currentInput, log[workflowName][id], stepRecord);
+            serialOrdinal++;
+            if (step.next) this.workflow(currentInput, step.next, options);
+        }
+
+        this.finalizeLog(log[workflowName][id]);
+        this.ensureRetention(log[workflowName]);
+
+        return currentInput;
+    }
 }
