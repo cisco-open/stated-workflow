@@ -626,43 +626,33 @@ export class StatedWorkflow {
         return `${dateStr}-${timeInMs}-${randomPart}`;
     }
 
-    static async workflow(input, steps, options={}) {
-        const {name: workflowName, log} = options;
-        let {id} = options;
-
-        if (log === undefined) {
-            throw new Error('log is missing from options');
-        }
-
-        if (id === undefined) {
-            id = StatedWorkflow.generateUniqueId();
-            options.id = id;
-        }
-
-        StatedWorkflow.initializeLog(log, workflowName, id);
-
-        let currentInput = input;
-        let serialOrdinal = 0;
-        for (let step of steps) {
-            const stepRecord = {invocationId: id, workflowName, stepName: step.name, serialOrdinal, branchType:"SERIAL"};
-            currentInput = await StatedWorkflow.executeStep(step, currentInput, log[workflowName][id], stepRecord);
-            serialOrdinal++;
-            if (step.next) StatedWorkflow.workflow(currentInput, step.next, options);
-        }
-
-        StatedWorkflow.finalizeLog(log[workflowName][id]);
-        StatedWorkflow.ensureRetention(log[workflowName]);
-
-        return currentInput;
-    }
+    // async workflow(input, steps, options={}) {
+    //     const {name: workflowName, log} = options;
+    //     let {id} = options;
+    //
+    //     if (log === undefined) {
+    //         throw new Error('log is missing from options');
+    //     }
+    //
+    //     if (id === undefined) {
+    //         id = StatedWorkflow.generateUniqueId();
+    //         options.id = id;
+    //     }
+    //
+    //     StatedWorkflow.initializeLog(log, workflowName, id);
+    //
+    //     let currentInput = input;
+    //     let serialOrdinal = 0;
+    //     for (let step of steps) {
+    //         const stepRecord = {invocationId: id, workflowName, stepName: step.name, serialOrdinal, branchType:"SERIAL"};
+    //         currentInput = await StatedWorkflow.executeStep(step, currentInput, log[workflowName][id], stepRecord);
+    //         serialOrdinal++;
+    //         if (step.next) this.workflow(currentInput, step.next, options);
+    //     }
+    //
+    //     StatedWorkflow.finalizeLog(log[workflowName][id]);
+    //     StatedWorkflow.ensureRetention(log[workflowName]);
+    //
+    //     return currentInput;
+    // }
 }
-
-// export const id = StatedWorkflow.generateDateAndTimeBasedID;
-// export const serial = StatedWorkflow.serial;
-// export const parallel = StatedWorkflow.parallel;
-// export const onHttp = StatedWorkflow.onHttp;
-// export const subscribe = StatedWorkflow.subscribe;
-// export const publish = StatedWorkflow.publish;
-// export const logFunctionInvocation = StatedWorkflow.logFunctionInvocation;
-// export const workflow = StatedWorkflow.workflow;
-// export const serialGenerator = StatedWorkflow.serialGenerator;
