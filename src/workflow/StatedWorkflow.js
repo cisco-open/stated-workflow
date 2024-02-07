@@ -128,7 +128,7 @@ export class StatedWorkflow {
 
         if(!this.workflowDispatcher) {
             this.workflowDispatcher = new WorkflowDispatcher(subscribeOptions);
-            this.templateProcessor.onInitialize = this.workflowDispatcher.clear; //must remove all subscribers when template reinitialized
+            this.templateProcessor.onInitialize = this.workflowDispatcher.clear.bind(this.workflowDispatcher); //must remove all subscribers when template reinitialized
         }
 
 
@@ -191,7 +191,7 @@ export class StatedWorkflow {
 
         if(!this.workflowDispatcher) {
             this.workflowDispatcher = new WorkflowDispatcher(params);
-            this.templateProcessor.onInitialize = this.workflowDispatcher.clear; //must remove all subscribers when template reinitialized
+            this.templateProcessor.onInitialize = this.workflowDispatcher.clear.bind(this.workflowDispatcher); //must remove all subscribers when template reinitialized
         }
 
         if (clientParams  && clientParams.type === 'test') {

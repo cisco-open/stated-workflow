@@ -12,8 +12,11 @@ import {WorkflowDispatcher} from "./src/workflow/WorkflowDispatcher.js";
     // FIXME: This is a workaround and probably should better be set in StatedWorkflow.newWorkflow()
 
     statedWorkflow.workflowDispatcher = new WorkflowDispatcher({});
-    repl.cliCore.onInit = statedWorkflow.workflowDispatcher.clear;
-    // TODO: stop the subscriber
-    // TODO:
+
+    // CliCore reuses TemplateProcessor object we instantiated in StatedWorkflow.newWorkflow()
+    // The TemplateProcessor is instantiated with Workflow functions, which are functions of a StatedWorkflow instance.
+    // We need to ensure that we clean WorkflowDispatcher's state before each REPL session to remove any previously
+    // added subscribers. This is done by setting onInit to clear the WorkflowDispatcher's state.
+    repl.cliCore.onInit = statedWorkflow.workflowDispatcher.clear.bind(statedWorkflow.workflowDispatcher);
     await repl.initialize();
 })();
