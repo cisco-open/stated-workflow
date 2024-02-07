@@ -105,7 +105,6 @@ test("wf", async () => {
 
 
 test("pubsub", async () => {
-    WorkflowDispatcher.clear();
 
     // Load the YAML from the file
     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub.yaml');

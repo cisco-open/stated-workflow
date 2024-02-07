@@ -18,7 +18,7 @@ import express from 'express';
 import Pulsar from 'pulsar-client';
 import {Kafka, logLevel} from 'kafkajs';
 import winston from "winston";
-import {WorkflowDispatcher} from "./WorkflowDispatcher.js";
+import {WorkflowDispatcher} from "./workflowDispatcher.js";
 import {StepLog} from "./StepLog.js";
 import Step from "./Step.js";
 import {createStepPersistence} from "./StepPersistence.js";
@@ -67,7 +67,6 @@ export class StatedWorkflow {
         this.templateProcessor.functionGenerators.set("parallel", this.parallelGenerator.bind(this));
         this.templateProcessor.functionGenerators.set("recover", this.recoverGenerator.bind(this));
         this.templateProcessor.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
-        this.templateProcessor.onInitialize = WorkflowDispatcher.clear; //must remove all subscribers when template reinitialized
     }
 
     // this method returns a StatedWorkflow instance with TemplateProcesor with the default functions and Stated Workflow
@@ -126,6 +125,13 @@ export class StatedWorkflow {
     async subscribe(subscribeOptions) {
         const {source} = subscribeOptions;
         this.logger.debug(`subscribing ${StatedREPL.stringify(source)}`);
+
+        if(!this.workflowDispatcher) {
+            this.workflowDispatcher = new WorkflowDispatcher(subscribeOptions);
+            this.templateProcessor.onInitialize = this.workflowDispatcher.clear; //must remove all subscribers when template reinitialized
+        }
+
+
         if (source === 'http') {
             return StatedWorkflow.onHttp(subscribeOptions);
         }
@@ -140,9 +146,9 @@ export class StatedWorkflow {
 
     static ensureClient(params) {
         if (!params || params.type == 'pulsar') {
-            StatedWorkflow.createPulsarClient(params);
+            this.createPulsarClient(params);
         } else if (params.type == 'kafka') {
-            StatedWorkflow.createKafkaClient(params);
+            this.createKafkaClient(params);
         }
     }
 
@@ -182,9 +188,15 @@ export class StatedWorkflow {
         this.logger.debug(`publish params ${StatedREPL.stringify(params)} }`);
 
         const {data, type, client:clientParams={}} = params;
+
+        if(!this.workflowDispatcher) {
+            this.workflowDispatcher = new WorkflowDispatcher(params);
+            this.templateProcessor.onInitialize = this.workflowDispatcher.clear; //must remove all subscribers when template reinitialized
+        }
+
         if (clientParams  && clientParams.type === 'test') {
             this.logger.debug(`test client provided, will not publish to 'real' message broker for publish parameters ${StatedREPL.stringify(params)}`);
-            WorkflowDispatcher.addBatchToAllSubscribers(type, data);
+            this.workflowDispatcher.addBatchToAllSubscribers(type, data);
             return "done";
         }
 
@@ -265,7 +277,7 @@ export class StatedWorkflow {
         this.logger.debug(`pulsar subscribe params ${StatedREPL.stringify(subscriptionParams)}`);
         let consumer, dispatcher;
         //make sure a dispatcher exists for the combination of type and subscriberId
-        WorkflowDispatcher.getDispatcher(subscriptionParams);
+        this.workflowDispatcher.getDispatcher(subscriptionParams);
         // Check if a consumer already exists for the given subscription
         if (StatedWorkflow.consumers.has(type)) {
             this.logger.debug(`pulsar subscriber already started. Bail.`);
@@ -304,7 +316,7 @@ export class StatedWorkflow {
                     });
 
 
-                    WorkflowDispatcher.dispatchToAllSubscribers(type, obj);
+                    this.workflowDispatcher.dispatchToAllSubscribers(type, obj);
                     if(countdown && --countdown===0){
                         break;
                     }
@@ -328,7 +340,7 @@ export class StatedWorkflow {
         this.logger.debug(`Kafka subscribe params ${StatedREPL.stringify(subscriptionParams)} with clientParams ${StatedREPL.stringify(clientParams)}`);
 
         // Make sure a dispatcher exists for the combination of type and subscriberId
-        WorkflowDispatcher.getDispatcher(subscriptionParams);
+        this.workflowDispatcher.getDispatcher(subscriptionParams);
     
         // Check if a consumer already exists for the given subscription
         if (StatedWorkflow.consumers.has(type)) {
@@ -362,7 +374,7 @@ export class StatedWorkflow {
                     console.error("Unable to parse data to JSON:", error);
                 }
     
-                WorkflowDispatcher.dispatchToAllSubscribers(type, data);
+                this.workflowDispatcher.dispatchToAllSubscribers(type, data);
     
                 if (countdown && --countdown === 0) {
                     // Disconnect the consumer if maxConsume messages have been processed
@@ -376,10 +388,11 @@ export class StatedWorkflow {
 
         const {testData, client:clientParams={type:'test'}} = subscriptionParams;
         const {type:clientType} = clientParams;
+
         if (testData !== undefined) {
             if(testData !== undefined){
                 this.logger.debug(`No 'real' subscription created because testData provided for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
-                const dispatcher = WorkflowDispatcher.getDispatcher(subscriptionParams);
+                const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams);
                 await dispatcher.addBatch(testData);
                 await dispatcher.drainBatch(); // in test mode we wanna actually wait for all the test events to process
                 return;
@@ -387,7 +400,7 @@ export class StatedWorkflow {
         }
         if(clientType==='test'){
             this.logger.debug(`No 'real' subscription created because client.type='test' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
-            const dispatcher = WorkflowDispatcher.getDispatcher(subscriptionParams); // we need a dispatched even if no real message bus
+            const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams); // we need a dispatched even if no real message bus
         }else if (clientType === 'kafka') {
             this.logger.debug(`subscribing to kafka using ${clientParams}`)
             this.createKafkaClient(clientParams);
@@ -403,13 +416,9 @@ export class StatedWorkflow {
     }
 
     onHttp(subscriptionParams) {
-        const dispatcher = new WorkflowDispatcher(
-            subscriptionParams
-        );
-
         StatedWorkflow.app.all('*', (req, res) => {
             // Push the request and response objects to the dispatch queue to be handled by callback
-            dispatcher.addToQueue({req, res});
+            this.workflowDispatcher.addToQueue({req, res});
         });
 
         StatedWorkflow.app.listen(StatedWorkflow.port, () => {
