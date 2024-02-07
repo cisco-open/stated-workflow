@@ -18,7 +18,7 @@ import express from 'express';
 import Pulsar from 'pulsar-client';
 import {Kafka, logLevel} from 'kafkajs';
 import winston from "winston";
-import {WorkflowDispatcher} from "./workflowDispatcher.js";
+import {WorkflowDispatcher} from "./WorkflowDispatcher.js";
 import {StepLog} from "./StepLog.js";
 import Step from "./Step.js";
 import {createStepPersistence} from "./StepPersistence.js";
