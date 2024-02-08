@@ -13,6 +13,7 @@
 // limitations under the License.
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import {StatedWorkflow} from "./StatedWorkflow.js";
+import Step from "./Step.js";
 
 // This class is used to add events to a queue and dispatch them to one or more subscribed workflow function with the
 // given parallelism. Tracks the number of active events and the number of events in the queue.
@@ -93,6 +94,7 @@ export class WorkflowDispatcher {
             const eventData = this.queue.shift();
 
             let promise;
+            // WIP check
             if (this.workflowFunction && this.workflowFunction.function) {
                 promise = this._runStep(this.workflowFunction, eventData);
             } else {
@@ -117,14 +119,48 @@ export class WorkflowDispatcher {
         }
     }
 
-    _runStep(stepJson, input) {
+    // WIP method
+    async _runStep(stepJson, input) {
         let workflowInvocation;
 
         if (workflowInvocation === undefined) {
             workflowInvocation = StatedWorkflow.generateDateAndTimeBasedID();
         }
 
+        const step = new Step(stepJson, StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
+
+        const {instruction, event:loggedEvent} = step.log.getCourseOfAction(workflowInvocation);
+        if(instruction === "START"){
+            return await step.run(workflowInvocation, input);
+        }else if (instruction === "RESTART"){
+            return await step.run(workflowInvocation, loggedEvent.args);
+        } else if(instruction === "SKIP"){
+            return loggedEvent.out;
+        }else{
+            throw new Error(`unknown courseOfAction: ${instruction}`);
+        }
+
+        const promise = this.runStep(workflowInvocation, step, currentInput);
+
+        return promise;
     }
+
+
+    // TODO: the runStep logic should be moved to a Step class
+    async runStep(workflowInvocation, step, input){
+
+        const {instruction, event:loggedEvent} = step.log.getCourseOfAction(workflowInvocation);
+        if(instruction === "START"){
+            return await step.run(workflowInvocation, input);
+        }else if (instruction === "RESTART"){
+            return await step.run(workflowInvocation, loggedEvent.args);
+        } else if(instruction === "SKIP"){
+            return loggedEvent.out;
+        }else{
+            throw new Error(`unknown courseOfAction: ${instruction}`);
+        }
+    }
+
     addToQueue(data) {
         this.queue.push(data);
         this._dispatch();

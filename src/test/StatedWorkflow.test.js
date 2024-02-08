@@ -768,3 +768,22 @@ test("Template Data Change Callback with rate limit", async () => {
     expect(counts).toEqual([0,10]);
 
 });
+
+test("Pulsar consumer WIP", async () => {
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub-pulsar.yaml');
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+    let template = yaml.load(templateYaml);
+
+    const {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template);
+    // keep steps execution logs for debugging
+    tp.options = {'keepLogs': true}
+
+    await tp.initialize();
+
+    while (tp.output.rebelForces.length < 4) {
+        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+    }
+
+    expect(tp.output.rebelForces).toEqual(['chewbacca', 'luke', 'han', 'leia']);
+
+});

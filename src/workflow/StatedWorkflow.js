@@ -59,13 +59,15 @@ export class StatedWorkflow {
                 "publish": this.publish.bind(this),
                 "recover": this.recover.bind(this),
                 "logFunctionInvocation": this.logFunctionInvocation.bind(this),
-                "workflow": this.workflow.bind(this)
+                "workflow": this.workflow.bind(this),
+                "recoverTo": this.recoverTo.bind(this)
             }
         };
         this.templateProcessor = new TemplateProcessor(template, context);
         this.templateProcessor.functionGenerators.set("serial", this.serialGenerator.bind(this));
         this.templateProcessor.functionGenerators.set("parallel", this.parallelGenerator.bind(this));
         this.templateProcessor.functionGenerators.set("recover", this.recoverGenerator.bind(this));
+        // this.templateProcessor.functionGenerators.set("subscribe", this.subscribeGenerator.bind(this));
         this.templateProcessor.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
     }
 
@@ -122,27 +124,6 @@ export class StatedWorkflow {
         }
     }
 
-    async subscribe(subscribeOptions) {
-        const {source} = subscribeOptions;
-        this.logger.debug(`subscribing ${StatedREPL.stringify(source)}`);
-
-        if(!this.workflowDispatcher) {
-            this.workflowDispatcher = new WorkflowDispatcher(subscribeOptions);
-            this.templateProcessor.onInitialize = this.workflowDispatcher.clear.bind(this.workflowDispatcher); //must remove all subscribers when template reinitialized
-        }
-
-
-        if (source === 'http') {
-            return StatedWorkflow.onHttp(subscribeOptions);
-        }
-        if (source === 'cloudEvent') {
-            return this.subscribeCloudEvent(subscribeOptions);
-        }
-        if (!source) {
-            throw new Error("Subscribe source not set");
-        }
-        throw new Error(`Unknown subscribe source ${source}`);
-    }
 
     static ensureClient(params) {
         if (!params || params.type == 'pulsar') {
@@ -272,6 +253,39 @@ export class StatedWorkflow {
 
     }
 
+    async subscribeGenerator(metaInf, tp) {
+        return async (subscribeOptions) => {
+
+            const resolvedJsonPointers = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'subscribe'); //fixme todo we should avoid doing this for every jsonata evaluation
+            TemplateUtils.validateStepPointers(resolvedJsonPointers, steps, metaInf, 'subscribe');
+            const resolvedJsonPointers2 = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'subscribeParams');
+
+            return this.subscribe(subscribeOptions, context, resolvedJsonPointers, tp);
+        }
+    }
+
+    async subscribe(subscribeOptions) {
+        const {source} = subscribeOptions;
+        this.logger.debug(`subscribing ${StatedREPL.stringify(source)}`);
+
+        if(!this.workflowDispatcher) {
+            this.workflowDispatcher = new WorkflowDispatcher(subscribeOptions);
+            this.templateProcessor.onInitialize = this.workflowDispatcher.clear.bind(this.workflowDispatcher); //must remove all subscribers when template reinitialized
+        }
+
+
+        if (source === 'http') {
+            return StatedWorkflow.onHttp(subscribeOptions);
+        }
+        if (source === 'cloudEvent') {
+            return this.subscribeCloudEvent(subscribeOptions);
+        }
+        if (!source) {
+            throw new Error("Subscribe source not set");
+        }
+        throw new Error(`Unknown subscribe source ${source}`);
+    }
+
     subscribePulsar(subscriptionParams) {
         const {type, initialPosition = 'earliest', maxConsume = -1} = subscriptionParams;
         this.logger.debug(`pulsar subscribe params ${StatedREPL.stringify(subscriptionParams)}`);
@@ -295,7 +309,7 @@ export class StatedWorkflow {
             let countdown = maxConsume;
             let resolve;
             this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtr, removed) => {
-                if (jsonPtr === '/step0/log/*/args') { //TODO: regexify
+                if (jsonPtr === '/joinResistanceStep/log/*/args') { //TODO: regexify
                     // TODO: await persist the step
                     resolve();
                 }
@@ -445,14 +459,20 @@ export class StatedWorkflow {
             workflowInvocation = StatedWorkflow.generateDateAndTimeBasedID();
         }
 
+        if (input === '__recover__' && stepJsons?.[0]) {
+            const step = new Step(stepJsons[0], StatedWorkflow.persistence, resolvedJsonPointers?.[0], tp);
+            for  (let workflowInvocation of step.log.getInvocations()){
+                await this.serial(undefined, stepJsons, {workflowInvocation}, resolvedJsonPointers, tp);
+            }
+            return;
+        }
+
         let currentInput = input;
         const steps = [];
         for (let i = 0; i < stepJsons.length; i++) {
-            if(currentInput !== undefined) {
-                const step = new Step(stepJsons[i], StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
-                steps.push(step);
-                currentInput = await this.runStep(workflowInvocation, step, currentInput);
-            }
+            const step = new Step(stepJsons[i], StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
+            steps.push(step);
+            currentInput = await this.runStep(workflowInvocation, step, currentInput);
         }
 
         if (!tp.options.keepLogs) await StatedWorkflow.deleteStepsLogs(workflowInvocation, steps);
@@ -543,6 +563,10 @@ export class StatedWorkflow {
         for  (let workflowInvocation of step.log.getInvocations()){
             await this.runStep(workflowInvocation, step);
         }
+    }
+
+    async recoverTo(to) {
+        return await to('__recover__');
     }
 
     async runStep(workflowInvocation, step, input){
