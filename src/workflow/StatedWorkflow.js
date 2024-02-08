@@ -275,7 +275,6 @@ export class StatedWorkflow {
     subscribePulsar(subscriptionParams) {
         const {type, initialPosition = 'earliest', maxConsume = -1} = subscriptionParams;
         this.logger.debug(`pulsar subscribe params ${StatedREPL.stringify(subscriptionParams)}`);
-        let consumer, dispatcher;
         //make sure a dispatcher exists for the combination of type and subscriberId
         this.workflowDispatcher.getDispatcher(subscriptionParams);
         // Check if a consumer already exists for the given subscription

@@ -92,26 +92,39 @@ export class WorkflowDispatcher {
             this.active++;
             const eventData = this.queue.shift();
 
-            const promise = this.workflowFunction.apply(null, [eventData])
-                .catch(error => {
-                    console.error("Error executing workflow:", error);
-                })
-                .finally(() => {
-                    this.active--;
-                    if (this.batchMode) {
-                        this.batchCount--;
-                    }
-                    const index = this.promises.indexOf(promise);
-                    if (index > -1) {
-                        this.promises.splice(index, 1);
-                    }
-                    this._dispatch();
-                });
+            let promise;
+            if (this.workflowFunction && this.workflowFunction.function) {
+                promise = this._runStep(this.workflowFunction, eventData);
+            } else {
+                promise = this.workflowFunction.apply(null, [eventData])
+                  .catch(error => {
+                      console.error("Error executing workflow:", error);
+                  })
+                  .finally(() => {
+                      this.active--;
+                      if (this.batchMode) {
+                          this.batchCount--;
+                      }
+                      const index = this.promises.indexOf(promise);
+                      if (index > -1) {
+                          this.promises.splice(index, 1);
+                      }
+                      this._dispatch();
+                  });
+            }
 
             this.promises.push(promise);
         }
     }
 
+    _runStep(stepJson, input) {
+        let workflowInvocation;
+
+        if (workflowInvocation === undefined) {
+            workflowInvocation = StatedWorkflow.generateDateAndTimeBasedID();
+        }
+
+    }
     addToQueue(data) {
         this.queue.push(data);
         this._dispatch();
