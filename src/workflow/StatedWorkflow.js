@@ -57,16 +57,15 @@ export class StatedWorkflow {
                 "onHttp": this.onHttp.bind(this),
                 "subscribe": this.subscribe.bind(this),
                 "publish": this.publish.bind(this),
-                "recover": this.recover.bind(this),
                 "logFunctionInvocation": this.logFunctionInvocation.bind(this),
                 "workflow": this.workflow.bind(this),
-                "recoverTo": this.recoverTo.bind(this)
+                "recoverTo": this.recover.bind(this)
             }
         };
         this.templateProcessor = new TemplateProcessor(template, context);
         this.templateProcessor.functionGenerators.set("serial", this.serialGenerator.bind(this));
         this.templateProcessor.functionGenerators.set("parallel", this.parallelGenerator.bind(this));
-        this.templateProcessor.functionGenerators.set("recover", this.recoverGenerator.bind(this));
+        this.templateProcessor.functionGenerators.set("recoverStep", this.recoverStepGenerator.bind(this));
         // this.templateProcessor.functionGenerators.set("subscribe", this.subscribeGenerator.bind(this));
         this.templateProcessor.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
     }
@@ -548,24 +547,24 @@ export class StatedWorkflow {
         );
     }
 
-    async recoverGenerator(metaInf, tp) {
+    async recoverStepGenerator(metaInf, tp) {
         let parallelDeps = {};
         return async (step, context) => {
-            const resolvedJsonPointers = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'recover'); //fixme todo we should avoid doing this for every jsonata evaluation
-            TemplateUtils.validateStepPointers(resolvedJsonPointers, [step], metaInf, 'recover');
-            return this.recover(step, context, resolvedJsonPointers?.[0], tp);
+            const resolvedJsonPointers = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'recoverStep'); //fixme todo we should avoid doing this for every jsonata evaluation
+            TemplateUtils.validateStepPointers(resolvedJsonPointers, [step], metaInf, 'recoverStep');
+            return this.recoverStep(step, context, resolvedJsonPointers?.[0], tp);
         }
     }
 
 
-    async recover(stepJson, context, resolvedJsonPointer, tp){
+    async recoverStep(stepJson, context, resolvedJsonPointer, tp){
         let step = new Step(stepJson, StatedWorkflow.persistence, resolvedJsonPointer, tp);
         for  (let workflowInvocation of step.log.getInvocations()){
             await this.runStep(workflowInvocation, step);
         }
     }
 
-    async recoverTo(to) {
+    async recover(to) {
         return await to('__recover__');
     }
 

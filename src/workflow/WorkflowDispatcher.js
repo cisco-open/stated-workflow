@@ -119,48 +119,6 @@ export class WorkflowDispatcher {
         }
     }
 
-    // WIP method
-    async _runStep(stepJson, input) {
-        let workflowInvocation;
-
-        if (workflowInvocation === undefined) {
-            workflowInvocation = StatedWorkflow.generateDateAndTimeBasedID();
-        }
-
-        const step = new Step(stepJson, StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
-
-        const {instruction, event:loggedEvent} = step.log.getCourseOfAction(workflowInvocation);
-        if(instruction === "START"){
-            return await step.run(workflowInvocation, input);
-        }else if (instruction === "RESTART"){
-            return await step.run(workflowInvocation, loggedEvent.args);
-        } else if(instruction === "SKIP"){
-            return loggedEvent.out;
-        }else{
-            throw new Error(`unknown courseOfAction: ${instruction}`);
-        }
-
-        const promise = this.runStep(workflowInvocation, step, currentInput);
-
-        return promise;
-    }
-
-
-    // TODO: the runStep logic should be moved to a Step class
-    async runStep(workflowInvocation, step, input){
-
-        const {instruction, event:loggedEvent} = step.log.getCourseOfAction(workflowInvocation);
-        if(instruction === "START"){
-            return await step.run(workflowInvocation, input);
-        }else if (instruction === "RESTART"){
-            return await step.run(workflowInvocation, loggedEvent.args);
-        } else if(instruction === "SKIP"){
-            return loggedEvent.out;
-        }else{
-            throw new Error(`unknown courseOfAction: ${instruction}`);
-        }
-    }
-
     addToQueue(data) {
         this.queue.push(data);
         this._dispatch();

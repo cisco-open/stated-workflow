@@ -390,7 +390,7 @@ test("recover completed workflow - should do nothing", async () => {
 
     const templateYaml =
       `
-    recover$: $recover(step0)
+    recover$: $recoverStep(step0)
     name: nozzleWork
     step0:
       name: entrypoint
@@ -464,7 +464,7 @@ test("recover incomplete workflow - should rerun all steps", async () => {
     // Load the YAML from the file
     const templateYaml =
         `
-    recover$: $recover(step0)
+    recover$: $recoverStep(step0)
     name: nozzleWork
     step0:
       name: entrypoint
@@ -516,7 +516,7 @@ test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 
     // Load the YAML from the file
     const templateYaml =
         `
-    recover$: $recover(step0)
+    recover$: $recoverStep(step0)
     name: nozzleWork
     step0:
       name: entrypoint
@@ -769,7 +769,8 @@ test("Template Data Change Callback with rate limit", async () => {
 
 });
 
-test("Pulsar consumer WIP", async () => {
+const isMacOS = process.platform === 'darwin';
+isMacOS ? test("Pulsar consumer", async () => {
     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub-pulsar.yaml');
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     let template = yaml.load(templateYaml);
@@ -786,4 +787,4 @@ test("Pulsar consumer WIP", async () => {
 
     expect(tp.output.rebelForces).toEqual(['chewbacca', 'luke', 'han', 'leia']);
 
-});
+}) : test.skip("Skipping pulsar consumer test in github actions", () => {});
