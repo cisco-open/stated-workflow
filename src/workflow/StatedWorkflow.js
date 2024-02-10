@@ -55,18 +55,18 @@ export class StatedWorkflow {
         TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...{
                 "id": StatedWorkflow.generateDateAndTimeBasedID.bind(this),
                 "onHttp": this.onHttp.bind(this),
-                "subscribe": this.subscribe.bind(this),
+                // "subscribe": this.subscribe.bind(this),
                 "publish": this.publish.bind(this),
                 "logFunctionInvocation": this.logFunctionInvocation.bind(this),
                 "workflow": this.workflow.bind(this),
-                "recoverTo": this.recover.bind(this)
+                "recover": this.recover.bind(this)
             }
         };
         this.templateProcessor = new TemplateProcessor(template, context);
         this.templateProcessor.functionGenerators.set("serial", this.serialGenerator.bind(this));
         this.templateProcessor.functionGenerators.set("parallel", this.parallelGenerator.bind(this));
         this.templateProcessor.functionGenerators.set("recoverStep", this.recoverStepGenerator.bind(this));
-        // this.templateProcessor.functionGenerators.set("subscribe", this.subscribeGenerator.bind(this));
+        this.templateProcessor.functionGenerators.set("subscribe", this.subscribeGenerator.bind(this));
         this.templateProcessor.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
     }
 
@@ -161,7 +161,7 @@ export class StatedWorkflow {
             clientId: 'workflow-kafka-client',
             brokers: [`${StatedWorkflow.host}:9092`],
             logLevel: logLevel.DEBUG,
-        });/**/
+        });
     }
 
     publish(params) {
@@ -256,14 +256,15 @@ export class StatedWorkflow {
         return async (subscribeOptions) => {
 
             const resolvedJsonPointers = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'subscribe'); //fixme todo we should avoid doing this for every jsonata evaluation
-            TemplateUtils.validateStepPointers(resolvedJsonPointers, steps, metaInf, 'subscribe');
-            const resolvedJsonPointers2 = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'subscribeParams');
+            // TemplateUtils.validateStepPointers(resolvedJsonPointers, steps, metaInf, 'subscribe');
+            // const resolvedJsonPointers2 = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'serial');
+            // const metaInfo2 = jp.get(tp.templateMeta, subscribeOptions.to);
 
-            return this.subscribe(subscribeOptions, context, resolvedJsonPointers, tp);
+            return this.subscribe(subscribeOptions, resolvedJsonPointers, tp);
         }
     }
 
-    async subscribe(subscribeOptions) {
+    async subscribe(subscribeOptions, resolvedJsonPointers = {}, tp = undefined) {
         const {source} = subscribeOptions;
         this.logger.debug(`subscribing ${StatedREPL.stringify(source)}`);
 
@@ -271,6 +272,17 @@ export class StatedWorkflow {
             this.workflowDispatcher = new WorkflowDispatcher(subscribeOptions);
             this.templateProcessor.onInitialize = this.workflowDispatcher.clear.bind(this.workflowDispatcher); //must remove all subscribers when template reinitialized
         }
+
+
+        let resolve;
+        this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtr, removed) => {
+            if (jsonPtr === '/step1/log/*/args') { //TODO: regexify
+                // TODO: await persist the step
+                resolve();
+            }
+        });
+
+
 
 
         if (source === 'http') {
@@ -308,7 +320,7 @@ export class StatedWorkflow {
             let countdown = maxConsume;
             let resolve;
             this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtr, removed) => {
-                if (jsonPtr === '/joinResistanceStep/log/*/args') { //TODO: regexify
+                if (jsonPtr === '/step1/log/*/args') { //TODO: regexify
                     // TODO: await persist the step
                     resolve();
                 }
