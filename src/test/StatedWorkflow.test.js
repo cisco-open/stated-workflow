@@ -772,21 +772,42 @@ test.skip("Template Data Change Callback with rate limit", async () => {
 });
 
 const isMacOS = process.platform === 'darwin';
-isMacOS ? test("Pulsar consumer", async () => {
-    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub-pulsar.yaml');
-    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
-    let template = yaml.load(templateYaml);
+if (isMacOS) {
+    test("Pulsar consumer integration test", async () => {
+        const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub-pulsar.yaml');
+        const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+        let template = yaml.load(templateYaml);
 
-    const {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template);
-    // keep steps execution logs for debugging
-    tp.options = {'keepLogs': true}
+        const {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template);
+        // keep steps execution logs for debugging
+        tp.options = {'keepLogs': true}
 
-    await tp.initialize();
+        await tp.initialize();
 
-    while (tp.output.rebelForces.length < 4) {
-        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
-    }
+        while (tp.output.rebelForces.length < 4) {
+            await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+        }
 
-    expect(tp.output.rebelForces).toEqual(['chewbacca', 'luke', 'han', 'leia']);
+        expect(tp.output.rebelForces).toEqual(['chewbacca', 'luke', 'han', 'leia']);
 
-}) : test.skip("Skipping pulsar consumer test in github actions", () => {});
+    })
+
+    test("Pulsar consumer data function integration test", async () => {
+        const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub-data-function-pulsar.yaml');
+        const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+        let template = yaml.load(templateYaml);
+
+        const {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template);
+        // keep steps execution logs for debugging
+        tp.options = {'keepLogs': true}
+
+        await tp.initialize();
+
+        while (tp.output.stop$ !== 'missionAccomplished') {
+            await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+        }
+
+        expect(tp.output.iterceptedMessages?.length).toEqual(10);
+
+    })
+}
