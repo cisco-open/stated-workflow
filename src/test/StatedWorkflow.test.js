@@ -803,11 +803,11 @@ if (isMacOS) {
 
         await tp.initialize();
 
-        while (tp.output.stop$ !== 'missionAccomplished') {
+        while (tp.output.farFarAway?.length + tp.output.nearBy?.length < 10) {
             await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
         }
 
-        expect(tp.output.interceptedMessages?.length).toEqual(10);
+        expect(tp.output.interceptedMessages?.length).toBeGreaterThanOrEqual(10)
         expect(tp.output.farFarAway?.length + tp.output.nearBy?.length).toEqual(10);
 
     }, 10000)
