@@ -25,6 +25,12 @@ import {createStepPersistence} from "./StepPersistence.js";
 import {TemplateUtils} from "./utils/TemplateUtils.js";
 import {WorkflowPersistence} from "./WorkflowPersistence.js";
 import jp from "stated-js/dist/src/JsonPointer.js";
+import util from "util";
+import fs from "fs";
+import path from "path";
+
+const writeFile = util.promisify(fs.writeFile);
+const basePath = path.join(process.cwd(), '.state');
 
 //This class is a wrapper around the TemplateProcessor class that provides workflow functionality
 export class StatedWorkflow {
@@ -275,13 +281,13 @@ export class StatedWorkflow {
         }
 
 
-        let resolve;
-        this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtr, removed) => {
-            if (jsonPtr === '/step1/log/*/args') { //TODO: regexify
-                // TODO: await persist the step
-                resolve();
-            }
-        });
+        // let resolve;
+        // this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtr, removed) => {
+        //     if (jsonPtr === '/step1/log/*/args') { //TODO: regexify
+        //         // TODO: await persist the step
+        //         resolve();
+        //     }
+        // });
 
 
 
@@ -322,7 +328,10 @@ export class StatedWorkflow {
             let resolve;
             this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtrs, removed) => {
                 for (let jsonPtr of jsonPtrs) {
-                    if (/^\/step1\/log\/.*$/.test(jsonPtr)) { //TODO: regexify
+                    if (/^\/step\d+\/log\/.*$/.test(jsonPtr)) {
+                        await writeFile(path.join(basePath,'template.json') , StatedREPL.stringify(data), 'utf8');
+                    }
+                    if (/^\/step1\/log\/.*$/.test(jsonPtr)) {
                         // TODO: await persist the step
                         const dataThatChanged = jp.get(data, jsonPtr);
                         if (dataThatChanged.start !== undefined && dataThatChanged.end === undefined) {

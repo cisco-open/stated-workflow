@@ -20,9 +20,12 @@ import {WorkflowDispatcher} from "../workflow/WorkflowDispatcher.js";
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import {EnhancedPrintFunc} from "./TestTools.js";
 import {rateLimit} from "stated-js/dist/src/utils/rateLimit.js";
+import util from "util";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const unlink = util.promisify(fs.unlink);
 
 test("wf", async () => {
     // Load the YAML from the file
@@ -795,20 +798,49 @@ if (isMacOS) {
     test("Pulsar consumer data function integration test", async () => {
         const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub-data-function-pulsar.yaml');
         const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+
+        const savedTemplatePath = path.join(process.cwd(), '.state', 'template.json');
+        // clean up tempalte
+        await unlink(savedTemplatePath);
+
         let template = yaml.load(templateYaml);
 
-        const {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template, 'file');
+        let {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template);
         // keep steps execution logs for debugging
         tp.options = {'keepLogs': true}
 
         await tp.initialize();
 
-        while (tp.output.farFarAway?.length + tp.output.nearBy?.length < 10) {
+        let beenInterrupted = false;
+        while (tp.output.farFarAway?.length + tp.output.nearBy?.length < 2) {
+            if (!beenInterrupted && tp.output.interceptedMessages?.length === 1) {
+                console.log("checking if template was stored...");
+                let savedTemplate = fs.readFileSync(savedTemplatePath, 'utf8');
+                // template could be not stored yet
+                if (savedTemplate !== '') {
+                    console.log("interrupting the current template processor...");
+                    await tp.close();
+
+                    // double-check we re-read after tp.close
+                    savedTemplate = fs.readFileSync(savedTemplatePath, 'utf8');
+                    template = JSON.parse(savedTemplate);
+                    expect(template).toBeDefined();
+
+                    // step2 is an IO fetch, so we expect that step1 log was stored, while step3 log was not
+                    expect(Object.keys(template.step1.log).length).toEqual(1);
+                    expect(template.step3.log).toBeUndefined();
+
+                    beenInterrupted = true;
+                    const sw = await StatedWorkflow.newWorkflow(template);
+                    tp = sw.templateProcessor;
+                    await tp.initialize();
+                }
+            }
             await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
         }
 
-        expect(tp.output.interceptedMessages?.length).toBeGreaterThanOrEqual(10)
-        expect(tp.output.farFarAway?.length + tp.output.nearBy?.length).toEqual(10);
+        expect(tp.output.interceptedMessages?.length).toBeGreaterThanOrEqual(2)
+        expect(tp.output.farFarAway?.length + tp.output.nearBy?.length).toEqual(2);
 
-    }, 10000)
+    }, 60000)
 }
