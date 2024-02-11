@@ -797,7 +797,7 @@ if (isMacOS) {
         const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
         let template = yaml.load(templateYaml);
 
-        const {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template);
+        const {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template, 'file');
         // keep steps execution logs for debugging
         tp.options = {'keepLogs': true}
 
@@ -808,6 +808,7 @@ if (isMacOS) {
         }
 
         expect(tp.output.interceptedMessages?.length).toEqual(10);
+        expect(tp.output.farFarAway?.length + tp.output.nearBy?.length).toEqual(10);
 
     }, 10000)
 }
