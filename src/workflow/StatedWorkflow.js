@@ -143,6 +143,7 @@ export class StatedWorkflow {
         serviceUrl: 'pulsar://localhost:6650',
     });
 
+
     static host = process.env.HOST_IP
 
     static kafkaClient = new Kafka({
@@ -366,6 +367,10 @@ export class StatedWorkflow {
                     if (data !== undefined) {
                         await this.latch;
                         consumer.acknowledge(data);
+                    }
+
+                    if (StatedWorkflow.pulsarClient === undefined) {
+                        break;
                     }
                 }
             }
@@ -702,5 +707,19 @@ export class StatedWorkflow {
         this.ensureRetention(log[workflowName]);
 
         return currentInput;
+    }
+
+    async close() {
+
+        await StatedWorkflow.pulsarClient.close();
+        StatedWorkflow.pulsarClient = undefined;
+
+        // TODO: check if consumers can be closed without client
+        // for (let consumer of StatedWorkflow.consumers.values()) {
+        //     console.log(consumer);
+        //     await consumer.disconnect();
+        // }
+        await this.workflowDispatcher.clear();
+        await this.templateProcessor.close();
     }
 }

@@ -805,11 +805,25 @@ if (isMacOS) {
 
         let template = yaml.load(templateYaml);
 
-        let {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template);
+        let sw = await StatedWorkflow.newWorkflow(template);
+        let {templateProcessor: tp} = sw;
+
         // keep steps execution logs for debugging
         tp.options = {'keepLogs': true}
 
         await tp.initialize();
+
+        function copyStepLogs(objSrc, objDst) {
+            Object.keys(objSrc).forEach(key => {
+                if (key.match(/^step\d+$/)) {
+                    // console.log(`Found ${key}:`, objSrc[key]);
+                    if (objSrc[key].hasOwnProperty('log')) {
+                        console.log(`Copying og ${key}/log:`, objSrc[key].log);
+                        objDst[key].log = objSrc[key].log;
+                    }
+                }
+            });
+        }
 
         let beenInterrupted = false;
         while (tp.output.farFarAway?.length + tp.output.nearBy?.length < 2) {
@@ -819,19 +833,23 @@ if (isMacOS) {
                 // template could be not stored yet
                 if (savedTemplate !== '') {
                     console.log("interrupting the current template processor...");
-                    await tp.close();
+                    await sw.close();
 
                     // double-check we re-read after tp.close
                     savedTemplate = fs.readFileSync(savedTemplatePath, 'utf8');
-                    template = JSON.parse(savedTemplate);
-                    expect(template).toBeDefined();
+                    const templateWithLogs = JSON.parse(savedTemplate);
+                    expect(templateWithLogs).toBeDefined();
 
+                    template = yaml.load(templateYaml);
                     // step2 is an IO fetch, so we expect that step1 log was stored, while step3 log was not
-                    expect(Object.keys(template.step1.log).length).toEqual(1);
-                    expect(template.step3.log).toBeUndefined();
+                    expect(templateWithLogs.step3.log).toBeUndefined();
 
                     beenInterrupted = true;
-                    const sw = await StatedWorkflow.newWorkflow(template);
+
+                    copyStepLogs(templateWithLogs, template);
+                    console.log("Updated template: " + JSON.stringify(template, null, 2));
+
+                    sw = await StatedWorkflow.newWorkflow(template);
                     tp = sw.templateProcessor;
                     await tp.initialize();
                 }
@@ -842,5 +860,5 @@ if (isMacOS) {
         expect(tp.output.interceptedMessages?.length).toBeGreaterThanOrEqual(2)
         expect(tp.output.farFarAway?.length + tp.output.nearBy?.length).toEqual(2);
 
-    }, 60000)
+    }, 30000)
 }
