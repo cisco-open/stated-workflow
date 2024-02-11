@@ -24,6 +24,7 @@ import Step from "./Step.js";
 import {createStepPersistence} from "./StepPersistence.js";
 import {TemplateUtils} from "./utils/TemplateUtils.js";
 import {WorkflowPersistence} from "./WorkflowPersistence.js";
+import jp from "stated-js/dist/src/JsonPointer.js";
 
 //This class is a wrapper around the TemplateProcessor class that provides workflow functionality
 export class StatedWorkflow {
@@ -236,8 +237,8 @@ export class StatedWorkflow {
 
             try {
                 let _data = data;
-                if (data._jsonata_lambda === true) {
-                    _data = await data.apply(this, []); //data is a function, call it
+                if (data._jsonata_lambda === true || data._stated_function__ === true) {
+                    _data = await data(); //data is a function, call it
                 }
                 this.logger.debug(`pulsar producer sending ${StatedREPL.stringify(_data)}`);
                 // Send a message
@@ -319,11 +320,17 @@ export class StatedWorkflow {
             let data;
             let countdown = maxConsume;
             let resolve;
-            this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtr, removed) => {
-                if (jsonPtr === '/step1/log/*/args') { //TODO: regexify
-                    // TODO: await persist the step
-                    resolve();
+            this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtrs, removed) => {
+                for (let jsonPtr of jsonPtrs) {
+                    if (/^\/step1\/log\/.*$/.test(jsonPtr)) { //TODO: regexify
+                        // TODO: await persist the step
+                        const dataThatChanged = jp.get(data, jsonPtr);
+                        if (dataThatChanged.start !== undefined && dataThatChanged.end === undefined) {
+                            resolve();
+                        }
+                    }
                 }
+
             });
             while (true) {
                 try {
@@ -348,7 +355,6 @@ export class StatedWorkflow {
                     console.error("Error receiving or dispatching message:", error);
                 } finally {
                     if (data !== undefined) {
-                        // TODO: add a await of latch
                         await this.latch;
                         consumer.acknowledge(data);
                     }

@@ -807,7 +807,7 @@ if (isMacOS) {
             await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
         }
 
-        expect(tp.output.iterceptedMessages?.length).toEqual(10);
+        expect(tp.output.interceptedMessages?.length).toEqual(10);
 
-    })
+    }, 10000)
 }

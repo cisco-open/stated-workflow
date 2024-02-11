@@ -1,0 +1,37 @@
+# producer will be sending some test data
+produceParams:
+  type: "my-topic"
+  data: ['luke', 'han', 'leia']
+  client:
+    type: pulsar
+# the subscriber's 'to' function will be called on each received event
+subscribeParams: #parameters for subscribing to an event
+  source: cloudEvent
+  type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
+  to: /${joinResistance}
+  subscriberId: rebelArmy
+  initialPosition: latest
+  client:
+      type: pulsar
+joinResistance: | 
+  /${ 
+    function($rebel){ 
+      $rebel ~> $serial([step1])
+    } 
+  }
+step1:
+  name: joinResistanceStep
+  function: /${ function($rebel){ $set('/rebelForces', rebelForces~>$append($rebel))} }
+  log:
+    2024-02-08-1707432986843-1je9:
+      start:
+        timestamp: 1707432986843
+        args:
+          - chewbacca
+# starts producer function
+send$: $publish(produceParams)
+# starts consumer function
+recv$: $subscribe(subscribeParams)
+# the subscriber's `to` function will write the received data here
+rebelForces: [ ]
+recover$: $recover(joinResistance)
