@@ -56,9 +56,15 @@ export class StatedWorkflow {
             ],
             level: "error", //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
         });
+
+        // TODO: parameterize
+        this.host = process.env.HOST_IP
+
+        this.consumers = new Map(); //key is type, value is pulsar consumer
+        this.dispatchers = new Map(); //key is type, value Set of WorkflowDispatcher
+
         // TODO: fix CliCore.setupContext to respect context passed to the constructor
         // const tp = new TemplateProcessor(template, {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS});
-
         TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...{
                 "id": StatedWorkflow.generateDateAndTimeBasedID.bind(this),
                 "onHttp": this.onHttp.bind(this),
@@ -87,6 +93,17 @@ export class StatedWorkflow {
 
     async initialize() {
         await this.templateProcessor.initialize();
+        this.pulsarClient = new Pulsar.Client({
+            serviceUrl: 'pulsar://localhost:6650',
+        });
+
+
+        this.kafkaClient = new Kafka({
+            clientId: 'workflow-kafka-client',
+            brokers: [`${StatedWorkflow.host}:9092`],
+            logLevel: logLevel.DEBUG,
+        });
+
     }
 
     setWorkflowPersistence() {
@@ -131,7 +148,7 @@ export class StatedWorkflow {
     }
 
 
-    static ensureClient(params) {
+    ensureClient(params) {
         if (!params || params.type == 'pulsar') {
             this.createPulsarClient(params);
         } else if (params.type == 'kafka') {
@@ -139,35 +156,19 @@ export class StatedWorkflow {
         }
     }
 
-    static pulsarClient = new Pulsar.Client({
-        serviceUrl: 'pulsar://localhost:6650',
-    });
-
-
-    static host = process.env.HOST_IP
-
-    static kafkaClient = new Kafka({
-        clientId: 'workflow-kafka-client',
-        brokers: [`${StatedWorkflow.host}:9092`],
-        logLevel: logLevel.DEBUG,
-    });
-
-    static consumers = new Map(); //key is type, value is pulsar consumer
-    static dispatchers = new Map(); //key is type, value Set of WorkflowDispatcher
-
     createPulsarClient(params) {
-        if (StatedWorkflow.pulsarClient) return;
+        if (this.pulsarClient) return;
     
-        StatedWorkflow.pulsarClient = new Pulsar.Client({
+        this.pulsarClient = new Pulsar.Client({
             serviceUrl: 'pulsar://localhost:6650',
         });
     }
     createKafkaClient(params) {
-        if (StatedWorkflow.kafkaClient) return;
+        if (this.kafkaClient) return;
 
-        StatedWorkflow.kafkaClient = new Kafka({
+        this.kafkaClient = new Kafka({
             clientId: 'workflow-kafka-client',
-            brokers: [`${StatedWorkflow.host}:9092`],
+            brokers: [`${this.host}:9092`],
             logLevel: logLevel.DEBUG,
         });
     }
@@ -204,7 +205,7 @@ export class StatedWorkflow {
         const {type, data} = params;
 
         (async () => {
-            const producer = StatedWorkflow.kafkaClient.producer();
+            const producer = this.kafkaClient.producer();
 
             await producer.connect();
 
@@ -238,7 +239,7 @@ export class StatedWorkflow {
 
 
             // Create a producer
-            const producer = await StatedWorkflow.pulsarClient.createProducer({
+            const producer = await this.pulsarClient.createProducer({
                 topic: type,
             });
 
@@ -294,7 +295,7 @@ export class StatedWorkflow {
 
 
         if (source === 'http') {
-            return StatedWorkflow.onHttp(subscribeOptions);
+            return this.onHttp(subscribeOptions);
         }
         if (source === 'cloudEvent') {
             return this.subscribeCloudEvent(subscribeOptions);
@@ -311,37 +312,22 @@ export class StatedWorkflow {
         //make sure a dispatcher exists for the combination of type and subscriberId
         this.workflowDispatcher.getDispatcher(subscriptionParams);
         // Check if a consumer already exists for the given subscription
-        if (StatedWorkflow.consumers.has(type)) {
+        if (this.consumers.has(type)) {
             this.logger.debug(`pulsar subscriber already started. Bail.`);
             return; //bail, we are already consuming and dispatching this type
         }
         (async () => {
-            const consumer = await StatedWorkflow.pulsarClient.subscribe({
+            const consumer = await this.pulsarClient.subscribe({
                 topic: type,
                 subscription: type, //we will have only one shared-mode consumer group per message type/topics and we name it after the type of the message
                 subscriptionType: 'Shared',
                 subscriptionInitialPosition: initialPosition
             });
             // Store the consumer in the map
-            StatedWorkflow.consumers.set(type, consumer);
+            this.consumers.set(type, consumer);
             let data;
             let countdown = maxConsume;
-            let resolve;
-            this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtrs, removed) => {
-                for (let jsonPtr of jsonPtrs) {
-                    if (/^\/step\d+\/log\/.*$/.test(jsonPtr)) {
-                        await writeFile(path.join(basePath,'template.json') , StatedREPL.stringify(data), 'utf8');
-                    }
-                    if (/^\/step1\/log\/.*$/.test(jsonPtr)) {
-                        // TODO: await persist the step
-                        const dataThatChanged = jp.get(data, jsonPtr);
-                        if (dataThatChanged.start !== undefined && dataThatChanged.end === undefined) {
-                            resolve();
-                        }
-                    }
-                }
 
-            });
             while (true) {
                 try {
                     data = await consumer.receive();
@@ -352,9 +338,27 @@ export class StatedWorkflow {
                     } catch (error) {
                         console.error("unable to parse data to json:", error);
                     }
+                    let resolve;
                     this.latch = new Promise((_resolve) => {
                         resolve = _resolve; //we assign our resolve variable that is declared outside this promise so that our onDataChange callbacks can use  it
                     });
+
+                    this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtrs, removed) => {
+                        for (let jsonPtr of jsonPtrs) {
+                            if (/^\/step\d+\/log\/.*$/.test(jsonPtr)) {
+                                await writeFile(path.join(basePath,'template.json') , StatedREPL.stringify(data), 'utf8');
+                            }
+                            if (/^\/step1\/log\/.*$/.test(jsonPtr)) {
+                                // TODO: await persist the step
+                                const dataThatChanged = jp.get(data, jsonPtr);
+                                if (dataThatChanged.start !== undefined && dataThatChanged.end === undefined) {
+                                    resolve();
+                                }
+                            }
+                        }
+
+                    });
+
 
 
                     this.workflowDispatcher.dispatchToAllSubscribers(type, obj);
@@ -369,13 +373,17 @@ export class StatedWorkflow {
                         consumer.acknowledge(data);
                     }
 
-                    if (StatedWorkflow.pulsarClient === undefined) {
+                    if (this.pulsarClient === undefined) {
                         break;
                     }
                 }
             }
             this.logger.debug(`closing consumer with params ${StatedREPL.stringify(subscriptionParams)}`);
-            await consumer.close()
+            try {
+                await consumer.close();
+            } catch (error) {
+                console.error("Error closing consumer:", error);
+            }
         })();
     }
 
@@ -387,12 +395,12 @@ export class StatedWorkflow {
         this.workflowDispatcher.getDispatcher(subscriptionParams);
     
         // Check if a consumer already exists for the given subscription
-        if (StatedWorkflow.consumers.has(type)) {
+        if (this.consumers.has(type)) {
             this.logger.debug(`Kafka subscriber already started. Bail.`);
             return; // Bail, we are already consuming and dispatching this type
         }
     
-        const consumer = StatedWorkflow.kafkaClient.consumer({ groupId: type });
+        const consumer = this.kafkaClient.consumer({ groupId: type });
     
         try {
             await consumer.connect();
@@ -404,7 +412,7 @@ export class StatedWorkflow {
         this.logger.debug(`Kafka subscriber - subscribed.`);
     
         // Store the consumer in the map
-        StatedWorkflow.consumers.set(type, consumer);
+        this.consumers.set(type, consumer);
         let countdown = maxConsume;
     
         await consumer.run({
@@ -476,7 +484,7 @@ export class StatedWorkflow {
     async serialGenerator(metaInf, tp) {
         return async (input, steps, context) => {
 
-            const resolvedJsonPointers = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'serial'); //fixme todo we should avoid doing this for every jsonata evaluation
+            const resolvedJsonPointers = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp,   'serial'); //fixme todo we should avoid doing this for every jsonata evaluation
             TemplateUtils.validateStepPointers(resolvedJsonPointers, steps, metaInf, 'serial');
 
             return this.serial(input, steps, context, resolvedJsonPointers, tp);
@@ -573,7 +581,7 @@ export class StatedWorkflow {
     }
 
     static async persistLogRecord(stepRecord) {
-        StatedWorkflow.publish(
+        this.publish(
           {'type': stepRecord.workflowName, 'data': stepRecord},
           {type:'pulsar', params: {serviceUrl: 'pulsar://localhost:6650'}}
         );
@@ -711,15 +719,26 @@ export class StatedWorkflow {
 
     async close() {
 
-        await StatedWorkflow.pulsarClient.close();
-        StatedWorkflow.pulsarClient = undefined;
+        if (this.pulsarClient !== undefined) {
+            try {
+                await this.pulsarClient.close();
+            } catch (error) {
+                console.error("Error closing pulsar client:", error);
+            }
+            this.pulsarClient = undefined;
+        }
 
         // TODO: check if consumers can be closed without client
         // for (let consumer of StatedWorkflow.consumers.values()) {
         //     console.log(consumer);
         //     await consumer.disconnect();
         // }
-        await this.workflowDispatcher.clear();
-        await this.templateProcessor.close();
+        try {
+            await this.workflowDispatcher.clear();
+            await this.templateProcessor.close();
+
+        } catch (error) {
+            console.error("Error closing workflow dispatcher:", error);
+        }
     }
 }

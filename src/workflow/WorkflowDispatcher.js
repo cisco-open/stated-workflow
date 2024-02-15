@@ -13,7 +13,6 @@
 // limitations under the License.
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import {StatedWorkflow} from "./StatedWorkflow.js";
-import Step from "./Step.js";
 
 // This class is used to add events to a queue and dispatch them to one or more subscribed workflow function with the
 // given parallelism. Tracks the number of active events and the number of events in the queue.
@@ -96,6 +95,7 @@ export class WorkflowDispatcher {
             let promise;
             // WIP check
             if (this.workflowFunction && this.workflowFunction.function) {
+                // FIXME: decrement active count and remove promise from list in case of error
                 promise = this._runStep(this.workflowFunction, eventData);
             } else {
                 promise = this.workflowFunction.apply(null, [eventData])
@@ -120,6 +120,7 @@ export class WorkflowDispatcher {
     }
 
     addToQueue(data) {
+        // TODO:
         this.queue.push(data);
         this._dispatch();
     }

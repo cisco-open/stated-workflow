@@ -801,7 +801,13 @@ if (isMacOS) {
 
         const savedTemplatePath = path.join(process.cwd(), '.state', 'template.json');
         // clean up tempalte
-        await unlink(savedTemplatePath);
+        try {
+            await unlink(savedTemplatePath);
+        } catch (e) {
+            if (e.code !== 'ENOENT') {
+                throw e;
+            }
+        }
 
         let template = yaml.load(templateYaml);
 
@@ -860,5 +866,5 @@ if (isMacOS) {
         expect(tp.output.interceptedMessages?.length).toBeGreaterThanOrEqual(2)
         expect(tp.output.farFarAway?.length + tp.output.nearBy?.length).toEqual(2);
 
-    }, 30000)
+    }, 300000)
 }

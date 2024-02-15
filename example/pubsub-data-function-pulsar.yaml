@@ -48,4 +48,4 @@ farFarAway: [ ]
 nearBy: [ ]
 # This condition stops the transmission operation when interceptedMessages has 10 elements
 stop$: ($count(interceptedMessages)>=2?($clearInterval(send);'transmissionAccomplished'):'transmissionOngoing')
-recover$: $recover(processMessageWorkflow)
+recover$!: $recover(processMessageWorkflow)
