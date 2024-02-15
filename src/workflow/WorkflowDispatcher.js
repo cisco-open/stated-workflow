@@ -28,44 +28,42 @@ export class WorkflowDispatcher {
         this.promises = [];
         this.batchMode = false;
         this.batchCount = 0; // Counter to keep track of items in the batch
+        this.dispatchers = new Map();       // key is type, value is a Set of keys
+        this.dispatcherObjects = new Map(); // key is composite key, value is WorkflowDispatcher object
     }
 
-
-    static dispatchers = new Map();       // key is type, value is a Set of keys
-    static dispatcherObjects = new Map(); // key is composite key, value is WorkflowDispatcher object
-
-    static clear() {
-        WorkflowDispatcher.dispatchers = new Map();       // key is type, value is a Set of keys
-        WorkflowDispatcher.dispatcherObjects = new Map(); // key is composite key, value is WorkflowDispatcher object
+    clear() {
+        this.dispatchers = new Map();       // key is type, value is a Set of keys
+        this.dispatcherObjects = new Map(); // key is composite key, value is WorkflowDispatcher object
     }
-    static _generateKey(type, subscriberId) {
+    _generateKey(type, subscriberId) {
         return `${type}-${subscriberId}`;
     }
 
-    static _addDispatcher(dispatcher) {
-        if (!WorkflowDispatcher.dispatchers.has(dispatcher.type)) {
-            WorkflowDispatcher.dispatchers.set(dispatcher.type, new Set());
+    _addDispatcher(dispatcher) {
+        if (!this.dispatchers.has(dispatcher.type)) {
+            this.dispatchers.set(dispatcher.type, new Set());
         }
         const key = dispatcher._getKey();
-        WorkflowDispatcher.dispatchers.get(dispatcher.type).add(key);
-        WorkflowDispatcher.dispatcherObjects.set(key, dispatcher);
+        this.dispatchers.get(dispatcher.type).add(key);
+        this.dispatcherObjects.set(key, dispatcher);
     }
 
-    static getDispatcher(subscriptionParams) {
+    getDispatcher(subscriptionParams) {
         const {type, subscriberId} = subscriptionParams;
-        const key = WorkflowDispatcher._generateKey(type, subscriberId);
-        if (!WorkflowDispatcher.dispatcherObjects.has(key)) {
+        const key = this._generateKey(type, subscriberId);
+        if (!this.dispatcherObjects.has(key)) {
             const newDispatcher = new WorkflowDispatcher(subscriptionParams);
-            WorkflowDispatcher._addDispatcher(newDispatcher);
+            this._addDispatcher(newDispatcher);
         }
-        return WorkflowDispatcher.dispatcherObjects.get(key);
+        return this.dispatcherObjects.get(key);
     }
 
-    static async addBatchToAllSubscribers(type, testData) {
-        const keysSet = WorkflowDispatcher.dispatchers.get(type);
+    async addBatchToAllSubscribers(type, testData) {
+        const keysSet = this.dispatchers.get(type);
         if (keysSet) {
             for (let key of keysSet) {
-                const dispatcher = WorkflowDispatcher.dispatcherObjects.get(key);
+                const dispatcher = this.dispatcherObjects.get(key);
                 await dispatcher.addBatch(testData); // You can pass the actual data you want to dispatch here
             }
         } else {
@@ -73,11 +71,11 @@ export class WorkflowDispatcher {
         }
     }
 
-    static dispatchToAllSubscribers(type, data) {
-        const keysSet = WorkflowDispatcher.dispatchers.get(type);
+    dispatchToAllSubscribers(type, data) {
+        const keysSet = this.dispatchers.get(type);
         if (keysSet) {
             for (let key of keysSet) {
-                const dispatcher = WorkflowDispatcher.dispatcherObjects.get(key);
+                const dispatcher = this.dispatcherObjects.get(key);
                 dispatcher.addToQueue(data); // You can pass the actual data you want to dispatch here
             }
         } else {
@@ -86,7 +84,7 @@ export class WorkflowDispatcher {
     }
 
     _getKey() {
-        return WorkflowDispatcher._generateKey(this.type, this.subscriberId);
+        return this._generateKey(this.type, this.subscriberId);
     }
 
     _dispatch() {
@@ -94,27 +92,35 @@ export class WorkflowDispatcher {
             this.active++;
             const eventData = this.queue.shift();
 
-            const promise = this.workflowFunction.apply(null, [eventData])
-                .catch(error => {
-                    console.error("Error executing workflow:", error);
-                })
-                .finally(() => {
-                    this.active--;
-                    if (this.batchMode) {
-                        this.batchCount--;
-                    }
-                    const index = this.promises.indexOf(promise);
-                    if (index > -1) {
-                        this.promises.splice(index, 1);
-                    }
-                    this._dispatch();
-                });
+            let promise;
+            // WIP check
+            if (this.workflowFunction && this.workflowFunction.function) {
+                // FIXME: decrement active count and remove promise from list in case of error
+                promise = this._runStep(this.workflowFunction, eventData);
+            } else {
+                promise = this.workflowFunction.apply(null, [eventData])
+                  .catch(error => {
+                      console.error("Error executing workflow:", error);
+                  })
+                  .finally(() => {
+                      this.active--;
+                      if (this.batchMode) {
+                          this.batchCount--;
+                      }
+                      const index = this.promises.indexOf(promise);
+                      if (index > -1) {
+                          this.promises.splice(index, 1);
+                      }
+                      this._dispatch();
+                  });
+            }
 
             this.promises.push(promise);
         }
     }
 
     addToQueue(data) {
+        // TODO:
         this.queue.push(data);
         this._dispatch();
     }

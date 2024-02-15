@@ -24,42 +24,63 @@ import Step from "./Step.js";
 import {createStepPersistence} from "./StepPersistence.js";
 import {TemplateUtils} from "./utils/TemplateUtils.js";
 import {WorkflowPersistence} from "./WorkflowPersistence.js";
+import jp from "stated-js/dist/src/JsonPointer.js";
+import util from "util";
+import fs from "fs";
+import path from "path";
+
+const writeFile = util.promisify(fs.writeFile);
+const basePath = path.join(process.cwd(), '.state');
 
 //This class is a wrapper around the TemplateProcessor class that provides workflow functionality
 export class StatedWorkflow {
     // static express = require('express');
     static app = express();
     static port = 8080;
-    static logger = winston.createLogger({
-        format: winston.format.json(),
-        transports: [
-            new winston.transports.Console({
-                format: winston.format.combine(
-                    winston.format.colorize(),
-                    winston.format.simple()
-                )
-            })
-        ],
-        level: "error", //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
-    });
+
 
     static persistence = createStepPersistence();
 
-    static FUNCTIONS = {
-        "id": StatedWorkflow.generateDateAndTimeBasedID.bind(this),
-        // "serial": StatedWorkflow.serial.bind(this),
-        // "parallel": StatedWorkflow.parallel.bind(this),
-        "onHttp": StatedWorkflow.onHttp.bind(this),
-        "subscribe": StatedWorkflow.subscribe.bind(this),
-        "publish": StatedWorkflow.publish.bind(this),
-        "recover": StatedWorkflow.recover.bind(this),
-        "logFunctionInvocation": StatedWorkflow.logFunctionInvocation.bind(this),
-        //"workflow": StatedWorkflow.workflow.bind(this)
-    };
-
-    constructor(templateProcessor, stepPersistence ){
-        this.templateProcessor = templateProcessor;
+    constructor(template, context, stepPersistence ){
+        // this.templateProcessor = templateProcessor;
         this.stepPersistence = stepPersistence;
+        this.logger = winston.createLogger({
+            format: winston.format.json(),
+            transports: [
+                new winston.transports.Console({
+                    format: winston.format.combine(
+                      winston.format.colorize(),
+                      winston.format.simple()
+                    )
+                })
+            ],
+            level: "error", //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
+        });
+
+        // TODO: parameterize
+        this.host = process.env.HOST_IP
+
+        this.consumers = new Map(); //key is type, value is pulsar consumer
+        this.dispatchers = new Map(); //key is type, value Set of WorkflowDispatcher
+
+        // TODO: fix CliCore.setupContext to respect context passed to the constructor
+        // const tp = new TemplateProcessor(template, {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS});
+        TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...{
+                "id": StatedWorkflow.generateDateAndTimeBasedID.bind(this),
+                "onHttp": this.onHttp.bind(this),
+                // "subscribe": this.subscribe.bind(this),
+                "publish": this.publish.bind(this),
+                "logFunctionInvocation": this.logFunctionInvocation.bind(this),
+                "workflow": this.workflow.bind(this),
+                "recover": this.recover.bind(this)
+            }
+        };
+        this.templateProcessor = new TemplateProcessor(template, context);
+        this.templateProcessor.functionGenerators.set("serial", this.serialGenerator.bind(this));
+        this.templateProcessor.functionGenerators.set("parallel", this.parallelGenerator.bind(this));
+        this.templateProcessor.functionGenerators.set("recoverStep", this.recoverStepGenerator.bind(this));
+        this.templateProcessor.functionGenerators.set("subscribe", this.subscribeGenerator.bind(this));
+        this.templateProcessor.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
     }
 
     // this method returns a StatedWorkflow instance with TemplateProcesor with the default functions and Stated Workflow
@@ -67,20 +88,22 @@ export class StatedWorkflow {
     static async newWorkflow(template, stepPersistenceType = 'noop', context = {}) {
         const stepPersistence = createStepPersistence({persistenceType: stepPersistenceType});
         await stepPersistence.init();
-        // TODO: fix CliCore.setupContext to respect context passed to the constructor
-        // const tp = new TemplateProcessor(template, {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS});
-        TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...StatedWorkflow.FUNCTIONS};
-        const tp = new TemplateProcessor(template, context);
-        tp.functionGenerators.set("serial", StatedWorkflow.serialGenerator);
-        tp.functionGenerators.set("parallel", StatedWorkflow.parallelGenerator);
-        tp.functionGenerators.set("recover", StatedWorkflow.recoverGenerator);
-        tp.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
-        tp.onInitialize = WorkflowDispatcher.clear; //must remove all subscribers when template reinitialized
-        return new StatedWorkflow(tp, stepPersistence);
+        return new StatedWorkflow(template, context, stepPersistence);
     }
 
     async initialize() {
         await this.templateProcessor.initialize();
+        this.pulsarClient = new Pulsar.Client({
+            serviceUrl: 'pulsar://localhost:6650',
+        });
+
+
+        this.kafkaClient = new Kafka({
+            clientId: 'workflow-kafka-client',
+            brokers: [`${StatedWorkflow.host}:9092`],
+            logLevel: logLevel.DEBUG,
+        });
+
     }
 
     setWorkflowPersistence() {
@@ -97,7 +120,7 @@ export class StatedWorkflow {
 
     }
 
-    static async logFunctionInvocation(stage, args, result, error = null, log) {
+    async logFunctionInvocation(stage, args, result, error = null, log) {
         const logMessage = {
             context: stage.name,
             function: stage.function.name,
@@ -124,97 +147,74 @@ export class StatedWorkflow {
         }
     }
 
-    static async subscribe(subscribeOptions) {
-        const {source} = subscribeOptions;
-        StatedWorkflow.logger.debug(`subscribing ${StatedREPL.stringify(source)}`);
-        if (source === 'http') {
-            return StatedWorkflow.onHttp(subscribeOptions);
-        }
-        if (source === 'cloudEvent') {
-            return StatedWorkflow.subscribeCloudEvent(subscribeOptions);
-        }
-        if (!source) {
-            throw new Error("Subscribe source not set");
-        }
-        throw new Error(`Unknown subscribe source ${source}`);
-    }
 
-    static ensureClient(params) {
+    ensureClient(params) {
         if (!params || params.type == 'pulsar') {
-            StatedWorkflow.createPulsarClient(params);
+            this.createPulsarClient(params);
         } else if (params.type == 'kafka') {
-            StatedWorkflow.createKafkaClient(params);
+            this.createKafkaClient(params);
         }
     }
 
-    static pulsarClient = new Pulsar.Client({
-        serviceUrl: 'pulsar://localhost:6650',
-    });
-
-    static host = process.env.HOST_IP
-
-    static kafkaClient = new Kafka({
-        clientId: 'workflow-kafka-client',
-        brokers: [`${StatedWorkflow.host}:9092`],
-        logLevel: logLevel.DEBUG,
-    });
-
-    static consumers = new Map(); //key is type, value is pulsar consumer
-    static dispatchers = new Map(); //key is type, value Set of WorkflowDispatcher
-
-    static createPulsarClient(params) {
-        if (StatedWorkflow.pulsarClient) return;
+    createPulsarClient(params) {
+        if (this.pulsarClient) return;
     
-        StatedWorkflow.pulsarClient = new Pulsar.Client({
+        this.pulsarClient = new Pulsar.Client({
             serviceUrl: 'pulsar://localhost:6650',
         });
     }
-    static createKafkaClient(params) {
-        if (StatedWorkflow.kafkaClient) return;
+    createKafkaClient(params) {
+        if (this.kafkaClient) return;
 
-        StatedWorkflow.kafkaClient = new Kafka({
+        this.kafkaClient = new Kafka({
             clientId: 'workflow-kafka-client',
-            brokers: [`${StatedWorkflow.host}:9092`],
+            brokers: [`${this.host}:9092`],
             logLevel: logLevel.DEBUG,
-        });/**/
+        });
     }
 
-    static publish(params) {
-        StatedWorkflow.logger.debug(`publish params ${StatedREPL.stringify(params)} }`);
+    publish(params) {
+        this.logger.debug(`publish params ${StatedREPL.stringify(params)} }`);
 
         const {data, type, client:clientParams={}} = params;
+
+        if(!this.workflowDispatcher) {
+            this.workflowDispatcher = new WorkflowDispatcher(params);
+            this.templateProcessor.onInitialize = this.workflowDispatcher.clear.bind(this.workflowDispatcher); //must remove all subscribers when template reinitialized
+        }
+
         if (clientParams  && clientParams.type === 'test') {
             this.logger.debug(`test client provided, will not publish to 'real' message broker for publish parameters ${StatedREPL.stringify(params)}`);
-            WorkflowDispatcher.addBatchToAllSubscribers(type, data);
+            this.workflowDispatcher.addBatchToAllSubscribers(type, data);
             return "done";
         }
 
         const {type:clientType} = clientParams
         if (clientType=== 'kafka') {
-            StatedWorkflow.publishKafka(params, clientParams);
+            this.publishKafka(params, clientParams);
         } else if(clientType==="pulsar") {
-            StatedWorkflow.publishPulsar(params, clientParams);
+            this.publishPulsar(params, clientParams);
         }else{
             throw new Error(`Unsupported clientType: ${clientType}`);
         }
         return "done";
     }
 
-    static publishKafka(params, clientParams) {
-        StatedWorkflow.logger.debug(`kafka publish params ${StatedREPL.stringify(params)}`);
+    publishKafka(params, clientParams) {
+        this.logger.debug(`kafka publish params ${StatedREPL.stringify(params)}`);
         const {type, data} = params;
 
         (async () => {
-            const producer = StatedWorkflow.kafkaClient.producer();
+            const producer = this.kafkaClient.producer();
 
             await producer.connect();
 
             try {
                 let _data = data;
-                if (data._jsonata_lambda === true) {
-                    _data = await data.apply(this, []); //data is a function, call it
+                if (data._jsonata_lambda === true || data._stated_function__ === true) {
+                    _data = await data(); //data is a function, call it
                 }
-                StatedWorkflow.logger.debug(`kafka producer sending ${StatedREPL.stringify(_data)} to ${type}`);
+                this.logger.debug(`kafka producer sending ${StatedREPL.stringify(_data)} to ${type}`);
 
                 // Send a message
                 await producer.send({
@@ -232,23 +232,23 @@ export class StatedWorkflow {
         })();
     }
 
-    static publishPulsar(params, clientParams) {
-        StatedWorkflow.logger.debug(`pulsar publish params ${StatedREPL.stringify(params)}`);
+    publishPulsar(params, clientParams) {
+        this.logger.debug(`pulsar publish params ${StatedREPL.stringify(params)}`);
         const {type, data} = params;
         (async () => {
 
 
             // Create a producer
-            const producer = await StatedWorkflow.pulsarClient.createProducer({
+            const producer = await this.pulsarClient.createProducer({
                 topic: type,
             });
 
             try {
                 let _data = data;
-                if (data._jsonata_lambda === true) {
-                    _data = await data.apply(this, []); //data is a function, call it
+                if (data._jsonata_lambda === true || data._stated_function__ === true) {
+                    _data = await data(); //data is a function, call it
                 }
-                StatedWorkflow.logger.debug(`pulsar producer sending ${StatedREPL.stringify(_data)}`);
+                this.logger.debug(`pulsar producer sending ${StatedREPL.stringify(_data)}`);
                 // Send a message
                 const messageId = await producer.send({
                     data: Buffer.from(StatedREPL.stringify(_data, null, 2)),
@@ -261,28 +261,73 @@ export class StatedWorkflow {
 
     }
 
-    static subscribePulsar(subscriptionParams) {
+    async subscribeGenerator(metaInf, tp) {
+        return async (subscribeOptions) => {
+
+            const resolvedJsonPointers = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'subscribe'); //fixme todo we should avoid doing this for every jsonata evaluation
+            // TemplateUtils.validateStepPointers(resolvedJsonPointers, steps, metaInf, 'subscribe');
+            // const resolvedJsonPointers2 = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'serial');
+            // const metaInfo2 = jp.get(tp.templateMeta, subscribeOptions.to);
+
+            return this.subscribe(subscribeOptions, resolvedJsonPointers, tp);
+        }
+    }
+
+    async subscribe(subscribeOptions, resolvedJsonPointers = {}, tp = undefined) {
+        const {source} = subscribeOptions;
+        this.logger.debug(`subscribing ${StatedREPL.stringify(source)}`);
+
+        if(!this.workflowDispatcher) {
+            this.workflowDispatcher = new WorkflowDispatcher(subscribeOptions);
+            this.templateProcessor.onInitialize = this.workflowDispatcher.clear.bind(this.workflowDispatcher); //must remove all subscribers when template reinitialized
+        }
+
+
+        // let resolve;
+        // this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtr, removed) => {
+        //     if (jsonPtr === '/step1/log/*/args') { //TODO: regexify
+        //         // TODO: await persist the step
+        //         resolve();
+        //     }
+        // });
+
+
+
+
+        if (source === 'http') {
+            return this.onHttp(subscribeOptions);
+        }
+        if (source === 'cloudEvent') {
+            return this.subscribeCloudEvent(subscribeOptions);
+        }
+        if (!source) {
+            throw new Error("Subscribe source not set");
+        }
+        throw new Error(`Unknown subscribe source ${source}`);
+    }
+
+    subscribePulsar(subscriptionParams) {
         const {type, initialPosition = 'earliest', maxConsume = -1} = subscriptionParams;
-        StatedWorkflow.logger.debug(`pulsar subscribe params ${StatedREPL.stringify(subscriptionParams)}`);
-        let consumer, dispatcher;
+        this.logger.debug(`pulsar subscribe params ${StatedREPL.stringify(subscriptionParams)}`);
         //make sure a dispatcher exists for the combination of type and subscriberId
-        WorkflowDispatcher.getDispatcher(subscriptionParams);
+        this.workflowDispatcher.getDispatcher(subscriptionParams);
         // Check if a consumer already exists for the given subscription
-        if (StatedWorkflow.consumers.has(type)) {
-            StatedWorkflow.logger.debug(`pulsar subscriber already started. Bail.`);
+        if (this.consumers.has(type)) {
+            this.logger.debug(`pulsar subscriber already started. Bail.`);
             return; //bail, we are already consuming and dispatching this type
         }
         (async () => {
-            const consumer = await StatedWorkflow.pulsarClient.subscribe({
+            const consumer = await this.pulsarClient.subscribe({
                 topic: type,
                 subscription: type, //we will have only one shared-mode consumer group per message type/topics and we name it after the type of the message
                 subscriptionType: 'Shared',
                 subscriptionInitialPosition: initialPosition
             });
             // Store the consumer in the map
-            StatedWorkflow.consumers.set(type, consumer);
+            this.consumers.set(type, consumer);
             let data;
             let countdown = maxConsume;
+
             while (true) {
                 try {
                     data = await consumer.receive();
@@ -293,7 +338,30 @@ export class StatedWorkflow {
                     } catch (error) {
                         console.error("unable to parse data to json:", error);
                     }
-                    WorkflowDispatcher.dispatchToAllSubscribers(type, obj);
+                    let resolve;
+                    this.latch = new Promise((_resolve) => {
+                        resolve = _resolve; //we assign our resolve variable that is declared outside this promise so that our onDataChange callbacks can use  it
+                    });
+
+                    this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtrs, removed) => {
+                        for (let jsonPtr of jsonPtrs) {
+                            if (/^\/step\d+\/log\/.*$/.test(jsonPtr)) {
+                                await writeFile(path.join(basePath,'template.json') , StatedREPL.stringify(data), 'utf8');
+                            }
+                            if (/^\/step1\/log\/.*$/.test(jsonPtr)) {
+                                // TODO: await persist the step
+                                const dataThatChanged = jp.get(data, jsonPtr);
+                                if (dataThatChanged.start !== undefined && dataThatChanged.end === undefined) {
+                                    resolve();
+                                }
+                            }
+                        }
+
+                    });
+
+
+
+                    this.workflowDispatcher.dispatchToAllSubscribers(type, obj);
                     if(countdown && --countdown===0){
                         break;
                     }
@@ -301,47 +369,56 @@ export class StatedWorkflow {
                     console.error("Error receiving or dispatching message:", error);
                 } finally {
                     if (data !== undefined) {
+                        await this.latch;
                         consumer.acknowledge(data);
+                    }
+
+                    if (this.pulsarClient === undefined) {
+                        break;
                     }
                 }
             }
-            StatedWorkflow.logger.debug(`closing consumer with params ${StatedREPL.stringify(subscriptionParams)}`);
-            await consumer.close()
+            this.logger.debug(`closing consumer with params ${StatedREPL.stringify(subscriptionParams)}`);
+            try {
+                await consumer.close();
+            } catch (error) {
+                console.error("Error closing consumer:", error);
+            }
         })();
     }
 
-    static async subscribeKafka(subscriptionParams) {
+    async subscribeKafka(subscriptionParams) {
         const { type, initialOffset = 'earliest', maxConsume = -1 } = subscriptionParams;
-        StatedWorkflow.logger.debug(`Kafka subscribe params ${StatedREPL.stringify(subscriptionParams)} with clientParams ${StatedREPL.stringify(clientParams)}`);
+        this.logger.debug(`Kafka subscribe params ${StatedREPL.stringify(subscriptionParams)} with clientParams ${StatedREPL.stringify(clientParams)}`);
 
         // Make sure a dispatcher exists for the combination of type and subscriberId
-        WorkflowDispatcher.getDispatcher(subscriptionParams);
+        this.workflowDispatcher.getDispatcher(subscriptionParams);
     
         // Check if a consumer already exists for the given subscription
-        if (StatedWorkflow.consumers.has(type)) {
-            StatedWorkflow.logger.debug(`Kafka subscriber already started. Bail.`);
+        if (this.consumers.has(type)) {
+            this.logger.debug(`Kafka subscriber already started. Bail.`);
             return; // Bail, we are already consuming and dispatching this type
         }
     
-        const consumer = StatedWorkflow.kafkaClient.consumer({ groupId: type });
+        const consumer = this.kafkaClient.consumer({ groupId: type });
     
         try {
             await consumer.connect();
             await consumer.subscribe({ topic: type, fromBeginning: true });
   
         } catch (e) {
-            StatedWorkflow.logger.debug(`Kafka subscriber - failed, e: ${e}`);
+            this.logger.debug(`Kafka subscriber - failed, e: ${e}`);
         }
-        StatedWorkflow.logger.debug(`Kafka subscriber - subscribed.`);
+        this.logger.debug(`Kafka subscriber - subscribed.`);
     
         // Store the consumer in the map
-        StatedWorkflow.consumers.set(type, consumer);
+        this.consumers.set(type, consumer);
         let countdown = maxConsume;
     
         await consumer.run({
             eachMessage: async ({ topic, partition, message }) => {
                 let data;
-                StatedWorkflow.logger.debug(`Kafka subscriber got ${message} from ${topic}:${partition}.`);
+                this.logger.debug(`Kafka subscriber got ${message} from ${topic}:${partition}.`);
                 try {
                     const str = message.value.toString();
                     data = JSON.parse(str);
@@ -349,7 +426,7 @@ export class StatedWorkflow {
                     console.error("Unable to parse data to JSON:", error);
                 }
     
-                WorkflowDispatcher.dispatchToAllSubscribers(type, data);
+                this.workflowDispatcher.dispatchToAllSubscribers(type, data);
     
                 if (countdown && --countdown === 0) {
                     // Disconnect the consumer if maxConsume messages have been processed
@@ -359,14 +436,15 @@ export class StatedWorkflow {
         });
     }
 
-    static async subscribeCloudEvent(subscriptionParams) {
+    async subscribeCloudEvent(subscriptionParams) {
 
         const {testData, client:clientParams={type:'test'}} = subscriptionParams;
         const {type:clientType} = clientParams;
+
         if (testData !== undefined) {
             if(testData !== undefined){
                 this.logger.debug(`No 'real' subscription created because testData provided for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
-                const dispatcher = WorkflowDispatcher.getDispatcher(subscriptionParams);
+                const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams);
                 await dispatcher.addBatch(testData);
                 await dispatcher.drainBatch(); // in test mode we wanna actually wait for all the test events to process
                 return;
@@ -374,29 +452,25 @@ export class StatedWorkflow {
         }
         if(clientType==='test'){
             this.logger.debug(`No 'real' subscription created because client.type='test' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
-            const dispatcher = WorkflowDispatcher.getDispatcher(subscriptionParams); // we need a dispatched even if no real message bus
+            const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams); // we need a dispatched even if no real message bus
         }else if (clientType === 'kafka') {
             this.logger.debug(`subscribing to kafka using ${clientParams}`)
-            StatedWorkflow.createKafkaClient(clientParams);
-            StatedWorkflow.subscribeKafka(subscriptionParams);
+            this.createKafkaClient(clientParams);
+            this.subscribeKafka(subscriptionParams);
         }else if(clientType === 'pulsar') {
             this.logger.debug(`subscribing to pulsar (default) using ${clientParams}`)
-            StatedWorkflow.createPulsarClient(clientParams);
-            StatedWorkflow.subscribePulsar(subscriptionParams);
+            this.createPulsarClient(clientParams);
+            this.subscribePulsar(subscriptionParams);
         }else{
             throw new Error(`unsupported client.type in ${StatedREPL.stringify(subscriptionParams)}`);
         }
         return `listening clientType=${clientType} ... `
     }
 
-    static onHttp(subscriptionParams) {
-        const dispatcher = new WorkflowDispatcher(
-            subscriptionParams
-        );
-
+    onHttp(subscriptionParams) {
         StatedWorkflow.app.all('*', (req, res) => {
             // Push the request and response objects to the dispatch queue to be handled by callback
-            dispatcher.addToQueue({req, res});
+            this.workflowDispatcher.addToQueue({req, res});
         });
 
         StatedWorkflow.app.listen(StatedWorkflow.port, () => {
@@ -407,31 +481,37 @@ export class StatedWorkflow {
 
     }
 
-    static async serialGenerator(metaInf, tp) {
+    async serialGenerator(metaInf, tp) {
         return async (input, steps, context) => {
 
-            const resolvedJsonPointers = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'serial'); //fixme todo we should avoid doing this for every jsonata evaluation
+            const resolvedJsonPointers = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp,   'serial'); //fixme todo we should avoid doing this for every jsonata evaluation
             TemplateUtils.validateStepPointers(resolvedJsonPointers, steps, metaInf, 'serial');
 
-            return serial(input, steps, context, resolvedJsonPointers, tp);
+            return this.serial(input, steps, context, resolvedJsonPointers, tp);
         }
     }
 
-    static async serial(input, stepJsons, context={}, resolvedJsonPointers = {}, tp = undefined) {
+    async serial(input, stepJsons, context={}, resolvedJsonPointers = {}, tp = undefined) {
         let {workflowInvocation} = context;
 
         if (workflowInvocation === undefined) {
             workflowInvocation = StatedWorkflow.generateDateAndTimeBasedID();
         }
 
+        if (input === '__recover__' && stepJsons?.[0]) {
+            const step = new Step(stepJsons[0], StatedWorkflow.persistence, resolvedJsonPointers?.[0], tp);
+            for  (let workflowInvocation of step.log.getInvocations()){
+                await this.serial(undefined, stepJsons, {workflowInvocation}, resolvedJsonPointers, tp);
+            }
+            return;
+        }
+
         let currentInput = input;
         const steps = [];
         for (let i = 0; i < stepJsons.length; i++) {
-            if(currentInput !== undefined) {
-                const step = new Step(stepJsons[i], StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
-                steps.push(step);
-                currentInput = await StatedWorkflow.runStep(workflowInvocation, step, currentInput);
-            }
+            const step = new Step(stepJsons[i], StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
+            steps.push(step);
+            currentInput = await this.runStep(workflowInvocation, step, currentInput);
         }
 
         if (!tp.options.keepLogs) await StatedWorkflow.deleteStepsLogs(workflowInvocation, steps);
@@ -440,19 +520,19 @@ export class StatedWorkflow {
     }
 
 
-    static async parallelGenerator(metaInf, tp) {
+    async parallelGenerator(metaInf, tp) {
         let parallelDeps = {};
         return async (input, steps, context) => {
 
             const resolvedJsonPointers = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'parallel'); //fixme todo we should avoid doing this for every jsonata evaluation
             TemplateUtils.validateStepPointers(resolvedJsonPointers, steps, metaInf, 'parallel');
 
-            return parallel(input, steps, context, resolvedJsonPointers, tp);
+            return this.parallel(input, steps, context, resolvedJsonPointers, tp);
         }
     }
 
     // This function is called by the template processor to execute an array of steps in parallel
-    static async parallel(input, stepJsons, context = {}, resolvedJsonPointers = {}, tp = undefined) {
+    async parallel(input, stepJsons, context = {}, resolvedJsonPointers = {}, tp = undefined) {
         let {workflowInvocation} = context;
 
         if (workflowInvocation === undefined) {
@@ -462,7 +542,7 @@ export class StatedWorkflow {
         let promises = [];
         for (let i = 0; i < stepJsons.length; i++) {
             let step = new Step(stepJsons[i], StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
-            const promise = StatedWorkflow.runStep(workflowInvocation, step, input)
+            const promise = this.runStep(workflowInvocation, step, input)
               .then(result => {
                   // step.output.results.push(result);
                   return result;
@@ -501,30 +581,34 @@ export class StatedWorkflow {
     }
 
     static async persistLogRecord(stepRecord) {
-        StatedWorkflow.publish(
+        this.publish(
           {'type': stepRecord.workflowName, 'data': stepRecord},
           {type:'pulsar', params: {serviceUrl: 'pulsar://localhost:6650'}}
         );
     }
 
-    static async recoverGenerator(metaInf, tp) {
+    async recoverStepGenerator(metaInf, tp) {
         let parallelDeps = {};
         return async (step, context) => {
-            const resolvedJsonPointers = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'recover'); //fixme todo we should avoid doing this for every jsonata evaluation
-            TemplateUtils.validateStepPointers(resolvedJsonPointers, [step], metaInf, 'recover');
-            return StatedWorkflow.recover(step, context, resolvedJsonPointers?.[0], tp);
+            const resolvedJsonPointers = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'recoverStep'); //fixme todo we should avoid doing this for every jsonata evaluation
+            TemplateUtils.validateStepPointers(resolvedJsonPointers, [step], metaInf, 'recoverStep');
+            return this.recoverStep(step, context, resolvedJsonPointers?.[0], tp);
         }
     }
 
 
-    static async recover(stepJson, context, resolvedJsonPointer, tp){
+    async recoverStep(stepJson, context, resolvedJsonPointer, tp){
         let step = new Step(stepJson, StatedWorkflow.persistence, resolvedJsonPointer, tp);
         for  (let workflowInvocation of step.log.getInvocations()){
-            await StatedWorkflow.runStep(workflowInvocation, step);
+            await this.runStep(workflowInvocation, step);
         }
     }
 
-    static async runStep(workflowInvocation, step, input){
+    async recover(to) {
+        return await to('__recover__');
+    }
+
+    async runStep(workflowInvocation, step, input){
 
         const {instruction, event:loggedEvent} = step.log.getCourseOfAction(workflowInvocation);
         if(instruction === "START"){
@@ -538,7 +622,7 @@ export class StatedWorkflow {
         }
     }
 
-    static async executeStep(step, input, currentLog, stepRecord) {
+    async executeStep(step, input, currentLog, stepRecord) {
         /*
         const stepLog = {
             step: step.name,
@@ -574,15 +658,14 @@ export class StatedWorkflow {
             throw error;
         }
     }
-
-    static finalizeLog(currentLog) {
+    finalizeLog(currentLog) {
         currentLog.info.end = new Date().getTime();
         if (currentLog.info.status !== 'failed') {
             currentLog.info.status = 'succeeded';
         }
     }
 
-    static ensureRetention(workflowLogs) {
+    ensureRetention(workflowLogs) {
         const maxLogs = 100;
         const sortedKeys = Object.keys(workflowLogs).sort((a, b) => workflowLogs[b].info.start - workflowLogs[a].info.start);
         while (sortedKeys.length > maxLogs) {
@@ -604,7 +687,7 @@ export class StatedWorkflow {
         return `${dateStr}-${timeInMs}-${randomPart}`;
     }
 
-    static async workflow(input, steps, options={}) {
+    async workflow(input, steps, options={}) {
         const {name: workflowName, log} = options;
         let {id} = options;
 
@@ -623,25 +706,39 @@ export class StatedWorkflow {
         let serialOrdinal = 0;
         for (let step of steps) {
             const stepRecord = {invocationId: id, workflowName, stepName: step.name, serialOrdinal, branchType:"SERIAL"};
-            currentInput = await StatedWorkflow.executeStep(step, currentInput, log[workflowName][id], stepRecord);
+            currentInput = await this.executeStep(step, currentInput, log[workflowName][id], stepRecord);
             serialOrdinal++;
-            if (step.next) StatedWorkflow.workflow(currentInput, step.next, options);
+            if (step.next) this.workflow(currentInput, step.next, options);
         }
 
-        StatedWorkflow.finalizeLog(log[workflowName][id]);
-        StatedWorkflow.ensureRetention(log[workflowName]);
+        this.finalizeLog(log[workflowName][id]);
+        this.ensureRetention(log[workflowName]);
 
         return currentInput;
     }
+
+    async close() {
+
+        if (this.pulsarClient !== undefined) {
+            try {
+                await this.pulsarClient.close();
+            } catch (error) {
+                console.error("Error closing pulsar client:", error);
+            }
+            this.pulsarClient = undefined;
+        }
+
+        // TODO: check if consumers can be closed without client
+        // for (let consumer of StatedWorkflow.consumers.values()) {
+        //     console.log(consumer);
+        //     await consumer.disconnect();
+        // }
+        try {
+            await this.workflowDispatcher.clear();
+            await this.templateProcessor.close();
+
+        } catch (error) {
+            console.error("Error closing workflow dispatcher:", error);
+        }
+    }
 }
-
-
-export const id = StatedWorkflow.generateDateAndTimeBasedID;
-export const serial = StatedWorkflow.serial;
-export const parallel = StatedWorkflow.parallel;
-export const onHttp = StatedWorkflow.onHttp;
-export const subscribe = StatedWorkflow.subscribe;
-export const publish = StatedWorkflow.publish;
-export const logFunctionInvocation = StatedWorkflow.logFunctionInvocation;
-export const workflow = StatedWorkflow.workflow;
-export const serialGenerator = StatedWorkflow.serialGenerator;

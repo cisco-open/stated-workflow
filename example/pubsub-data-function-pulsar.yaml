@@ -1,0 +1,51 @@
+# Droid R2-D2 is sending messages to the Rebel Alliance's communication channel
+produceParams:
+  type: "rebel-comm-channel"
+  data: | 
+    ${ 
+      function(){  
+        {'message': 'Rebel Fleet Coordinates', 'location': $random(), 'sender': $floor($random()*10)+1 } 
+      } 
+    }
+  client:
+    type: pulsar
+# Droid C-3PO will intercept and log each received message for the Rebel Alliance
+subscribeParams: #parameters for subscribing to a holocomm transmission
+  source: cloudEvent
+  type: /${ produceParams.type } # subscribe to the same channel as R2-D2 to intercept messages
+  to: /${processMessageWorkflow}
+  subscriberId: protocolDroid
+  initialPosition: latest
+  client:
+    type: pulsar
+processMessageWorkflow: /${ function($message){ $message ~> $serial([step1, step2, step3]) }}
+step1:
+  name: logMessage
+  function: /${ function($e){( $set('/interceptedMessages/-', $e); $e)} }
+step2:
+  name: identifySender
+  function: |
+    ${ function($e){(
+       {
+          'sender': $e.sender, 
+          'name': $fetch('https://swapi.dev/api/people/'& $e.sender).json().name,
+          'location': $e.location
+       }
+    )} }
+step3:
+  name: classifyLocation
+  function: | 
+    /${ function($e){(
+      $e.location > 0.5 ? $set('/farFarAway/-', $e) : $set('/nearBy/-', $e); $e
+    )} }
+# Activates R2-D2's message transmission function every 500 milliseconds
+send: "${ $setInterval( function(){ $publish(produceParams)}, 500) }"
+# Activates C-3PO's message interception function
+recv$: $subscribe(subscribeParams)
+# interceptedMessages is where C-3PO will store the results of message decoding
+interceptedMessages: [ ]
+farFarAway: [ ]
+nearBy: [ ]
+# This condition stops the transmission operation when interceptedMessages has 10 elements
+stop$: ($count(interceptedMessages)>=2?($clearInterval(send);'transmissionAccomplished'):'transmissionOngoing')
+recover$!: $recover(processMessageWorkflow)

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import CliCore from 'stated-js/dist/src/CliCore.js';
-import TemplateProcessor from "stated-js/dist/src/TemplateProcessor.js";
 import {parseMarkdownAndTestCodeblocks} from "stated-js/dist/src/TestUtils.js";
 import {StatedWorkflow} from "./src/workflow/StatedWorkflow.js";
 
@@ -25,4 +24,3 @@ let {templateProcessor:tp} = workflow;
 const cliCore = new CliCore(tp);
 
 parseMarkdownAndTestCodeblocks('./README.md', cliCore);
-
