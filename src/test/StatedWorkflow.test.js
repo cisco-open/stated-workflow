@@ -21,6 +21,8 @@ import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import {EnhancedPrintFunc} from "./TestTools.js";
 import {rateLimit} from "stated-js/dist/src/utils/rateLimit.js";
 import util from "util";
+import {fn} from "jest-mock";
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -773,7 +775,7 @@ test.skip("Template Data Change Callback with rate limit", async () => {
     expect(counts).toEqual([0,10]);
 
 });
-
+/*
 const isMacOS = process.platform === 'darwin';
 if (isMacOS) {
     test("Pulsar consumer integration test", async () => {
@@ -868,3 +870,37 @@ if (isMacOS) {
 
     }, 300000)
 }
+
+ */
+
+test("backpressure due to max parallelism", async () => {
+
+    // Load the YAML from the file
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'backpressure.yaml');
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+    var template = yaml.load(templateYaml);
+    const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
+
+    tp.setDataChangeCallback("/done", (d)=>{
+        if(d==="bleeps received"){
+            function testActivityRecord(r, expectedMaxActive){
+                const {active, queue, backpressure} = r;
+                expect(Math.max(...active)).toBe(expectedMaxActive);
+                expect(Math.max(...queue)).toBe(0); //queue acts like a transfer queue and will not grow
+                expect(backpressure.every(v=>v===true)).toBe(true);
+            }
+            testActivityRecord(tp.output.slowSubscribeParams.activityRecord.slowAntenna, 4);
+            testActivityRecord(tp.output.fastSubscribeParams.activityRecord.fastAntenna, 2);
+
+            expect(tp.output.rxSlow.length).toBe(100);
+            expect(tp.output.rxFast.length).toBe(100);
+            done();
+        }
+    });
+    await tp.initialize();
+
+
+
+});
+
+

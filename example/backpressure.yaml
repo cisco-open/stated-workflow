@@ -1,0 +1,34 @@
+# producer will be sending some test data
+produceParams:
+  type: "my-topic"
+  data: ${[1..100].('bleep_' & $string($))}
+  client:
+    type: test
+# the subscriber's 'to' function will be called on each received event
+slowSubscribeParams: #parameters for subscribing to an event
+  source: cloudEvent
+  type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
+  to: /${slowAntenna}
+  subscriberId: slowAntenna
+  parallelism: 4
+  client:
+    type: test
+fastSubscribeParams:
+  source: cloudEvent
+  type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
+  to: /${fastAntenna}
+  subscriberId: fastAntenna
+  parallelism: 2
+  client:
+    type: test
+slowAntenna:  /${ function($bleep){($sleep(100);$set('/rxSlow/-', $bleep))}  }
+fastAntenna:  /${ function($bleep){($set('/rxFast/-', $bleep))}  }
+# starts producer function
+send$: $publish(produceParams)
+# starts consumer function
+recvSlow$: $subscribe(slowSubscribeParams)
+recvFast$: $subscribe(fastSubscribeParams)
+# the subscriber's `to` function will write the received data here
+rxFast: [ ]
+rxSlow: [ ]
+done: ${ $count(rxFast) + $count(rxSlow) = 200?'bleeps received':'still bleeping'}

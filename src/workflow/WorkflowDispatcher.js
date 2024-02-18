@@ -13,12 +13,14 @@
 // limitations under the License.
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import {StatedWorkflow} from "./StatedWorkflow.js";
+import jp from "stated-js/dist/src/JsonPointer.js";
 
 // This class is used to add events to a queue and dispatch them to one or more subscribed workflow function with the
 // given parallelism. Tracks the number of active events and the number of events in the queue.
 export class WorkflowDispatcher {
     constructor(subscribeParams) {
         const {to: workflowFunction, parallelism, type, subscriberId} = subscribeParams;
+        this.subscribeParams = subscribeParams;
         this.workflowFunction = workflowFunction;
         this.parallelism = parallelism || 1;
         this.subscriberId = subscriberId;
@@ -64,19 +66,19 @@ export class WorkflowDispatcher {
         if (keysSet) {
             for (let key of keysSet) {
                 const dispatcher = this.dispatcherObjects.get(key);
-                await dispatcher.addBatch(testData); // You can pass the actual data you want to dispatch here
+                dispatcher.addBatch(testData); // You can pass the actual data you want to dispatch here
             }
         } else {
             console.log(`No subscribers found for type ${type}`);
         }
     }
 
-    dispatchToAllSubscribers(type, data) {
+    async dispatchToAllSubscribers(type, data) {
         const keysSet = this.dispatchers.get(type);
         if (keysSet) {
             for (let key of keysSet) {
                 const dispatcher = this.dispatcherObjects.get(key);
-                dispatcher.addToQueue(data); // You can pass the actual data you want to dispatch here
+                await dispatcher.addToQueue(data); // You can pass the actual data you want to dispatch here
             }
         } else {
             StatedWorkflow.logger.warn(`No subscribers found for type ${type}`);
@@ -119,11 +121,48 @@ export class WorkflowDispatcher {
         }
     }
 
-    addToQueue(data) {
-        // TODO:
-        this.queue.push(data);
-        this._dispatch();
+    _logActivity(key, val) {
+        let record;
+        const {subscribeParams} = this;
+        const {maxLog = 10, subscriberId} = subscribeParams;
+        const path = "/activityRecord/"+subscriberId+"/"+key;
+        if(!jp.has(subscribeParams, path)){
+            record = [];
+            jp.set(subscribeParams, path, record);
+        }else{
+            record = jp.get(subscribeParams, path);
+        }
+        if (record.push(val) > maxLog) {
+            record.shift(); //we keep a history of the active count for 10 values over time
+        }
     }
+    async addToQueue(data) {
+
+        return new Promise(async (resolve, reject) => {
+            const tryAddToQueue = async () => {
+                this._logActivity("active", this.active);
+                this._logActivity("queue", this.queue.length);
+                if (this.active < this.parallelism) {
+                    this.queue.push(data);
+                    resolve(); // Resolve the promise to signal that the data was queued
+                    this._dispatch(); // Attempt to dispatch the next task
+                } else {
+                    // If parallelism limit is reached, wait for any active task to complete
+                    try {
+                        this._logActivity("backpressure", true);
+                        await Promise.race(this.promises);
+                        // Once a task completes, try adding to the queue again
+                        tryAddToQueue();
+                    } catch (error) {
+                        reject(error); // If waiting for a task to complete results in an error, reject the promise
+                    }
+                }
+            };
+
+            tryAddToQueue();
+        });
+    }
+
 
     //this is used for testing
     async addBatch(testData) {
@@ -134,10 +173,12 @@ export class WorkflowDispatcher {
         this.batchMode = true;
         if (Array.isArray(testData)) {
             this.batchCount += testData.length;
-            testData.forEach(data => this.addToQueue(data));
+            for(let i=0;i<testData.length;i++){
+                await this.addToQueue(testData[i]);
+            }
         } else {
             this.batchCount += 1;
-            this.addToQueue(testData);
+            await this.addToQueue(testData);
         }
 
     }

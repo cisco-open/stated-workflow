@@ -118,3 +118,9 @@ function sortLogs(output, workflowName) {
     return aOrder - bOrder;
   });
 }
+
+export class Delay{
+  static async start(delayMs){
+    await new Promise(resolve => setTimeout(resolve, delayMs))
+  }
+}
