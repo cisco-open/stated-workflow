@@ -28,6 +28,7 @@ import jp from "stated-js/dist/src/JsonPointer.js";
 import util from "util";
 import fs from "fs";
 import path from "path";
+import {Delay} from "../test/TestTools.js"
 
 const writeFile = util.promisify(fs.writeFile);
 const basePath = path.join(process.cwd(), '.state');
@@ -72,7 +73,8 @@ export class StatedWorkflow {
                 "publish": this.publish.bind(this),
                 "logFunctionInvocation": this.logFunctionInvocation.bind(this),
                 "workflow": this.workflow.bind(this),
-                "recover": this.recover.bind(this)
+                "recover": this.recover.bind(this),
+                "sleep": Delay.start
             }
         };
         this.templateProcessor = new TemplateProcessor(template, context);
@@ -173,7 +175,7 @@ export class StatedWorkflow {
         });
     }
 
-    publish(params) {
+    async publish(params) {
         this.logger.debug(`publish params ${StatedREPL.stringify(params)} }`);
 
         const {data, type, client:clientParams={}} = params;
@@ -185,7 +187,7 @@ export class StatedWorkflow {
 
         if (clientParams  && clientParams.type === 'test') {
             this.logger.debug(`test client provided, will not publish to 'real' message broker for publish parameters ${StatedREPL.stringify(params)}`);
-            this.workflowDispatcher.addBatchToAllSubscribers(type, data);
+            await this.workflowDispatcher.addBatchToAllSubscribers(type, data);
             return "done";
         }
 
@@ -360,8 +362,8 @@ export class StatedWorkflow {
                     });
 
 
-
-                    this.workflowDispatcher.dispatchToAllSubscribers(type, obj);
+                    //if the dispatchers max parallelism is reached this loop should block, which is why we await
+                    await this.workflowDispatcher.dispatchToAllSubscribers(type, obj);
                     if(countdown && --countdown===0){
                         break;
                     }
@@ -468,9 +470,9 @@ export class StatedWorkflow {
     }
 
     onHttp(subscriptionParams) {
-        StatedWorkflow.app.all('*', (req, res) => {
+        StatedWorkflow.app.all('*', async (req, res) => {
             // Push the request and response objects to the dispatch queue to be handled by callback
-            this.workflowDispatcher.addToQueue({req, res});
+            await this.workflowDispatcher.addToQueue({req, res});
         });
 
         StatedWorkflow.app.listen(StatedWorkflow.port, () => {
@@ -514,7 +516,7 @@ export class StatedWorkflow {
             currentInput = await this.runStep(workflowInvocation, step, currentInput);
         }
 
-        if (!tp.options.keepLogs) await StatedWorkflow.deleteStepsLogs(workflowInvocation, steps);
+        //if (!tp.options.keepLogs) await StatedWorkflow.deleteStepsLogs(workflowInvocation, steps);
 
         return currentInput;
     }
