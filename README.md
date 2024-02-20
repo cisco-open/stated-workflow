@@ -7,8 +7,8 @@
     * [Running the REPL](#running-the-repl)
     * [Configuration](#configuration)
 * [Stated Template Jobs](#stated-template-jobs-)
-    * [Job Concurrency](#job-concurrency)
-    * [Internal Job Concurrency](#internal-job-concurrency)
+  * [Job Concurrency](#job-concurrency)
+  * [Internal Job Concurrency](#internal-job-concurrency)
 * [Stated Workflow Functions](#stated-workflow-functions)
   * [Cloud Events](#cloud-events)
   * [Durability](#durability)
@@ -68,110 +68,27 @@ For example you can enter this command in the REPL:
 > .init -f "example/homeworld.json"
 ```
 
-### Configuration
-Stated Workflows extend Stated and stated Repl works out of the box. It provides all of the functionality of Stated, 
-including the ability to provide an additional configuration with `--options` flag. 
+# Stated Templates
+Ordinary [stated templates](https://github.com/cisco-open/stated?tab=readme-ov-file#stated) run a change graph called a
+[DAG](https://github.com/cisco-open/stated?tab=readme-ov-file#dag). 
+Stated flattens the DAG and executes it as a sequence of expressions called the `plan`. The following characteristics of an
+ordinary stated data-flow `plan` are not optimized for long running I/O-bound 'workflows' in the traditional sense:
+* _**Serialized Plan**_ - Stated templates serialize `plan` execution
+  when multiple concurrent input changes occur. This guarantees data correctness and avoids the problem of shared-state
+  that occurs when concurrent programs operate on the same data. When a `step` takes relatively long to run (like querying a REST service),
+  (see [$setData](https://github.com/cisco-open/stated?tab=readme-ov-file#setting-values-in-the-stated-repl))
+  concurrently arriving changes will cause their excution plans to queue. Which is why ordinary stated templates are geared toward local data computations,
+  not I/O bound workflows.
+* _**No Durability**_ - Stated templates provide no mechanism out of the box to persist or recover execution of 'in flight'
+  plans. This is acceptable for local dataflow computations like dashboard expression calculation or config file generation
+  but it is not acceptable for long-running, multi-step, high value workflows
+* _**No connectors**_ - Stated templates do not provide out-of-box subscriptions for messaging systems such as kafka 
+  and pulsar that can generate asynchronous inputs.
 
-Workflow Functions can be configured with `--option={"keepLogs":true}`. This will preserve the logs of completed steps 
-for debugging in the template, instead of deleting them on a function completion.
-
-# Stated Template Jobs 
-A job is a pure Stated Template that runs to completion and does not receive any asynchronous inputs.
-A job has a beginning, and an end. Here is a job that uses the Starwars API to search for Luke Skywalker's details,
-extract the homeworld URL, retrieve the homeworld details, and extract the homeworld's name.
-```json
-{
-  "lukePersonDetails": "${ $fetch('https://swapi.dev/api/people/?search=luke').json().results[0]}",
-  "lukeHomeworldURL": "${ lukePersonDetails.homeworld }",
-  "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
-  "homeworldName": "${ homeworldDetails.name }"
-}
-```
-![homeworld workflow](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow.svg)
-
-Try it, from the [Stated REPL](https://github.com/cisco-open/stated#running-the-repl). The `.init` command loads the
-example
-
-```json
-luke$ stateflow
-> .init -f "example/homeworld.json"
-{
-  "lukePersonDetails": "${ $fetch('https://swapi.dev/api/people/?search=luke').json().results[0]}",
-  "lukeHomeworldURL": "${ lukePersonDetails.homeworld }",
-  "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
-  "homeworldName": "${ homeworldDetails.name }"
-}
-> .out
-{
-  "lukePersonDetails": {
-    "name": "Luke Skywalker",
-    "height": "172",
-    "mass": "77",
-    "hair_color": "blond",
-    "skin_color": "fair",
-    "eye_color": "blue",
-    "birth_year": "19BBY",
-    "gender": "male",
-    "homeworld": "https://swapi.dev/api/planets/1/",
-    "films": [
-      "https://swapi.dev/api/films/1/",
-      "https://swapi.dev/api/films/2/",
-      "https://swapi.dev/api/films/3/",
-      "https://swapi.dev/api/films/6/"
-    ],
-    "species": [],
-    "vehicles": [
-      "https://swapi.dev/api/vehicles/14/",
-      "https://swapi.dev/api/vehicles/30/"
-    ],
-    "starships": [
-      "https://swapi.dev/api/starships/12/",
-      "https://swapi.dev/api/starships/22/"
-    ],
-    "created": "2014-12-09T13:50:51.644000Z",
-    "edited": "2014-12-20T21:17:56.891000Z",
-    "url": "https://swapi.dev/api/people/1/"
-  },
-  "lukeHomeworldURL": "https://swapi.dev/api/planets/1/",
-  "homeworldDetails": {
-    "name": "Tatooine",
-    "rotation_period": "23",
-    "orbital_period": "304",
-    "diameter": "10465",
-    "climate": "arid",
-    "gravity": "1 standard",
-    "terrain": "desert",
-    "surface_water": "1",
-    "population": "200000",
-    "residents": [
-      "https://swapi.dev/api/people/1/",
-      "https://swapi.dev/api/people/2/",
-      "https://swapi.dev/api/people/4/",
-      "https://swapi.dev/api/people/6/",
-      "https://swapi.dev/api/people/7/",
-      "https://swapi.dev/api/people/8/",
-      "https://swapi.dev/api/people/9/",
-      "https://swapi.dev/api/people/11/",
-      "https://swapi.dev/api/people/43/",
-      "https://swapi.dev/api/people/62/"
-    ],
-    "films": [
-      "https://swapi.dev/api/films/1/",
-      "https://swapi.dev/api/films/3/",
-      "https://swapi.dev/api/films/4/",
-      "https://swapi.dev/api/films/5/",
-      "https://swapi.dev/api/films/6/"
-    ],
-    "created": "2014-12-09T13:50:49.641000Z",
-    "edited": "2014-12-20T20:58:18.411000Z",
-    "url": "https://swapi.dev/api/planets/1/"
-  },
-  "homeworldName": "Tatooine"
-}
-```
-As you can see, for this workflow, there is nothing required beyond a standard Stated template.
-Stated already provides the mechanism to parse and analyze expressions and build an execution plan
-based on the DAG. Let's look at the execution plan Stated has built.
+# Ordinary Templates: Exploring the problem
+Let's review an ordinary template thaat tries to do something workflow-like. Here is an ordinary template that uses the Starwars API to search for Luke Skywalker's details,
+extract the homeworld URL, retrieve the homeworld details, and extract the homeworld's name. This is a multi-step
+I/O heavy workload that spends most of its time just waiting for HTTP responses.
 ```json
 > .init -f "example/homeworld.json"
 {
@@ -179,26 +96,6 @@ based on the DAG. Let's look at the execution plan Stated has built.
   "lukeHomeworldURL": "${ lukePersonDetails.homeworld }",
   "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
   "homeworldName": "${ homeworldDetails.name }"
-}
-> .plan 
-[
-  "/lukePersonDetails",
-  "/lukeHomeworldURL",
-  "/homeworldDetails",
-  "/homeworldName"
-]
-```
-The `.plan` REPL command shows us that Stated understands that there is a list of fields that must
-be computed sequentially. This has nothing to do with the apparent order of the fields in the
-JSON document. We can scramble the original file's key order and verify that
-the execution plan is unchanged:
-```json
-> .init -f "example/homeworld-scrambled.json"
-{
-  "homeworldName": "${ homeworldDetails.name }",
-  "lukePersonDetails": "${ $fetch('https://swapi.dev/api/people/?search=luke').json().results[0]}",
-  "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
-  "lukeHomeworldURL": "${ lukePersonDetails.homeworld }"
 }
 > .plan
 [
@@ -208,137 +105,15 @@ the execution plan is unchanged:
   "/homeworldName"
 ]
 ```
-Stated's DAG also understands the flow of data from any field outwards.
-For example, let's see what will be recomputed if `homeWorldDetails`changes. The `.from` command
-shows us that for an origin of `/homeworldDetails`, the DAG flows to `/homeworldName`
-```json
-> .init -f "example/homeworld-scrambled.json"
-{
-  "homeworldName": "${ homeworldDetails.name }",
-  "lukePersonDetails": "${ $fetch('https://swapi.dev/api/people/?search=luke').json().results[0]}",
-  "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
-  "lukeHomeworldURL": "${ lukePersonDetails.homeworld }"
-}
-> .from /homeworldDetails
-[
-  "/homeworldDetails",
-  "/homeworldName"
-]
-```
+![homeworld workflow](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow.svg)
 
 
-Let's compare this to it's equivalent in CNCF Serverless Workflows. As you can see, with no expression analyzer and
-no internal DAG builder, the developer of a CNCF workflow must specify the states, and the transition between states.
-<details>
-<summary>CNCF Serverless Workflow (click to expand...a lot)</summary>
-<pre>
-{
-  "id": "starwars-luke-search",
-  "version": "1.0",
-  "name": "Star Wars API - Luke Search",
-  "start": "Fetch Skywalker Details",
-  "functions": [
-    {
-      "name": "getLukeSkywalkerDetails",
-      "operation": "https://swapi.dev/api/people/?search={$.parameters.name}",
-      "type": "rest",
-      "metadata": {
-        "method": "GET",
-        "content-type": "application/json"
-      }
-    },
-    {
-      "name": "getHomeworldDetails",
-      "operation": "https://{$.parameters.homeworld}",
-      "type": "rest",
-      "metadata": {
-        "method": "GET",
-        "content-type": "application/json"
-      }
-    }
-  ],
-  "states": [
-    {
-      "name": "Fetch Skywalker Details",
-      "type": "operation",
-      "actions": [
-        {
-          "functionRef": {
-            "refName": "getLukeSkywalkerDetails",
-            "arguments": {
-              "name": "luke"
-            }
-          }
-        }
-      ],
-      "transition": "Fetch Homeworld Details"
-    },
-    {
-      "name": "Fetch Homeworld Details",
-      "type": "operation",
-      "actions": [
-        {
-          "functionRef": {
-            "refName": "getHomeworldDetails",
-            "arguments": {
-              "homeworld": "${ .results[0].homeworld }"
-            }
-          }
-        }
-      ],
-      "end": true
-    }
-  ]
-}
-</pre>
 
-</details>
+## Batching of Data in the Plan's Steps
+Let's look at what happens when we try to send a batch of data through the
+template. In the example below we create a small batch of inputs called `people' defaulting `[luke, leia]` that will execute when the template loads.
+Then we change the people batch using the command `.set /people ["luke","han","leia"]`
 
-### Job Concurrency
-Job's can be run concurrently because each job's state is totally encapsulated
-in its template variables. The following JS code shows how to launch 10 jobs
-in parallel.
-
-```javascript
-// This example uses the stated-js package to process a template that fetches
-// Luke Skywalker's details and his homeworld information from the Star Wars API.
-// It demonstrates initializing ten TemplateProcessor instances in parallel.
-
-import TemplateProcessor from 'stated-js';
-
-const template = {
-  "lukePersonDetails": "${ $fetch('https://swapi.dev/api/people/?search=luke').json().results[0]}",
-  "lukeHomeworldURL": "${ lukePersonDetails.homeworld }",
-  "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
-  "homeworldName": "${ homeworldDetails.name }"
-};
-
-async function runParallel(template, count) {
-  const processors = Array.from({ length: count }, () => new TemplateProcessor(template));
-  const initPromises = processors.map(tp => tp.initialize().then(() => tp));
-
-  try {
-    const initializedProcessors = await Promise.all(initPromises);
-    initializedProcessors.forEach((tp, index) => {
-      console.log(`Processor ${index + 1} output:`, tp.output);
-      // Any additional logic for processor output can go here
-    });
-  } catch (error) {
-    // Error handling can be implemented here
-    console.error('Error initializing TemplateProcessors:', error);
-  }
-}
-
-//run 10 templates in parallel
-runParallel(template, 10)
-        .then(() => console.log('All TemplateProcessors have been initialized.'))
-        .catch(error => console.error(error));
-
-```
-### Internal Job Concurrency
-let's modify our homeworlds example to make a concurrent homeworlds example.
-We have used the stated `!` operator to remove `personDetails` and `homeworldDetails` from the output to avoid clutter.
-JSONata automatically makes array
 ```json
 > .init -f "example/concurrent-homeworlds.json"
 {
@@ -370,18 +145,61 @@ JSONata automatically makes array
   ]
 }
 ```
+calling `.set /people ["luke","han","leia"]` causes a new plan to be queued. The plan will execute expressions
+indicated by the JSON Pointers in the plan's array, in this order.
+
+`[
+"/lukePersonDetails",
+"/lukeHomeworldURL",
+"/homeworldDetails",
+"/homeworldName"
+]`
+
+The image below shows each of the 4 plan steps, and shows that there is no pipelining. In other words, 'luke' does not
+move through the plan stages, followed by `han`, followed by 'leia'. Instead, the batch `["luke","han","leia"]` moves 
+as a unit. For example, in the diagram below we can see that all three personDetails must be fetched from three separate
+SWAP REST API calls before the batch moves to the next stage. There is no pipelining. The plan will never have multiple open
+REST calls to get person details at the same time as getting homeworld details. Lack of pipelining causes increased latency
+and batching will increase the latency at each stage.
+
+![](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow%20-%20Page%204.svg)
+## Why are plan's serialized?
+Consider the stated data flow template shown below
+![serialized plan](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow%20-%20Page%205.svg)
+A `dataChangeListener` registered on `/d`  (the final step of the plan) would be invoked once, with the expected output: 
+'xx:xx+xx:xx*X'. Calling `.set /in "y"` will set `in` to `y`, re-execute the plan and produce a second deterministic output
+`yy:yy+yy:yy*Y'
+
+What would happen if we allowed overlapping plan execution? I.e., if instead of running only one plan at a time, we allowed a 
+second arriving input, `y` to begin concurrently executing a plan before the prior plan had completed? Such a scenario is 
+shown in the image below. As we can see, if the plans run concurrently the plan for `x` becomes corrupted with values introduced by `y`. 
+The output for input `x` will be `xx:xx+xx:xx*Y`, a combination of x and y. This is wh
+
+![serialized plan](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow%20-%20Page%206.svg)
+
+You may see where this is going. As long as the steps of the plan are quick, in-memory evaluations, serializing plans in the 
+node vm is quite efficient. However, what if the expression takes a very long time to run. For example, hitting a REST
+service. You can immediately see why serialized plan execution will lead to very poor performance for plans that 
+involve accessing the network, since there will be no pipelining or parallelism within the serialized plan execution.
+
+but what would happe
+
+
+How can we make data continuously flow through the template rather than passing batches through the plan in stages? And, 
+since the template defines a discrete set of variables, and expressions can reference any of the fields, how do we prevent
+concurrently mutating template state if we continuously apply a set of changes? 
+
 
 # Stated Workflow Functions
 Stated alone is a powerful and concise workflow engine. So why do
 we need Stated-Workflows and what is it? Stated-Workflows is a set
-of functions that provide integration with cloud events, durability and high
-availability to workflows, when they are executed in the Stated-Workflows
-clustered runtime.
+of functions that provide integration with cloud events, concurrency, durability and high
+availability to workflows.
 
 ## Cloud Events
 Stated-Workflows provides a set of functions that allow you to integrate with cloud events, consuming and producing from
 Kafka or Pulsar message buses, as well as HTTP. The following example shows how to use the `publish` and `subscribe`  
-functions. Below producer and subscriber configs are using `test` clients, but `kafka` and `pulsar` clients can be used 
+functions. Below producer and subscriber configs are using `test` clients, but `kafka` and `pulsar` clients can be used
 to communicate with the actual message buses. Data for testing can be fed in by setting the `data` field of the `produceParams`.
 As shown below, the test data is set to `['luke', 'han', 'leia']`. The subscriber's `to` function, `joinResistance`, appends
 each received rebel to the `rebelForces` array.
@@ -425,13 +243,10 @@ Started tailing... Press Ctrl+C to stop.
 ```
 
 
+
 ## Durability
-Pure Stated does not provide durability or high availability. Stated-workflows adds
-the dimension of _durability_ and _high-availability_ to template execution. To achieve these "ilities", Stated-workflows must
-run in Stated-Workflow cluster. However, it is not necessary to run in a cluster to write, test, and debug
-Stated-Workflows locally. As long as you don't "unplug" the stated REPL, it will produce functionally the same result
-as running in Stated-Workflow cluster. Stated-Workflows provides a "local cluster" option where you can test the
-_durability_ of stated workflows by unceremoniously "killing" the REPL and then restarting the workflow at a later time.
+Stated Workflows provide durability. This means a workflow can crash and restart, and will run to completion. Some steps that
+have started, but not ended at the time of the crash, will be restarted. 
 
 ## Workflow Step Logs
 Stated Workflow provides durability by defining the Step as the unit of durability. A step
@@ -441,16 +256,99 @@ is nothing more than a json object that has a field named 'function', that is a 
   "function": "${ function($in){ $in + 42 } }"
 }
 ```
-Let's recast our homeworld example using Steps. This will give the Job durability, so that it
-can fail and be restarted. When a step function is called, the step's log is populated with
-an entry corresponding to a uniqe `invocationId` for the workflow. The log captures the `args`
-that were passed to the step function, as well the functions output (`out`). Once the step function 
-completes, the log is updated with the `end` timestamp, which indicates the step has completed.
+Once the workflow begins running, every time your step's function is called,  
+
+Let's recast our homeworld example using Steps. Now each step is its own object where invocation logs can be stored.
+Waring: the `keepLogs` option causes all invocation logs to be retained. This should be done only for illustrative
+purposes. I.E so *you* can see the logs for yourself when learning Stated Workflows. Logs grow without bound with `keepLogs`
+enabled and would eventually absorb all available memory.
+```json
+> .init -f "example/homeworlds-steps.json" --options={"keepLogs":true}
+{
+  "output": "${   ['luke', 'han']~>$map(workflow) }",
+  "workflow": "${ function($person){$person~>$serial(steps)} }",
+  "steps": [
+    {
+      "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
+    },
+    {
+      "function": "${  function($personDetail){$personDetail.homeworld}  }"
+    },
+    {
+      "function": "${  function($homeworldURL){$homeworldURL.$fetch($).json() }  }"
+    },
+    {
+      "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"
+    }
+  ]
+}
+```
+By encapsulating your step function in an object, you provide a home for stated to store invocation logs for the
+step. When stated runs your function it uses the step object in the template `output` as both a Write Ahead Log (WAL) that records the `start`
+of your idempotent function, and a response, `end`,  from your function. When a step function is called, the step's log is populated with
+an entry corresponding to a unique `invocationId` for the workflow. For example, our homeworlds example will contain an log like this for
+its first step. Every step will contain a log, partitioned by invocation ids. Notice how `log` is now present next to the step's `function`:
+```json
+{
+  "function": "{function:}",
+  "log": {
+    "2023-11-14-1699922094477-8e85": {
+      "start": {
+        "timestamp": 1699922094477,
+        "args": "luke"
+      },
+      "end": {
+        "timestamp": 1699922095809,
+        "out": {
+          "name": "Luke Skywalker",
+          "height": "172",
+          "mass": "77",
+          "hair_color": "blond",
+          "skin_color": "fair",
+          "eye_color": "blue",
+          "birth_year": "19BBY",
+          "gender": "male",
+          "homeworld": "https://swapi.dev/api/planets/1/",
+          "films": [
+            "https://swapi.dev/api/films/1/",
+            "https://swapi.dev/api/films/2/",
+            "https://swapi.dev/api/films/3/",
+            "https://swapi.dev/api/films/6/"
+          ],
+          "species": [],
+          "vehicles": [
+            "https://swapi.dev/api/vehicles/14/",
+            "https://swapi.dev/api/vehicles/30/"
+          ],
+          "starships": [
+            "https://swapi.dev/api/starships/12/",
+            "https://swapi.dev/api/starships/22/"
+          ],
+          "created": "2014-12-09T13:50:51.644000Z",
+          "edited": "2014-12-20T21:17:56.891000Z",
+          "url": "https://swapi.dev/api/people/1/"
+        }
+      }
+    }
+  }
+}
+
+```
+This unique approach to maintaining workflow state as a visible, transparent part of the template output
+make it easy for Stated Workflows to provide snapshotting and restoration. Once a snapshot has been
+persisted, the step logs that were persisted are removed from the runtime instance. This prevents log volume
+from growing without bound.
+
+
+The steo logs will give the Job durability, so that it
+can fail and be restarted. In the diagram below, the tables on the right side represent two potentially
+concurrent flows of execution through the graph, each with a different invocationId. Each table represents
+a visualiation of the corresponding Step's log. On the left side we follow the execution through the 
+graph for invocationId `2083-11-02-166741648653-x0yv`
 
 ![steps](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow%20-%20Page%202.svg)
-When a workflow invocation completes, its logs can be deleted from each step. However, the logs can be preserved by 
-setting keepLogs option to true. Here we show the `homeworld-steps.json` workflow with keepLogs enabled. 
-steps.
+The `maxLogs` option controls how many `invocationId` logs are kept in each step. The default value is 10. Combining 
+this option with `snapshot` options allows Stated Workflows to persist a snapshot that you can restart from like a regular template. 
 ```json
 > .init -f "example/homeworlds-steps.json" --options={"keepLogs":true}
 {
@@ -822,7 +720,7 @@ example below we intentionally break the second step by concatenating "--broken-
   ]
 }
 ```
-Note the `fail` that occurs in logs for luke and han in the below execution output. Also note that the final fourth step 
+Note the `fail` that occurs in logs for luke and han in the below execution output. Also note that the final fourth step
 contains no `start` entry as $serial execution halts on fail.
 
 <details>
@@ -1030,9 +928,9 @@ contains no `start` entry as $serial execution halts on fail.
 </details>
 
 ### retries
-Each step can provide an optional boolean function `shouldRetry`. On a workflow invocation failure the function will be 
+Each step can provide an optional boolean function `shouldRetry`. On a workflow invocation failure the function will be
 called with an invocation log passed as an argument. If the function returns true, the function will be retried.
-The invocatiopn log contains a `retryCount` field that can be used to limit the number of retries. 
+The invocatiopn log contains a `retryCount` field that can be used to limit the number of retries.
 
 The following example shows how to use the `shouldRetry` function to retry a step 4 times before failing.
 ```json

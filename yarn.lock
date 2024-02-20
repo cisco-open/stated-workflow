@@ -2755,10 +2755,10 @@ stack-utils@^2.0.3:
   dependencies:
     escape-string-regexp "^2.0.0"
 
-stated-js@^0.0.106:
-  version "0.0.106"
-  resolved "https://registry.npmjs.org/stated-js/-/stated-js-0.0.106.tgz"
-  integrity sha512-w9Xtf8JDQJZ4CSVmM5OkKkp81TzYecFld9KD0OliMurS4P3qdLEXhAYsDC9QZoWbxkGyVvKeURhEwE95MQCDmQ==
+stated-js@^0.1.1:
+  version "0.1.1"
+  resolved "https://registry.npmjs.org/stated-js/-/stated-js-0.1.1.tgz#69cf1a54a78b83f96fc9dd398128686cd72c4be7"
+  integrity sha512-Qcjg9XudPbU0kbgYKvT+luwWWUixw6e1qa1Qsaw67mA64ihb0HoF2h6jz43W4/oUSlxZC5HsS+16z2/6u8M2/A==
   dependencies:
     chalk "^5.3.0"
     flatbuffers "^23.5.26"

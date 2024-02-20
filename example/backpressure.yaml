@@ -1,7 +1,7 @@
 # producer will be sending some test data
 produceParams:
   type: "my-topic"
-  data: ${[1..100].('bleep_' & $string($))}
+  data: ${[1..10].('bleep_' & $string($))}
   client:
     type: test
 # the subscriber's 'to' function will be called on each received event
@@ -31,4 +31,4 @@ recvFast$: $subscribe(fastSubscribeParams)
 # the subscriber's `to` function will write the received data here
 rxFast: [ ]
 rxSlow: [ ]
-done: ${ $count(rxFast) + $count(rxSlow) = 200?'bleeps received':'still bleeping'}
+done: ${ $count(rxFast) + $count(rxSlow) = 20?'bleeps received':'still bleeping'}

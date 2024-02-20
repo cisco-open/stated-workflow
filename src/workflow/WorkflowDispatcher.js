@@ -93,29 +93,28 @@ export class WorkflowDispatcher {
         while (this.active < this.parallelism && this.queue.length > 0) {
             this.active++;
             const eventData = this.queue.shift();
-
-            let promise;
-            // WIP check
-            if (this.workflowFunction && this.workflowFunction.function) {
-                // FIXME: decrement active count and remove promise from list in case of error
-                promise = this._runStep(this.workflowFunction, eventData);
-            } else {
-                promise = this.workflowFunction.apply(null, [eventData])
-                  .catch(error => {
-                      console.error("Error executing workflow:", error);
-                  })
-                  .finally(() => {
-                      this.active--;
-                      if (this.batchMode) {
-                          this.batchCount--;
-                      }
-                      const index = this.promises.indexOf(promise);
-                      if (index > -1) {
-                          this.promises.splice(index, 1);
-                      }
-                      this._dispatch();
-                  });
+            if(this.workflowFunction === undefined){
+                console.error(`undefined 'to' function for subscriberId=${this.subscriberId}`)
             }
+            let promise;
+            if (this.workflowFunction && this.workflowFunction.function) {
+                promise = this.workflowFunction.function(eventData);
+            } else {
+                promise = this.workflowFunction(eventData);
+            }
+            promise.catch(error => {
+                console.error("Error executing workflow:", error);
+            }).finally(() => {
+                this.active--;
+                if (this.batchMode) {
+                    this.batchCount--;
+                }
+                const index = this.promises.indexOf(promise);
+                if (index > -1) {
+                    this.promises.splice(index, 1);
+                }
+                this._dispatch();
+                });
 
             this.promises.push(promise);
         }

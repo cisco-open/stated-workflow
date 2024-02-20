@@ -26,8 +26,7 @@ export class TemplateUtils {
    */
   static validateStepPointers(resolvedJsonPointers, steps, metaInf, procedureName) {
     if (resolvedJsonPointers.length !== steps.length) {
-      throw new Error(`At ${metaInf.jsonPointer__},
-            '${$procedureName}(...)' was passed ${steps.length} steps, but found ${resolvedJsonPointers.length} step locations in the document.`);
+      throw new Error(`At ${metaInf.jsonPointer__}, ${procedureName}(...) was passed ${steps.length} steps, but found ${resolvedJsonPointers.length} step locations in the document.`);
     }
   }
 

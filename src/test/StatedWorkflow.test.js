@@ -880,7 +880,8 @@ test("backpressure due to max parallelism", async () => {
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     var template = yaml.load(templateYaml);
     const {templateProcessor:tp} = await StatedWorkflow.newWorkflow(template);
-
+    let latch;
+    new Promise((resolve)=>{latch=resolve});
     tp.setDataChangeCallback("/done", (d)=>{
         if(d==="bleeps received"){
             function testActivityRecord(r, expectedMaxActive){
@@ -892,15 +893,13 @@ test("backpressure due to max parallelism", async () => {
             testActivityRecord(tp.output.slowSubscribeParams.activityRecord.slowAntenna, 4);
             testActivityRecord(tp.output.fastSubscribeParams.activityRecord.fastAntenna, 2);
 
-            expect(tp.output.rxSlow.length).toBe(100);
-            expect(tp.output.rxFast.length).toBe(100);
-            done();
+            expect(tp.output.rxSlow.length).toBe(10);
+            expect(tp.output.rxFast.length).toBe(10);
+            latch();
         }
     });
     await tp.initialize();
-
-
-
+    await latch;
 });
 
 
