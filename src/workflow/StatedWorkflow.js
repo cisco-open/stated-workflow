@@ -30,6 +30,7 @@ import fs from "fs";
 import path from "path";
 import {Delay} from "../test/TestTools.js"
 import {Snapshot} from "./Snapshot.js";
+import {rateLimit} from "stated-js/dist/src/utils/rateLimit.js";
 
 const writeFile = util.promisify(fs.writeFile);
 const basePath = path.join(process.cwd(), '.state');
@@ -89,7 +90,8 @@ export class StatedWorkflow {
         this.templateProcessor.initCallbacks = [
             // --- clear the dispatcher ---
             ()=>{this.workflowDispatcher && this.workflowDispatcher.clear()},
-            //---  start periodic snapshotting ---
+            //---  add rateLimited  ---
+            // ()=>{
             ()=>{
                 const {snapshot: snapshotOpts} = this.templateProcessor.options;
                 if(!snapshotOpts){
@@ -365,11 +367,15 @@ export class StatedWorkflow {
                 try {
                     data = await consumer.receive();
                     let obj;
+                    let messageId;
                     try {
                         const str = data.getData().toString();
+                        messageId = data.getMessageId();
                         obj = JSON.parse(str);
                     } catch (error) {
                         console.error("unable to parse data to json:", error);
+                        // TODO - should we acknowledge the message here?
+                        continue;
                     }
                     let resolve;
                     this.latch = new Promise((_resolve) => {
@@ -379,13 +385,15 @@ export class StatedWorkflow {
                     this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtrs, removed) => {
                         for (let jsonPtr of jsonPtrs) {
                             if (/^\/step\d+\/log\/.*$/.test(jsonPtr)) {
-                                await writeFile(path.join(basePath,'template.json') , StatedREPL.stringify(data), 'utf8');
+                                fs.writeFileSync(path.join(basePath,'template.json') , StatedREPL.stringify(data), 'utf8');
                             }
                             if (/^\/step1\/log\/.*$/.test(jsonPtr)) {
                                 // TODO: await persist the step
                                 const dataThatChanged = jp.get(data, jsonPtr);
                                 if (dataThatChanged.start !== undefined && dataThatChanged.end === undefined) {
                                     resolve();
+                                    // consumer.acknowledgeId(data);
+                                    consumer.acknowledgeId(messageId);
                                 }
                             }
                         }

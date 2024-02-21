@@ -15,9 +15,9 @@ subscribeResidents:
 getResidentsWorkflow:
   function: /${ function($planetInfo){ $planetInfo ~> $serial([extractResidents, fetchResidents]) }  }
 extractResidents:
-    function: /${ function($planet){$planet.residents.($fetch($).json())}  }
+    function: /${ function($planet){( $sleep($random() * 100) ; $planet.residents.($fetch($).json()) )}  }
 fetchResidents:
-    function: /${ function($resident){$resident?$set('/residents/-',{'name':$resident.name, 'url':$resident.url})}  }
+    function: /${ function($residents){$residents.($set('/residents/-',{'name':$.name, 'url':$.url}))}  }
 residents: [ ]
 # starts producer function
 send$: $publish(produceParams)

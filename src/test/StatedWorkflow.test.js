@@ -775,7 +775,7 @@ test.skip("Template Data Change Callback with rate limit", async () => {
     expect(counts).toEqual([0,10]);
 
 });
-/*
+
 const isMacOS = process.platform === 'darwin';
 if (isMacOS) {
     test("Pulsar consumer integration test", async () => {
@@ -785,7 +785,7 @@ if (isMacOS) {
 
         const {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template);
         // keep steps execution logs for debugging
-        tp.options = {'keepLogs': true}
+        tp.options = {'keepLogs': true, 'snapshot': {'snapshotIntervalSeconds': 0.01}};
 
         await tp.initialize();
 
@@ -871,8 +871,6 @@ if (isMacOS) {
     }, 300000)
 }
 
- */
-
 test("backpressure due to max parallelism", async () => {
 
     // Load the YAML from the file
@@ -902,5 +900,77 @@ test("backpressure due to max parallelism", async () => {
     await tp.initialize();
     await latch;
 });
+
+
+test("serial workflow with backpressure", async () => {
+
+    // Load the YAML from the file
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'backpressure-wf.yaml');
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+    var template = yaml.load(templateYaml);
+    const sw = await StatedWorkflow.newWorkflow(template);
+    const {templateProcessor:tp} = sw;
+    tp.options = {'snapshot': {'snapshotIntervalSeconds': 0.01}}
+
+    const defaultSnapshotPath = path.join(__dirname, '../', '../','defaultSnapshot.json');
+
+    // make sure default snapshot is deleted before the test
+    try {
+        await unlink(defaultSnapshotPath);
+        console.log(`${new Date().toISOString()}: Deleted previous default snapshot file: ${defaultSnapshotPath}`)
+    } catch (e) {
+        if (e.code !== 'ENOENT') {
+            throw e;
+        }
+    }
+
+    await tp.initialize();
+    console.log(`${new Date().toISOString()}: initialized stated workflow template...`);
+
+    let anyResidentsSnapshotted = false;
+    let snapshot;
+    while (!anyResidentsSnapshotted) {
+
+        try {
+            const snapshotContent = fs.readFileSync(defaultSnapshotPath, 'utf8');
+            snapshot = JSON.parse(snapshotContent);
+            console.log(`${new Date().toISOString()}: Snapshot has ${snapshot.output.residents.length} residents`);
+            if (snapshot.output?.residents?.length > 10) {
+                anyResidentsSnapshotted = true;
+                break;
+            }
+        } catch (e) {
+            console.log(`${new Date().toISOString()}: Error checking snapshotted residents: ${e.message}`);
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every 50ms
+    }
+
+    // kill the wf
+    console.log(`${new Date().toISOString()}: Stopping stated workflow...`);
+    await sw.close();
+    console.log(`${new Date().toISOString()}: Stopped stated workflow, with ${tp.output.residents.length} residents`);
+
+
+    // restore from snapshot
+    // create a new template object
+    // var template = yaml.load(templateYaml);
+    // read the snapshot
+
+    console.log(`${new Date().toISOString()}: Recovering from a snapshot with ${snapshot.output.residents.length} residents`)
+    await tp.initialize(snapshot.template, '/', snapshot.output);
+
+    // 82 unique residents
+
+    // tp.output?.residents.reduce((counts, o)=>{ counts[o.name] = (counts[o.name] || 0) + 1; return counts }, {}).size();
+
+    let uniqResidents = 0;
+    do {
+        uniqResidents = Object.keys(tp.output?.residents.reduce((counts, o)=>{ counts[o.name] = (counts[o.name] || 0) + 1; return counts }, {})).length
+        console.log(`${new Date().toISOString()}: Got ${uniqResidents} unique residents processed`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every 50ms
+    } while (uniqResidents < 82)
+
+    console.log(`${new Date().toISOString()}: We got ${uniqResidents} unique residents processed with ${tp.output.residents.length} total residents`);
+}, 100000);
 
 

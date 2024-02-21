@@ -142,8 +142,7 @@ export class WorkflowDispatcher {
 
         return new Promise(async (resolve, reject) => {
             const tryAddToQueue = async () => {
-                this._logActivity("active", this.active);
-                this._logActivity("queue", this.queue.length);
+                this._logActivity("log", {"t": new Date().getTime(), "acivie": this.active, "queue": this.queue.length});
                 if (this.active < this.parallelism) {
                     this.queue.push(data);
                     resolve(); // Resolve the promise to signal that the data was queued
