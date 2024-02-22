@@ -31,6 +31,7 @@ import path from "path";
 import {Delay} from "../test/TestTools.js"
 import {Snapshot} from "./Snapshot.js";
 import {rateLimit} from "stated-js/dist/src/utils/rateLimit.js";
+import {PulsarClientMock} from "./utils/PulsarMock.js";
 
 const writeFile = util.promisify(fs.writeFile);
 const basePath = path.join(process.cwd(), '.state');
@@ -184,13 +185,12 @@ export class StatedWorkflow {
         }
     }
 
+    createPulsarClientMock(params) {
+        if (this.pulsarClient) return;
 
-    ensureClient(params) {
-        if (!params || params.type == 'pulsar') {
-            this.createPulsarClient(params);
-        } else if (params.type == 'kafka') {
-            this.createKafkaClient(params);
-        }
+        this.pulsarClient = new PulsarClientMock({
+            serviceUrl: 'pulsar://localhost:6650',
+        });
     }
 
     createPulsarClient(params) {
@@ -229,6 +229,10 @@ export class StatedWorkflow {
         if (clientType=== 'kafka') {
             this.publishKafka(params, clientParams);
         } else if(clientType==="pulsar") {
+            this.publishPulsar(params, clientParams);
+        }else if(clientType === 'pulsarMock'){
+            this.logger.debug(`publishing to pulsarMock using ${clientParams}`)
+            this.createPulsarClientMock(clientParams);
             this.publishPulsar(params, clientParams);
         }else{
             throw new Error(`Unsupported clientType: ${clientType}`);
@@ -325,8 +329,6 @@ export class StatedWorkflow {
         //         resolve();
         //     }
         // });
-
-
 
 
         if (source === 'http') {
@@ -505,6 +507,10 @@ export class StatedWorkflow {
         }else if(clientType === 'pulsar') {
             this.logger.debug(`subscribing to pulsar (default) using ${clientParams}`)
             this.createPulsarClient(clientParams);
+            this.subscribePulsar(subscriptionParams);
+        }else if(clientType === 'pulsarMock'){
+            this.logger.debug(`subscribing to pulsarMock using ${clientParams}`)
+            this.createPulsarClientMock(clientParams);
             this.subscribePulsar(subscriptionParams);
         }else{
             throw new Error(`unsupported client.type in ${StatedREPL.stringify(subscriptionParams)}`);

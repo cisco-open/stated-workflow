@@ -797,6 +797,26 @@ if (isMacOS) {
 
     })
 
+    test("Pulsar consumer data function mock client test", async () => {
+        const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub-data-function-pulsar-mock.yaml');
+        const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+        let template = yaml.load(templateYaml);
+
+        const {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template);
+        // keep steps execution logs for debugging
+        tp.options = {'keepLogs': true, 'snapshot': {}};
+
+        await tp.initialize();
+
+        while (tp.output.farFarAway?.length + tp.output.nearBy?.length < 2) {
+            await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+        }
+
+        expect(tp.output.interceptedMessages?.length).toBeGreaterThanOrEqual(2)
+        expect(tp.output.farFarAway?.length + tp.output.nearBy?.length).toEqual(2);
+
+    })
+
     test("Pulsar consumer data function integration test", async () => {
         const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub-data-function-pulsar.yaml');
         const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
