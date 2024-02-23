@@ -15,7 +15,7 @@ subscribeResidents:
 getResidentsWorkflow:
   function: /${ function($planetInfo){ $planetInfo ~> $serial([extractResidents, fetchResidents]) }  }
 extractResidents:
-    function: /${ function($planet){( $sleep($random() * 100) ; $planet.residents.($fetch($).json()) )}  }
+    function: /${ function($planet){( $sleep($random() * 100) ; $planet.residents.($fetch($).json()) )}  } # add a random delay
 fetchResidents:
     function: /${ function($residents){$residents.($set('/residents/-',{'name':$.name, 'url':$.url}))}  }
 residents: [ ]

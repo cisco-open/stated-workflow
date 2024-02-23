@@ -776,8 +776,15 @@ test.skip("Template Data Change Callback with rate limit", async () => {
 
 });
 
-const isMacOS = process.platform === 'darwin';
-if (isMacOS) {
+/**
+ * Pulsar Integration Tests
+ *
+ *  1. start docker-compose
+ *      docker-compose -f docker/docker-compose.yaml up -d
+ *  2. run the tests
+ *      ENABLE_INTEGRATION_TESTS=true yarn test StatedWorkflow.test.js
+ */
+if (process.env.ENABLE_INTEGRATION_TESTS) {
     test("Pulsar consumer integration test", async () => {
         const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub-pulsar.yaml');
         const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
@@ -922,22 +929,29 @@ test("backpressure due to max parallelism", async () => {
 });
 
 
+/**
+ * This test validates that the workflow can be recovered from a snapshot.
+ */
 test("serial workflow with backpressure", async () => {
+    // Logging function to avoid repetition of console.log with date stamps
+    const logWithDate = (message) => {
+        console.log(`${new Date().toISOString()}: ${message}`);
+    };
 
     // Load the YAML from the file
     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'backpressure-wf.yaml');
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     var template = yaml.load(templateYaml);
     const sw = await StatedWorkflow.newWorkflow(template);
-    const {templateProcessor:tp} = sw;
+    const {templateProcessor: tp} = sw;
     tp.options = {'snapshot': {'snapshotIntervalSeconds': 0.01}}
 
     const defaultSnapshotPath = path.join(__dirname, '../', '../','defaultSnapshot.json');
 
-    // make sure default snapshot is deleted before the test
+    // Make sure default snapshot is deleted before the test
     try {
         await unlink(defaultSnapshotPath);
-        console.log(`${new Date().toISOString()}: Deleted previous default snapshot file: ${defaultSnapshotPath}`)
+        logWithDate(`Deleted previous default snapshot file: ${defaultSnapshotPath}`);
     } catch (e) {
         if (e.code !== 'ENOENT') {
             throw e;
@@ -945,52 +959,42 @@ test("serial workflow with backpressure", async () => {
     }
 
     await tp.initialize();
-    console.log(`${new Date().toISOString()}: initialized stated workflow template...`);
+    logWithDate("Initialized stated workflow template...");
 
     let anyResidentsSnapshotted = false;
     let snapshot;
-    while (!anyResidentsSnapshotted) {
 
+    // Wait for the snapshot file to include at least 10 residents
+    while (!anyResidentsSnapshotted) {
         try {
             const snapshotContent = fs.readFileSync(defaultSnapshotPath, 'utf8');
             snapshot = JSON.parse(snapshotContent);
-            console.log(`${new Date().toISOString()}: Snapshot has ${snapshot.output.residents.length} residents`);
+            logWithDate(`Snapshot has ${snapshot.output.residents.length} residents`);
             if (snapshot.output?.residents?.length > 10) {
                 anyResidentsSnapshotted = true;
                 break;
             }
         } catch (e) {
-            console.log(`${new Date().toISOString()}: Error checking snapshotted residents: ${e.message}`);
+            logWithDate(`Error checking snapshot residents: ${e.message}`);
         }
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every 50ms
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every 1s
     }
 
-    // kill the wf
-    console.log(`${new Date().toISOString()}: Stopping stated workflow...`);
+    // Kill the wf
+    logWithDate("Stopping stated workflow...");
     await sw.close();
-    console.log(`${new Date().toISOString()}: Stopped stated workflow, with ${tp.output.residents.length} residents`);
+    logWithDate(`Stopped stated workflow, with ${tp.output.residents.length} residents`);
 
-
-    // restore from snapshot
-    // create a new template object
-    // var template = yaml.load(templateYaml);
-    // read the snapshot
-
-    console.log(`${new Date().toISOString()}: Recovering from a snapshot with ${snapshot.output.residents.length} residents`)
+    logWithDate(`Recovering from a snapshot with ${snapshot.output.residents.length} residents`);
     await tp.initialize(snapshot.template, '/', snapshot.output);
 
-    // 82 unique residents
-
-    // tp.output?.residents.reduce((counts, o)=>{ counts[o.name] = (counts[o.name] || 0) + 1; return counts }, {}).size();
-
+    // Calculate unique residents
     let uniqResidents = 0;
     do {
-        uniqResidents = Object.keys(tp.output?.residents.reduce((counts, o)=>{ counts[o.name] = (counts[o.name] || 0) + 1; return counts }, {})).length
-        console.log(`${new Date().toISOString()}: Got ${uniqResidents} unique residents processed`);
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every 50ms
+        uniqResidents = Object.keys(tp.output?.residents.reduce((counts, o)=>{ counts[o.name] = (counts[o.name] || 0) + 1; return counts }, {})).length;
+        logWithDate(`Got ${uniqResidents} unique residents processed`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
     } while (uniqResidents < 82)
 
-    console.log(`${new Date().toISOString()}: We got ${uniqResidents} unique residents processed with ${tp.output.residents.length} total residents`);
+    logWithDate(`We got ${uniqResidents} unique residents processed with ${tp.output.residents.length} total residents`);
 }, 100000);
-
-

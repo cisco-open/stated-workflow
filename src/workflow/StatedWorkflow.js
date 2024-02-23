@@ -31,7 +31,7 @@ import path from "path";
 import {Delay} from "../test/TestTools.js"
 import {Snapshot} from "./Snapshot.js";
 import {rateLimit} from "stated-js/dist/src/utils/rateLimit.js";
-import {PulsarClientMock} from "./utils/PulsarMock.js";
+import {PulsarClientMock} from "../test/PulsarMock.js";
 
 const writeFile = util.promisify(fs.writeFile);
 const basePath = path.join(process.cwd(), '.state');
