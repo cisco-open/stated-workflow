@@ -1,14 +1,18 @@
 export class PulsarClientMock {
-  static inMemoryStore = new Map(); // Static store to survive client restarts
-  static messageIdCounter = 0; // Global message ID counter
-  static listeners = new Map(); // Global listeners map
+  static inMemoryStore = new Map(); // Static store to hold messages for each topic
+  static messageIdCounter = 0; // Global counter to generate unique message IDs
+  static listeners = new Map(); // Global map to hold listeners for message consumption
+  static ackTimeout = 30000; // Default acknowledgment timeout (in milliseconds)
+  static acknowledgedMessages = new Map(); // Static store to hold acknowledged messages for each topic
 
-  constructor() {
-    // No longer needed to initialize static properties in the constructor
+  // Allows configuration of the acknowledgment timeout
+  static configureAckTimeout(timeout) {
+    this.ackTimeout = timeout;
   }
 
   async createProducer(config) {
     const topic = config.topic;
+    // Ensure a message queue exists for the topic
     if (!PulsarClientMock.inMemoryStore.has(topic)) {
       PulsarClientMock.inMemoryStore.set(topic, []);
     }
@@ -20,7 +24,6 @@ export class PulsarClientMock {
         const messages = PulsarClientMock.inMemoryStore.get(topic) || [];
         messages.push({ message: messageInstance, visible: true });
 
-        // Notify listeners that a new message is available
         PulsarClientMock.notifyListeners(topic);
 
         return { messageId: messageId.toString() };
@@ -39,15 +42,16 @@ export class PulsarClientMock {
             const messages = PulsarClientMock.inMemoryStore.get(topic) || [];
             const messageIndex = messages.findIndex(m => m.visible);
             if (messageIndex !== -1) {
-              // Make the message invisible for a certain timeout
+              // Make the message temporarily invisible to simulate message locking
               messages[messageIndex].visible = false;
               setTimeout(() => {
+                // Make the message visible again after the timeout
                 messages[messageIndex].visible = true;
                 PulsarClientMock.notifyListeners(topic);
-              }, 30000); // 30 seconds timeout
+              }, PulsarClientMock.ackTimeout);
               resolve(messages[messageIndex].message);
             } else {
-              // No visible messages available, add listener to be resolved later
+              // No visible messages available, wait for new messages
               if (!PulsarClientMock.listeners.has(topic)) {
                 PulsarClientMock.listeners.set(topic, []);
               }
@@ -59,33 +63,62 @@ export class PulsarClientMock {
         });
       },
       acknowledge: async (message) => {
-        const messages = PulsarClientMock.inMemoryStore.get(topic) || [];
-        const messageIndex = messages.findIndex(m => m.message.messageId.id === message.messageId.id);
-        if (messageIndex !== -1) {
-          messages.splice(messageIndex, 1); // Remove the acknowledged message
-        }
+        PulsarClientMock.acknowledgeMessage(topic, message.messageId.id);
       },
       acknowledgeId: async (messageId) => {
-        const messages = PulsarClientMock.inMemoryStore.get(topic) || [];
-        const messageIndex = messages.findIndex(m => m.message.messageId.id === messageId.id);
-        if (messageIndex !== -1) {
-          messages.splice(messageIndex, 1); // Remove the acknowledged message
-        }
+        PulsarClientMock.acknowledgeMessage(topic, messageId.id);
       },
       close: async () => {},
     };
   }
 
+  static acknowledgeMessage(topic, messageId) {
+    const messages = PulsarClientMock.inMemoryStore.get(topic) || [];
+    const messageIndex = messages.findIndex(m => m.message.messageId.id === messageId);
+    if (messageIndex !== -1) {
+      const [acknowledgedMessage] = messages.splice(messageIndex, 1); // Remove and get the acknowledged message
+      // Store acknowledged message
+      if (!this.acknowledgedMessages.has(topic)) {
+        this.acknowledgedMessages.set(topic, []);
+      }
+      this.acknowledgedMessages.get(topic).push(acknowledgedMessage.message);
+    }
+  }
+
+  static getTopics() {
+    return Array.from(PulsarClientMock.inMemoryStore.keys());
+  }
+
+  // Method to return statistics for the client
+  static getStats(topic) {
+    const messages = this.inMemoryStore.get(topic) || [];
+    const acknowledged = this.acknowledgedMessages.get(topic) || [];
+    const inFlight = messages.filter(m => !m.visible).length;
+    const queueLength = messages.length + acknowledged.length;
+
+    return {
+      acknowledgedCount: acknowledged.length,
+      inFlightCount: inFlight,
+      queueLength,
+    };
+  }
+
+  // Method to return all acknowledged messages for a topic
+  static getAcknowledgedMessages(topic) {
+    return this.acknowledgedMessages.get(topic) || [];
+  }
+
   static clear() {
     PulsarClientMock.inMemoryStore.clear();
     PulsarClientMock.listeners.clear();
+    PulsarClientMock.acknowledgedMessages.clear();
   }
 
   static notifyListeners(topic) {
     const listeners = PulsarClientMock.listeners.get(topic) || [];
     while (listeners.length > 0) {
-      const listener = listeners.shift(); // Remove the listener from the queue
-      listener(); // Try resolving a listener with any newly available message
+      const listener = listeners.shift();
+      listener();
     }
   }
 

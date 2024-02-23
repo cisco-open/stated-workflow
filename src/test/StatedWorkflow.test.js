@@ -23,6 +23,7 @@ import {rateLimit} from "stated-js/dist/src/utils/rateLimit.js";
 import util from "util";
 import {fn} from "jest-mock";
 import {PulsarClientMock} from "./PulsarMock.js";
+import Pulsar from "pulsar-client";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -998,4 +999,11 @@ test("subscribePulsar with pulsarMock client", async () => {
 
     expect(tp.output.interceptedMessages?.length).toBeGreaterThanOrEqual(2)
     expect(tp.output.farFarAway?.length + tp.output.nearBy?.length).toEqual(2);
+
+    while (!Array.isArray(PulsarClientMock.getAcknowledgedMessages(PulsarClientMock.getTopics()[0]))
+            || PulsarClientMock.getAcknowledgedMessages(PulsarClientMock.getTopics()[0]).length < 10) {
+        let ackedMessages = PulsarClientMock.getAcknowledgedMessages(PulsarClientMock.getTopics()[0]);
+        console.log("Messages acknowledged: ", ackedMessages);
+        await new Promise(resolve => setTimeout(resolve, 500)); // Poll every 50ms
+    }
 })

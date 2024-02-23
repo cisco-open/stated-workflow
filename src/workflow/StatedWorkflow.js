@@ -413,7 +413,8 @@ export class StatedWorkflow {
                     console.error("Error receiving or dispatching message:", error);
                 } finally {
                     if (data !== undefined) {
-                        await this.latch;
+                        // FIXME: remove below, we should be acknowledging in the onDataChange callback
+                        // await this.latch;
                         consumer.acknowledge(data);
                     }
 
