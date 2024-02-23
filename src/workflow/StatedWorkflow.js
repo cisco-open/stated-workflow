@@ -362,17 +362,17 @@ export class StatedWorkflow {
             });
             // Store the consumer in the map
             this.consumers.set(type, consumer);
-            let data;
+            let message;
             let countdown = maxConsume;
 
             while (true) {
                 try {
-                    data = await consumer.receive();
+                    message = await consumer.receive();
                     let obj;
                     let messageId;
                     try {
-                        const str = data.getData().toString();
-                        messageId = data.getMessageId();
+                        const str = message.getData().toString();
+                        messageId = message.getMessageId();
                         obj = JSON.parse(str);
                     } catch (error) {
                         console.error("unable to parse data to json:", error);
@@ -396,7 +396,7 @@ export class StatedWorkflow {
                                 if (dataThatChanged.start !== undefined && dataThatChanged.end === undefined) {
                                     resolve();
                                     // consumer.acknowledgeId(data);
-                                    consumer.acknowledgeId(messageId);
+                                    consumer.acknowledge(message);
                                 }
                             }
                         }
@@ -412,10 +412,10 @@ export class StatedWorkflow {
                 } catch (error) {
                     console.error("Error receiving or dispatching message:", error);
                 } finally {
-                    if (data !== undefined) {
+                    if (message !== undefined) {
                         // FIXME: remove below, we should be acknowledging in the onDataChange callback
                         // await this.latch;
-                        consumer.acknowledge(data);
+                        // consumer.acknowledge(data);
                     }
 
                     if (this.pulsarClient === undefined) {

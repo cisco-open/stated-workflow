@@ -979,7 +979,7 @@ test("serial workflow with backpressure", async () => {
     } while (uniqResidents < 82)
 
     logWithDate(`We got ${uniqResidents} unique residents processed with ${tp.output.residents.length} total residents`);
-}, 100000);
+}, 10000);
 
 
 test("subscribePulsar with pulsarMock client", async () => {
@@ -991,19 +991,26 @@ test("subscribePulsar with pulsarMock client", async () => {
     // keep steps execution logs for debugging
     tp.options = {'keepLogs': true, 'snapshot': {}};
 
+    PulsarClientMock.ackTimeout = 2000; // 2 seconds
+
     await tp.initialize();
 
-    while (tp.output.farFarAway?.length + tp.output.nearBy?.length < 2) {
-        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
-    }
-
-    expect(tp.output.interceptedMessages?.length).toBeGreaterThanOrEqual(2)
-    expect(tp.output.farFarAway?.length + tp.output.nearBy?.length).toEqual(2);
-
-    while (!Array.isArray(PulsarClientMock.getAcknowledgedMessages(PulsarClientMock.getTopics()[0]))
-            || PulsarClientMock.getAcknowledgedMessages(PulsarClientMock.getTopics()[0]).length < 10) {
-        let ackedMessages = PulsarClientMock.getAcknowledgedMessages(PulsarClientMock.getTopics()[0]);
-        console.log("Messages acknowledged: ", ackedMessages);
+    while (tp.output.farFarAway?.length + tp.output.nearBy?.length < 10) {
+        console.log(`Waiting for at least 10 messages. So far received from farFarAway: ${tp.output.farFarAway?.length}, from nearBy: ${tp.output.nearBy?.length}`);
         await new Promise(resolve => setTimeout(resolve, 500)); // Poll every 50ms
     }
-})
+    console.log(`Received 10 or more messages. Received from farFarAway: ${tp.output.farFarAway?.length}, from nearBy: ${tp.output.nearBy?.length}`);
+
+    expect(tp.output.interceptedMessages?.length).toBeGreaterThanOrEqual(10)
+    expect(tp.output.farFarAway?.length + tp.output.nearBy?.length).toBeGreaterThanOrEqual(10);
+
+    console.log("waiting for at least 10 messages to be acknowledged");
+    const topic = PulsarClientMock.getTopics()[0]; // we use only one topic in the test
+    while (!Array.isArray(PulsarClientMock.getAcknowledgedMessages(topic))
+            || PulsarClientMock.getAcknowledgedMessages(topic).length < 10) {
+        let ackedMessages = PulsarClientMock.getAcknowledgedMessages(topic);
+        console.log(`PulsarMock topic ${topic} stats: ${StatedREPL.stringify(PulsarClientMock.getStats(topic))}`);
+        await new Promise(resolve => setTimeout(resolve, 500)); // Poll every 50ms
+    };
+    console.log(`PulsarMock topic ${topic} stats: ${StatedREPL.stringify(PulsarClientMock.getStats(topic))}`);
+}, 10000)
