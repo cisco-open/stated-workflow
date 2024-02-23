@@ -29,6 +29,7 @@ import util from "util";
 import fs from "fs";
 import path from "path";
 import {Delay} from "../test/TestTools.js"
+import {Snapshot} from "./Snapshot.js";
 
 const writeFile = util.promisify(fs.writeFile);
 const basePath = path.join(process.cwd(), '.state');
@@ -43,7 +44,6 @@ export class StatedWorkflow {
     static persistence = createStepPersistence();
 
     constructor(template, context, stepPersistence ){
-        // this.templateProcessor = templateProcessor;
         this.stepPersistence = stepPersistence;
         this.logger = winston.createLogger({
             format: winston.format.json(),
@@ -69,7 +69,6 @@ export class StatedWorkflow {
         TemplateProcessor.DEFAULT_FUNCTIONS = {...TemplateProcessor.DEFAULT_FUNCTIONS, ...{
                 "id": StatedWorkflow.generateDateAndTimeBasedID.bind(this),
                 "onHttp": this.onHttp.bind(this),
-                // "subscribe": this.subscribe.bind(this),
                 "publish": this.publish.bind(this),
                 "logFunctionInvocation": this.logFunctionInvocation.bind(this),
                 "workflow": this.workflow.bind(this),
@@ -83,6 +82,36 @@ export class StatedWorkflow {
         this.templateProcessor.functionGenerators.set("recoverStep", this.recoverStepGenerator.bind(this));
         this.templateProcessor.functionGenerators.set("subscribe", this.subscribeGenerator.bind(this));
         this.templateProcessor.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
+        this.hasChanged = true;
+        this.changeListener = ()=>{this.hasChanged=true};
+        this.snapshotInterval = null;
+        //functions can be added here for all things that need to run during templateProcessor.onInitialize()
+        this.templateProcessor.initCallbacks = [
+            // --- clear the dispatcher ---
+            ()=>{this.workflowDispatcher && this.workflowDispatcher.clear()},
+            //---  start periodic snapshotting ---
+            ()=>{
+                const {snapshot: snapshotOpts} = this.templateProcessor.options;
+                if(!snapshotOpts){
+                    return;
+                }
+                const {seconds = 1} = snapshotOpts;
+                this.snapshotInterval = setInterval(async ()=>{
+                    if(this.hasChanged){
+                        await Snapshot.write(this.templateProcessor);
+                        this.hasChanged = false; //changeListener will alter this if the template changes so we are not permanently blocking snapshots
+                    }
+                }, seconds*1000)
+            },
+            //---  listen for changes so we can avoid snapshotting if nothing changed ---
+            ()=>{
+                this.templateProcessor.setDataChangeCallback("/", this.changeListener);
+            }
+
+
+        ];
+        //add a named initializer for stated-workflows that runs all of the stated-workflows init callbacks
+        this.templateProcessor.onInitialize.set("stated-workflows",()=>this.templateProcessor.initCallbacks.map(cb=>cb())); //call all initCallbacks
     }
 
     // this method returns a StatedWorkflow instance with TemplateProcesor with the default functions and Stated Workflow
@@ -93,6 +122,8 @@ export class StatedWorkflow {
         return new StatedWorkflow(template, context, stepPersistence);
     }
 
+
+    /*
     async initialize() {
         await this.templateProcessor.initialize();
         this.pulsarClient = new Pulsar.Client({
@@ -107,6 +138,8 @@ export class StatedWorkflow {
         });
 
     }
+
+     */
 
     setWorkflowPersistence() {
         const persistence = new WorkflowPersistence({workflowName: this.templateProcessor.input.name});
@@ -182,7 +215,6 @@ export class StatedWorkflow {
 
         if(!this.workflowDispatcher) {
             this.workflowDispatcher = new WorkflowDispatcher(params);
-            this.templateProcessor.onInitialize = this.workflowDispatcher.clear.bind(this.workflowDispatcher); //must remove all subscribers when template reinitialized
         }
 
         if (clientParams  && clientParams.type === 'test') {
@@ -281,7 +313,6 @@ export class StatedWorkflow {
 
         if(!this.workflowDispatcher) {
             this.workflowDispatcher = new WorkflowDispatcher(subscribeOptions);
-            this.templateProcessor.onInitialize = this.workflowDispatcher.clear.bind(this.workflowDispatcher); //must remove all subscribers when template reinitialized
         }
 
 
@@ -439,18 +470,22 @@ export class StatedWorkflow {
     }
 
     async subscribeCloudEvent(subscriptionParams) {
+        const {testData, client:clientParams={type:'test'}, to} = subscriptionParams;
+        //to-do fixme do validation of subscriptionParams
+        if(!to){
+            throw new Error(`mandatory 'to' field was not provided for '${subscriptionParams.subscriberId}'`);
+        }else if(!to._stated_function__ && !to.function?._stated_function__){
+            throw new Error(`'to' parameter for '${subscriptionParams.subscriberId}' is neither a function or a step object with a function field`);
+        }
 
-        const {testData, client:clientParams={type:'test'}} = subscriptionParams;
         const {type:clientType} = clientParams;
 
         if (testData !== undefined) {
-            if(testData !== undefined){
-                this.logger.debug(`No 'real' subscription created because testData provided for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
-                const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams);
-                await dispatcher.addBatch(testData);
-                await dispatcher.drainBatch(); // in test mode we wanna actually wait for all the test events to process
-                return;
-            }
+            this.logger.debug(`No 'real' subscription created because testData provided for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
+            const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams);
+            await dispatcher.addBatch(testData);
+            await dispatcher.drainBatch(); // in test mode we wanna actually wait for all the test events to process
+            return;
         }
         if(clientType==='test'){
             this.logger.debug(`No 'real' subscription created because client.type='test' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
@@ -516,7 +551,10 @@ export class StatedWorkflow {
             currentInput = await this.runStep(workflowInvocation, step, currentInput);
         }
 
-        //if (!tp.options.keepLogs) await StatedWorkflow.deleteStepsLogs(workflowInvocation, steps);
+
+        //we do not need to await this. Deletion can happen async
+        if (!tp.options.keepLogs) StatedWorkflow.deleteStepsLogs(workflowInvocation, steps)
+            .catch(e=>this.templateProcessor.logger.error(`failed to delete completed log with invocation id '${workflowInvocation}'`));
 
         return currentInput;
     }
@@ -564,10 +602,7 @@ export class StatedWorkflow {
     }
 
     static async deleteStepsLogs(workflowInvocation, steps){
-        for (let i = 0; i < steps.length; i++) {
-
-            await steps[i].deleteLogs(workflowInvocation);
-        }
+        await Promise.all(steps.map(s=>s.deleteLogs(workflowInvocation)));
     }
 
     // ensures that the log object has the right structure for the workflow invocation
@@ -713,11 +748,12 @@ export class StatedWorkflow {
             if (step.next) this.workflow(currentInput, step.next, options);
         }
 
-        this.finalizeLog(log[workflowName][id]);
-        this.ensureRetention(log[workflowName]);
+        //this.finalizeLog(log[workflowName][id]);
+        //this.ensureRetention(log[workflowName]);
 
         return currentInput;
     }
+
 
     async close() {
 
@@ -729,6 +765,8 @@ export class StatedWorkflow {
             }
             this.pulsarClient = undefined;
         }
+
+        this.templateProcessor.removeDataChangeCallback(this.changeListener);
 
         // TODO: check if consumers can be closed without client
         // for (let consumer of StatedWorkflow.consumers.values()) {
@@ -742,5 +780,6 @@ export class StatedWorkflow {
         } catch (error) {
             console.error("Error closing workflow dispatcher:", error);
         }
+        clearInterval(this.snapshotInterval);
     }
 }

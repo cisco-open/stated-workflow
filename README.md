@@ -7,8 +7,8 @@
     * [Running the REPL](#running-the-repl)
     * [Configuration](#configuration)
 * [Stated Template Jobs](#stated-template-jobs-)
-    * [Job Concurrency](#job-concurrency)
-    * [Internal Job Concurrency](#internal-job-concurrency)
+  * [Job Concurrency](#job-concurrency)
+  * [Internal Job Concurrency](#internal-job-concurrency)
 * [Stated Workflow Functions](#stated-workflow-functions)
   * [Cloud Events](#cloud-events)
   * [Durability](#durability)
@@ -68,110 +68,11 @@ For example you can enter this command in the REPL:
 > .init -f "example/homeworld.json"
 ```
 
-### Configuration
-Stated Workflows extend Stated and stated Repl works out of the box. It provides all of the functionality of Stated, 
-including the ability to provide an additional configuration with `--options` flag. 
-
-Workflow Functions can be configured with `--option={"keepLogs":true}`. This will preserve the logs of completed steps 
-for debugging in the template, instead of deleting them on a function completion.
-
-# Stated Template Jobs 
-A job is a pure Stated Template that runs to completion and does not receive any asynchronous inputs.
-A job has a beginning, and an end. Here is a job that uses the Starwars API to search for Luke Skywalker's details,
-extract the homeworld URL, retrieve the homeworld details, and extract the homeworld's name.
-```json
-{
-  "lukePersonDetails": "${ $fetch('https://swapi.dev/api/people/?search=luke').json().results[0]}",
-  "lukeHomeworldURL": "${ lukePersonDetails.homeworld }",
-  "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
-  "homeworldName": "${ homeworldDetails.name }"
-}
-```
-![homeworld workflow](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow.svg)
-
-Try it, from the [Stated REPL](https://github.com/cisco-open/stated#running-the-repl). The `.init` command loads the
-example
-
-```json
-luke$ stateflow
-> .init -f "example/homeworld.json"
-{
-  "lukePersonDetails": "${ $fetch('https://swapi.dev/api/people/?search=luke').json().results[0]}",
-  "lukeHomeworldURL": "${ lukePersonDetails.homeworld }",
-  "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
-  "homeworldName": "${ homeworldDetails.name }"
-}
-> .out
-{
-  "lukePersonDetails": {
-    "name": "Luke Skywalker",
-    "height": "172",
-    "mass": "77",
-    "hair_color": "blond",
-    "skin_color": "fair",
-    "eye_color": "blue",
-    "birth_year": "19BBY",
-    "gender": "male",
-    "homeworld": "https://swapi.dev/api/planets/1/",
-    "films": [
-      "https://swapi.dev/api/films/1/",
-      "https://swapi.dev/api/films/2/",
-      "https://swapi.dev/api/films/3/",
-      "https://swapi.dev/api/films/6/"
-    ],
-    "species": [],
-    "vehicles": [
-      "https://swapi.dev/api/vehicles/14/",
-      "https://swapi.dev/api/vehicles/30/"
-    ],
-    "starships": [
-      "https://swapi.dev/api/starships/12/",
-      "https://swapi.dev/api/starships/22/"
-    ],
-    "created": "2014-12-09T13:50:51.644000Z",
-    "edited": "2014-12-20T21:17:56.891000Z",
-    "url": "https://swapi.dev/api/people/1/"
-  },
-  "lukeHomeworldURL": "https://swapi.dev/api/planets/1/",
-  "homeworldDetails": {
-    "name": "Tatooine",
-    "rotation_period": "23",
-    "orbital_period": "304",
-    "diameter": "10465",
-    "climate": "arid",
-    "gravity": "1 standard",
-    "terrain": "desert",
-    "surface_water": "1",
-    "population": "200000",
-    "residents": [
-      "https://swapi.dev/api/people/1/",
-      "https://swapi.dev/api/people/2/",
-      "https://swapi.dev/api/people/4/",
-      "https://swapi.dev/api/people/6/",
-      "https://swapi.dev/api/people/7/",
-      "https://swapi.dev/api/people/8/",
-      "https://swapi.dev/api/people/9/",
-      "https://swapi.dev/api/people/11/",
-      "https://swapi.dev/api/people/43/",
-      "https://swapi.dev/api/people/62/"
-    ],
-    "films": [
-      "https://swapi.dev/api/films/1/",
-      "https://swapi.dev/api/films/3/",
-      "https://swapi.dev/api/films/4/",
-      "https://swapi.dev/api/films/5/",
-      "https://swapi.dev/api/films/6/"
-    ],
-    "created": "2014-12-09T13:50:49.641000Z",
-    "edited": "2014-12-20T20:58:18.411000Z",
-    "url": "https://swapi.dev/api/planets/1/"
-  },
-  "homeworldName": "Tatooine"
-}
-```
-As you can see, for this workflow, there is nothing required beyond a standard Stated template.
-Stated already provides the mechanism to parse and analyze expressions and build an execution plan
-based on the DAG. Let's look at the execution plan Stated has built.
+# Stated Templates
+Ordinary [stated templates](https://github.com/cisco-open/stated?tab=readme-ov-file#stated) run a change graph called a
+[DAG](https://github.com/cisco-open/stated?tab=readme-ov-file#dag). 
+Stated flattens the DAG and executes it as a sequence of expressions called the `plan`. The example below illustrates how a plan executes a sequence of REST calls and transformations in an ordinary Stated
+template. 
 ```json
 > .init -f "example/homeworld.json"
 {
@@ -179,26 +80,6 @@ based on the DAG. Let's look at the execution plan Stated has built.
   "lukeHomeworldURL": "${ lukePersonDetails.homeworld }",
   "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
   "homeworldName": "${ homeworldDetails.name }"
-}
-> .plan 
-[
-  "/lukePersonDetails",
-  "/lukeHomeworldURL",
-  "/homeworldDetails",
-  "/homeworldName"
-]
-```
-The `.plan` REPL command shows us that Stated understands that there is a list of fields that must
-be computed sequentially. This has nothing to do with the apparent order of the fields in the
-JSON document. We can scramble the original file's key order and verify that
-the execution plan is unchanged:
-```json
-> .init -f "example/homeworld-scrambled.json"
-{
-  "homeworldName": "${ homeworldDetails.name }",
-  "lukePersonDetails": "${ $fetch('https://swapi.dev/api/people/?search=luke').json().results[0]}",
-  "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
-  "lukeHomeworldURL": "${ lukePersonDetails.homeworld }"
 }
 > .plan
 [
@@ -208,190 +89,42 @@ the execution plan is unchanged:
   "/homeworldName"
 ]
 ```
-Stated's DAG also understands the flow of data from any field outwards.
-For example, let's see what will be recomputed if `homeWorldDetails`changes. The `.from` command
-shows us that for an origin of `/homeworldDetails`, the DAG flows to `/homeworldName`
-```json
-> .init -f "example/homeworld-scrambled.json"
-{
-  "homeworldName": "${ homeworldDetails.name }",
-  "lukePersonDetails": "${ $fetch('https://swapi.dev/api/people/?search=luke').json().results[0]}",
-  "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
-  "lukeHomeworldURL": "${ lukePersonDetails.homeworld }"
-}
-> .from /homeworldDetails
-[
-  "/homeworldDetails",
-  "/homeworldName"
-]
-```
+![homeworld workflow](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow.svg)
 
+As 'luke' moves through the `plan` two REST calls are made, and no new inputs can enter. This is because Stated 
+quees execution plans, allowing one to complete before the next can enter. This is a clean way to prevent 
+concurrent state mutations, and works well for in-memory computation DAGs. We can see that long
+running I/O operations, however, will bottleneck the template. If the template engine is shutdown, there is no way to 'restart'
+the work where it left off.
 
-Let's compare this to it's equivalent in CNCF Serverless Workflows. As you can see, with no expression analyzer and
-no internal DAG builder, the developer of a CNCF workflow must specify the states, and the transition between states.
-<details>
-<summary>CNCF Serverless Workflow (click to expand...a lot)</summary>
-<pre>
-{
-  "id": "starwars-luke-search",
-  "version": "1.0",
-  "name": "Star Wars API - Luke Search",
-  "start": "Fetch Skywalker Details",
-  "functions": [
-    {
-      "name": "getLukeSkywalkerDetails",
-      "operation": "https://swapi.dev/api/people/?search={$.parameters.name}",
-      "type": "rest",
-      "metadata": {
-        "method": "GET",
-        "content-type": "application/json"
-      }
-    },
-    {
-      "name": "getHomeworldDetails",
-      "operation": "https://{$.parameters.homeworld}",
-      "type": "rest",
-      "metadata": {
-        "method": "GET",
-        "content-type": "application/json"
-      }
-    }
-  ],
-  "states": [
-    {
-      "name": "Fetch Skywalker Details",
-      "type": "operation",
-      "actions": [
-        {
-          "functionRef": {
-            "refName": "getLukeSkywalkerDetails",
-            "arguments": {
-              "name": "luke"
-            }
-          }
-        }
-      ],
-      "transition": "Fetch Homeworld Details"
-    },
-    {
-      "name": "Fetch Homeworld Details",
-      "type": "operation",
-      "actions": [
-        {
-          "functionRef": {
-            "refName": "getHomeworldDetails",
-            "arguments": {
-              "homeworld": "${ .results[0].homeworld }"
-            }
-          }
-        }
-      ],
-      "end": true
-    }
-  ]
-}
-</pre>
+# Stated Workflow Pipelines
+Stated Workflows pipeline functions expand the purview of stated templates from fast-running compute graphs into the realm of I/O-heavy, 
+long running, concurrent workflows:
+ * _**Pipeline Functions**_ - Stated Workflows provide specific support for `$serial` and `$parallel` execution pipelines that can 
+   be mixed together and safely run in parallel. Unlike an ordinary expression `plan`, `$serial` and `$parallel` are pipelined
+   and nonblocking. As events arrive they can directly enter a `$serial` or `$parallel` without waiting. 
+ * _**Durability**_ - Pipeline Functions (`$serial` and `parallel`) work with `--options={"snapshot":{...opts...}}` to 
+   snapshot their state to various stores. Stated Workflows can be started from a snapshot, hence restoring all pipeline
+   functions to their state at the time of the snapshot.
+ * _**State Safety**_ pipelines cannot access template state except at their inputs and outputs. Pipeline functions pass
+   data from one pipeline step to the next. This means that each invocation of a pipeline function is isolated.
+ * _**Pub/Sub Connectors**_ in an ordinary Stated Template, changes are injected into the template, either by using the REPL, or 
+  by building a program that utilizes the [TemplateProcessor API](https://cisco-open.github.io/stated/classes/TemplateProcessor.default.html).
+  Stated Workflows provide direct access to `$publish` and `subscribe` functions that can dispatch into execution pipelines
+  with any desired parallelism. Events are typically dispatched into `$serial` or `$parallel` pipelines to 
+  combine concurrent execution with durability
 
-</details>
-
-### Job Concurrency
-Job's can be run concurrently because each job's state is totally encapsulated
-in its template variables. The following JS code shows how to launch 10 jobs
-in parallel.
-
-```javascript
-// This example uses the stated-js package to process a template that fetches
-// Luke Skywalker's details and his homeworld information from the Star Wars API.
-// It demonstrates initializing ten TemplateProcessor instances in parallel.
-
-import TemplateProcessor from 'stated-js';
-
-const template = {
-  "lukePersonDetails": "${ $fetch('https://swapi.dev/api/people/?search=luke').json().results[0]}",
-  "lukeHomeworldURL": "${ lukePersonDetails.homeworld }",
-  "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
-  "homeworldName": "${ homeworldDetails.name }"
-};
-
-async function runParallel(template, count) {
-  const processors = Array.from({ length: count }, () => new TemplateProcessor(template));
-  const initPromises = processors.map(tp => tp.initialize().then(() => tp));
-
-  try {
-    const initializedProcessors = await Promise.all(initPromises);
-    initializedProcessors.forEach((tp, index) => {
-      console.log(`Processor ${index + 1} output:`, tp.output);
-      // Any additional logic for processor output can go here
-    });
-  } catch (error) {
-    // Error handling can be implemented here
-    console.error('Error initializing TemplateProcessors:', error);
-  }
-}
-
-//run 10 templates in parallel
-runParallel(template, 10)
-        .then(() => console.log('All TemplateProcessors have been initialized.'))
-        .catch(error => console.error(error));
-
-```
-### Internal Job Concurrency
-let's modify our homeworlds example to make a concurrent homeworlds example.
-We have used the stated `!` operator to remove `personDetails` and `homeworldDetails` from the output to avoid clutter.
-JSONata automatically makes array
-```json
-> .init -f "example/concurrent-homeworlds.json"
-{
-  "people": [
-    "luke",
-    "han"
-  ],
-  "personDetails": "!${ people.$fetch('https://swapi.dev/api/people/?search='& $).json().results[0]}",
-  "homeworldURLs": "${ personDetails.homeworld }",
-  "homeworldDetails": "!${ homeworldURLs.$fetch($).json() }",
-  "homeworldName": "${ homeworldDetails.name }"
-}
-> .set /people ["luke","han","leia"]
-{
-  "people": [
-    "luke",
-    "han",
-    "leia"
-  ],
-  "homeworldURLs": [
-    "https://swapi.dev/api/planets/1/",
-    "https://swapi.dev/api/planets/22/",
-    "https://swapi.dev/api/planets/2/"
-  ],
-  "homeworldName": [
-    "Tatooine",
-    "Corellia",
-    "Alderaan"
-  ]
-}
-```
-
-# Stated Workflow Functions
-Stated alone is a powerful and concise workflow engine. So why do
-we need Stated-Workflows and what is it? Stated-Workflows is a set
-of functions that provide integration with cloud events, durability and high
-availability to workflows, when they are executed in the Stated-Workflows
-clustered runtime.
-
-## Cloud Events
+## Non-blocking Event Driven
 Stated-Workflows provides a set of functions that allow you to integrate with cloud events, consuming and producing from
-Kafka or Pulsar message buses, as well as HTTP. The following example shows how to use the `publish` and `subscribe`  
-functions. Below producer and subscriber configs are using `test` clients, but `kafka` and `pulsar` clients can be used 
-to communicate with the actual message buses. Data for testing can be fed in by setting the `data` field of the `produceParams`.
-As shown below, the test data is set to `['luke', 'han', 'leia']`. The subscriber's `to` function, `joinResistance`, appends
-each received rebel to the `rebelForces` array.
+Kafka or Pulsar message buses, as well as HTTP. Publishers and subscribers can be initialized with test data. This example,
+`joinResistance.yaml`, generates URLS for members of the resistance, as test data.
 
 ```yaml
-falken$> cat example/pubsub.yaml
+start: ${ $millis() }
 # producer will be sending some test data
 produceParams:
   type: "my-topic"
-  data: ['luke', 'han', 'leia']
+  data: ${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge'].('https://swapi.dev/api/people/?search='&$)}
   client:
     type: test
 # the subscriber's 'to' function will be called on each received event
@@ -401,638 +134,237 @@ subscribeParams: #parameters for subscribing to an event
   to: /${joinResistance}
   subscriberId: rebelArmy
   initialPosition: latest
+  parallelism: 1
   client:
     type: test
-joinResistance:  /${ function($rebel){ $set('/rebelForces', rebelForces~>$append($rebel))}  }
+joinResistance:  |
+  /${ 
+    function($url){(
+        $rebel := $fetch($url).json().results[0].name; 
+        $set( "/rebelForces/-", $rebel) /* append rebel to rebelForces */
+    )}  
+  }
 # starts producer function
 send$: $publish(produceParams)
 # starts consumer function
 recv$: $subscribe(subscribeParams)
 # the subscriber's `to` function will write the received data here
 rebelForces: [ ]
-````
-We can use the REPL to run the pubsub.yaml example, and monitor the `/rebelForces` by tailing it until it contains all
-three of the published messages.
-```json ["data=['luke', 'han', 'leia']"]
-> .init -f "example/pubsub.yaml" --tail "/rebelForces until $=['luke', 'han', 'leia']"
+runtime: ${ (rebelForces; "Rebel forces assembled in " & $string($millis()-start) & " ms")}
+```
+
+Let's see how long it takes to run, using a parallelism of 1 in the subscriber as shown above:
+```json ["$count(data)=10", "$~>$contains('Rebel forces assembled in')"]
+> .init -f "example/joinResistance.yaml" --tail "/rebelForces until $~>$count=10"
 Started tailing... Press Ctrl+C to stop.
 [
-"luke",
-"han",
-"leia"
+"Luke Skywalker",
+"Han Solo",
+"Leia Organa",
+"R2-D2",
+"Owen Lars",
+"Biggs Darklighter",
+"Obi-Wan Kenobi",
+"Anakin Skywalker",
+"Chewbacca",
+"Wedge Antilles"
+]
+> .out /runtime
+"Rebel forces assembled in 3213 ms"
+```
+Now let's run a modified version where `subscribeParams` have `"parallelism": 5`
+```json  ["$count(data)=10", "$~>$contains('Rebel forces assembled in')"]
+> .init -f "example/joinResistanceFast.yaml" --tail "/rebelForces until $~>$count=10"
+Started tailing... Press Ctrl+C to stop.
+[
+"Owen Lars",
+"Han Solo",
+"R2-D2",
+"Leia Organa",
+"Luke Skywalker",
+"Chewbacca",
+"Obi-Wan Kenobi",
+"Wedge Antilles",
+"Anakin Skywalker",
+"Biggs Darklighter"
+]
+> .out /runtime
+"Rebel forces assembled in 1529 ms"
+
+```
+The speedup for `joinResistanceFast.yaml` shows that the events are processed concurrently without any `plan` serialization.
+
+
+## Atomic Updates
+The example above used an atomic write primitive to update `/rebelForces`. Let's consider what happens if we don't use 
+an atomic write primitive. 
+```yaml
+joinResistance:  |
+  /${ 
+    function($url){(
+        $rebel := $fetch($url).json().results[0].name; 
+        $set( "/rebelForces", $rebelForces~>$append($rebel)) /* BUG!! */
+    )}  
+  }
+```
+The last writer wins, and we get a [lost-update problem](https://medium.com/@bindubc/distributed-system-concurrency-problem-in-relational-database-59866069ca7c#:~:text=Lost%20Update%20Problem%3A&text=In%20simple%20words%2C%20when%20two,update%20of%20the%20first%20transaction.).
+You can see below that using a naive update strategy to update `rebelForces` results in only one of the 10 names
+appearing in the array. The argument `--tail "/rebelForces 10"` instructs tail to stop tailing after 10 changes. Each
+of the concurrent pipeline invocations have updated the array, but only the last writer will win.
+```json ["$count(data)=1"]
+> .init -f "example/joinResistanceBug.yaml" --tail "/rebelForces 10"
+Started tailing... Press Ctrl+C to stop.
+"Wedge Antilles"
+```
+Stated Workflows provides an atomic primitive that prevents [lost-updates](https://medium.com/@bindubc/distributed-system-concurrency-problem-in-relational-database-59866069ca7c#:~:text=Lost%20Update%20Problem%3A&text=In%20simple%20words%2C%20when%20two,update%20of%20the%20first%20transaction.) 
+with concurrent mutations of arrays.  It does this by using a
+special JSON pointer defined by [RFC 6902 JSON Patch for appending to an array](https://datatracker.ietf.org/doc/html/rfc6902#appendix-A.16).
+The `joinResistanceFast.yaml` example shows how to use the syntax: `$set( "/rebelForces/-", $rebel)`
+to safely append to an array.
+```yaml
+joinResistance:  |
+  /${ 
+    function($url){(
+        $rebel := $fetch($url).json().results[0].name; 
+        $set( "/rebelForces/-", $rebel) /* append rebel to rebelForces */
+    )}  
+  }
+```
+Again we can show that `joinResistanceFast.yaml` produces the expected 10 results.
+```json ["$count(data)=10", "$count(data)<10"]
+> .init -f "example/joinResistanceFast.yaml" --tail "/rebelForces 10"
+Started tailing... Press Ctrl+C to stop.
+[
+  "Owen Lars",
+  "Han Solo",
+  "R2-D2",
+  "Luke Skywalker",
+  "Leia Organa",
+  "Chewbacca",
+  "Obi-Wan Kenobi",
+  "Wedge Antilles",
+  "Anakin Skywalker",
+  "Biggs Darklighter"
 ]
 
 ```
 
+## Pure Function Pipelines - $serial and $parallel
+Although stated provides the primitive for atomic updates, it's still advisable to avoid concurrent mutation. We tried
+and true way to avoid shared state mutation is with pure functions like this, that only update shared state at the end
+of the pipeline.
+ ```json
+function($x){ $x ~> f1 ~> f2 ~> f3 ~> function($x){$set('/saveResult/-', $x) } }
+```
+This pipeline can be concurrently dispatched safely. 
 
-## Durability
-Pure Stated does not provide durability or high availability. Stated-workflows adds
-the dimension of _durability_ and _high-availability_ to template execution. To achieve these "ilities", Stated-workflows must
-run in Stated-Workflow cluster. However, it is not necessary to run in a cluster to write, test, and debug
-Stated-Workflows locally. As long as you don't "unplug" the stated REPL, it will produce functionally the same result
-as running in Stated-Workflow cluster. Stated-Workflows provides a "local cluster" option where you can test the
-_durability_ of stated workflows by unceremoniously "killing" the REPL and then restarting the workflow at a later time.
+# Durability
+Stated Workflows provides a `$serial` and a `$parallel` function that should be used when you want each stage of a concurrent
+pipeline to be snapshotted to durable storage. The `stateflow` REPL provides a local persistence option, as well as 
+pluggable snapshot persistence. 
 
 ## Workflow Step Logs
-Stated Workflow provides durability by defining the Step as the unit of durability. A step
-is nothing more than a json object that has a field named 'function', that is a JSONata `function`
+The `$serial` and `$parallel` functions accept an array of object called "steps". A step is nothing but an object with
+a field named 'function'. A durable workflow is formed by passing an array of steps to `$serial` or `$parallel`, like this:
 ```json
 {
-  "function": "${ function($in){ $in + 42 } }"
+  "out": "${ 'luke' ~> $serial([f1, f2])}",
+  "f1": {
+    "function": "${ function($in){ $in & ' skywalker' } }"
+  },
+  "f2": {
+    "function": "${ function($in){ $in ~> $uppercase } }"
+  }  
 }
 ```
-Let's recast our homeworld example using Steps. This will give the Job durability, so that it
-can fail and be restarted. When a step function is called, the step's log is populated with
-an entry corresponding to a uniqe `invocationId` for the workflow. The log captures the `args`
-that were passed to the step function, as well the functions output (`out`). Once the step function 
-completes, the log is updated with the `end` timestamp, which indicates the step has completed.
-
-![steps](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow%20-%20Page%202.svg)
-When a workflow invocation completes, its logs can be deleted from each step. However, the logs can be preserved by 
-setting keepLogs option to true. Here we show the `homeworld-steps.json` workflow with keepLogs enabled. 
-steps.
+`$serial` and `$parallel` generate a unique invocation id like `2023-11-14-1699922094477-8e85`, each time they are invoked. 
+The id is used as a log key. The logs are stored inside each step. 
 ```json
-> .init -f "example/homeworlds-steps.json" --options={"keepLogs":true}
 {
-  "output": "${   ['luke', 'han']~>$map(workflow) }",
-  "workflow": "${ function($person){$person~>$serial(steps)} }",
-  "steps": [
-    {
-      "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
+  "out": "${ $serial([f1, f2])}",
+  "f1": {
+    "function": "${ function($in){ $in + 1 } }",
+    "log": {
+      "2023-11-14-1699922094477-8e85": {
+        "start": {
+          "timestamp": 1699922094477,
+          "args": "luke"
+        },
+        "end": {
+          "timestamp": 1699922095809,
+          "out": "luke skywalker"
+        }
+      }
     },
-    {
-      "function": "${  function($personDetail){$personDetail.homeworld}  }"
-    },
-    {
-      "function": "${  function($homeworldURL){$homeworldURL.$fetch($).json() }  }"
-    },
-    {
-      "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"
+    "f2": {
+      "function": "${ function($in){ $in * 2 } }"
     }
-  ]
+  }
 }
 ```
-
-<details>
-<summary>Execution output with keepLogs enabled (click to expand)</summary>
-
-```json ["output=['Tatooine','Corellia']"]
-> .out
-{
-  "output": [
-    "Tatooine",
-    "Corellia"
-  ],
-  "workflow": "{function:}",
-  "steps": [
-    {
-      "function": "{function:}",
-      "log": {
-        "2024-01-25-1706159105500-40ff": {
-          "start": {
-            "timestamp": 1706159105500,
-            "args": "luke"
-          },
-          "end": {
-            "timestamp": 1706159106777,
-            "out": {
-              "name": "Luke Skywalker",
-              "height": "172",
-              "mass": "77",
-              "hair_color": "blond",
-              "skin_color": "fair",
-              "eye_color": "blue",
-              "birth_year": "19BBY",
-              "gender": "male",
-              "homeworld": "https://swapi.dev/api/planets/1/",
-              "films": [
-                "https://swapi.dev/api/films/1/",
-                "https://swapi.dev/api/films/2/",
-                "https://swapi.dev/api/films/3/",
-                "https://swapi.dev/api/films/6/"
-              ],
-              "species": [],
-              "vehicles": [
-                "https://swapi.dev/api/vehicles/14/",
-                "https://swapi.dev/api/vehicles/30/"
-              ],
-              "starships": [
-                "https://swapi.dev/api/starships/12/",
-                "https://swapi.dev/api/starships/22/"
-              ],
-              "created": "2014-12-09T13:50:51.644000Z",
-              "edited": "2014-12-20T21:17:56.891000Z",
-              "url": "https://swapi.dev/api/people/1/"
-            }
-          }
-        },
-        "2024-01-25-1706159108206-se1m": {
-          "start": {
-            "timestamp": 1706159108206,
-            "args": "han"
-          },
-          "end": {
-            "timestamp": 1706159109303,
-            "out": {
-              "name": "Han Solo",
-              "height": "180",
-              "mass": "80",
-              "hair_color": "brown",
-              "skin_color": "fair",
-              "eye_color": "brown",
-              "birth_year": "29BBY",
-              "gender": "male",
-              "homeworld": "https://swapi.dev/api/planets/22/",
-              "films": [
-                "https://swapi.dev/api/films/1/",
-                "https://swapi.dev/api/films/2/",
-                "https://swapi.dev/api/films/3/"
-              ],
-              "species": [],
-              "vehicles": [],
-              "starships": [
-                "https://swapi.dev/api/starships/10/",
-                "https://swapi.dev/api/starships/22/"
-              ],
-              "created": "2014-12-10T16:49:14.582000Z",
-              "edited": "2014-12-20T21:17:50.334000Z",
-              "url": "https://swapi.dev/api/people/14/"
-            }
-          }
-        }
-      }
-    },
-    {
-      "function": "{function:}",
-      "log": {
-        "2024-01-25-1706159105500-40ff": {
-          "start": {
-            "timestamp": 1706159106777,
-            "args": {
-              "name": "Luke Skywalker",
-              "height": "172",
-              "mass": "77",
-              "hair_color": "blond",
-              "skin_color": "fair",
-              "eye_color": "blue",
-              "birth_year": "19BBY",
-              "gender": "male",
-              "homeworld": "https://swapi.dev/api/planets/1/",
-              "films": [
-                "https://swapi.dev/api/films/1/",
-                "https://swapi.dev/api/films/2/",
-                "https://swapi.dev/api/films/3/",
-                "https://swapi.dev/api/films/6/"
-              ],
-              "species": [],
-              "vehicles": [
-                "https://swapi.dev/api/vehicles/14/",
-                "https://swapi.dev/api/vehicles/30/"
-              ],
-              "starships": [
-                "https://swapi.dev/api/starships/12/",
-                "https://swapi.dev/api/starships/22/"
-              ],
-              "created": "2014-12-09T13:50:51.644000Z",
-              "edited": "2014-12-20T21:17:56.891000Z",
-              "url": "https://swapi.dev/api/people/1/"
-            }
-          },
-          "end": {
-            "timestamp": 1706159106778,
-            "out": "https://swapi.dev/api/planets/1/"
-          }
-        },
-        "2024-01-25-1706159108206-se1m": {
-          "start": {
-            "timestamp": 1706159109304,
-            "args": {
-              "name": "Han Solo",
-              "height": "180",
-              "mass": "80",
-              "hair_color": "brown",
-              "skin_color": "fair",
-              "eye_color": "brown",
-              "birth_year": "29BBY",
-              "gender": "male",
-              "homeworld": "https://swapi.dev/api/planets/22/",
-              "films": [
-                "https://swapi.dev/api/films/1/",
-                "https://swapi.dev/api/films/2/",
-                "https://swapi.dev/api/films/3/"
-              ],
-              "species": [],
-              "vehicles": [],
-              "starships": [
-                "https://swapi.dev/api/starships/10/",
-                "https://swapi.dev/api/starships/22/"
-              ],
-              "created": "2014-12-10T16:49:14.582000Z",
-              "edited": "2014-12-20T21:17:50.334000Z",
-              "url": "https://swapi.dev/api/people/14/"
-            }
-          },
-          "end": {
-            "timestamp": 1706159109308,
-            "out": "https://swapi.dev/api/planets/22/"
-          }
-        }
-      }
-    },
-    {
-      "function": "{function:}",
-      "log": {
-        "2024-01-25-1706159105500-40ff": {
-          "start": {
-            "timestamp": 1706159106781,
-            "args": "https://swapi.dev/api/planets/1/"
-          },
-          "end": {
-            "timestamp": 1706159108189,
-            "out": {
-              "name": "Tatooine",
-              "rotation_period": "23",
-              "orbital_period": "304",
-              "diameter": "10465",
-              "climate": "arid",
-              "gravity": "1 standard",
-              "terrain": "desert",
-              "surface_water": "1",
-              "population": "200000",
-              "residents": [
-                "https://swapi.dev/api/people/1/",
-                "https://swapi.dev/api/people/2/",
-                "https://swapi.dev/api/people/4/",
-                "https://swapi.dev/api/people/6/",
-                "https://swapi.dev/api/people/7/",
-                "https://swapi.dev/api/people/8/",
-                "https://swapi.dev/api/people/9/",
-                "https://swapi.dev/api/people/11/",
-                "https://swapi.dev/api/people/43/",
-                "https://swapi.dev/api/people/62/"
-              ],
-              "films": [
-                "https://swapi.dev/api/films/1/",
-                "https://swapi.dev/api/films/3/",
-                "https://swapi.dev/api/films/4/",
-                "https://swapi.dev/api/films/5/",
-                "https://swapi.dev/api/films/6/"
-              ],
-              "created": "2014-12-09T13:50:49.641000Z",
-              "edited": "2014-12-20T20:58:18.411000Z",
-              "url": "https://swapi.dev/api/planets/1/"
-            }
-          }
-        },
-        "2024-01-25-1706159108206-se1m": {
-          "start": {
-            "timestamp": 1706159109313,
-            "args": "https://swapi.dev/api/planets/22/"
-          },
-          "end": {
-            "timestamp": 1706159111220,
-            "out": {
-              "name": "Corellia",
-              "rotation_period": "25",
-              "orbital_period": "329",
-              "diameter": "11000",
-              "climate": "temperate",
-              "gravity": "1 standard",
-              "terrain": "plains, urban, hills, forests",
-              "surface_water": "70",
-              "population": "3000000000",
-              "residents": [
-                "https://swapi.dev/api/people/14/",
-                "https://swapi.dev/api/people/18/"
-              ],
-              "films": [],
-              "created": "2014-12-10T16:49:12.453000Z",
-              "edited": "2014-12-20T20:58:18.456000Z",
-              "url": "https://swapi.dev/api/planets/22/"
-            }
-          }
-        }
-      }
-    },
-    {
-      "function": "{function:}",
-      "log": {
-        "2024-01-25-1706159105500-40ff": {
-          "start": {
-            "timestamp": 1706159108190,
-            "args": {
-              "name": "Tatooine",
-              "rotation_period": "23",
-              "orbital_period": "304",
-              "diameter": "10465",
-              "climate": "arid",
-              "gravity": "1 standard",
-              "terrain": "desert",
-              "surface_water": "1",
-              "population": "200000",
-              "residents": [
-                "https://swapi.dev/api/people/1/",
-                "https://swapi.dev/api/people/2/",
-                "https://swapi.dev/api/people/4/",
-                "https://swapi.dev/api/people/6/",
-                "https://swapi.dev/api/people/7/",
-                "https://swapi.dev/api/people/8/",
-                "https://swapi.dev/api/people/9/",
-                "https://swapi.dev/api/people/11/",
-                "https://swapi.dev/api/people/43/",
-                "https://swapi.dev/api/people/62/"
-              ],
-              "films": [
-                "https://swapi.dev/api/films/1/",
-                "https://swapi.dev/api/films/3/",
-                "https://swapi.dev/api/films/4/",
-                "https://swapi.dev/api/films/5/",
-                "https://swapi.dev/api/films/6/"
-              ],
-              "created": "2014-12-09T13:50:49.641000Z",
-              "edited": "2014-12-20T20:58:18.411000Z",
-              "url": "https://swapi.dev/api/planets/1/"
-            }
-          },
-          "end": {
-            "timestamp": 1706159108197,
-            "out": [
-              "/output/-"
-            ]
-          }
-        },
-        "2024-01-25-1706159108206-se1m": {
-          "start": {
-            "timestamp": 1706159111221,
-            "args": {
-              "name": "Corellia",
-              "rotation_period": "25",
-              "orbital_period": "329",
-              "diameter": "11000",
-              "climate": "temperate",
-              "gravity": "1 standard",
-              "terrain": "plains, urban, hills, forests",
-              "surface_water": "70",
-              "population": "3000000000",
-              "residents": [
-                "https://swapi.dev/api/people/14/",
-                "https://swapi.dev/api/people/18/"
-              ],
-              "films": [],
-              "created": "2014-12-10T16:49:12.453000Z",
-              "edited": "2014-12-20T20:58:18.456000Z",
-              "url": "https://swapi.dev/api/planets/22/"
-            }
-          },
-          "end": {
-            "timestamp": 1706159111232,
-            "out": [
-              "/output/-"
-            ]
-          }
-        }
-      }
-    }
-  ]
-}
-```
-</details>
-
-## Error Handling
-If a step function throws an `Error`, or returns `undefined`, the invocation log will contain a `fail`. In the
-example below we intentionally break the second step by concatenating "--broken--" to the homeword URL.
+When the step completes, its invocation log is removed. 
 ```json
-> .init -f "example/homeworlds-steps-error.json" --options={"keepLogs":true}
 {
-  "output": "${   ['luke', 'han']~>$map(workflow) }",
-  "workflow": "${ function($person){$person~>$serial(steps)} }",
-  "steps": [
-    {
-      "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
-    },
-    {
-      "function": "${  function($personDetail){$personDetail.homeworld & '--broken--'}  }"
-    },
-    {
-      "function": "${  function($homeworldURL){$fetch($homeworldURL).json() }  }"
-    },
-    {
-      "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"
-    }
-  ]
+  "out": "${ $serial([f1, f2])}",
+  "f1": {
+    "function": "${ function($in){ $in + 1 } }",
+    "log": {}
+   },
+  "f2": {
+    "function": "${ function($in){ $in * 2 } }",
+    "log": {}
+  }
 }
 ```
-Note the `fail` that occurs in logs for luke and han in the below execution output. Also note that the final fourth step 
-contains no `start` entry as $serial execution halts on fail.
-
-<details>
-<summary>Execution output with keepLogs enabled (click to expand)</summary>
-
-```json ["steps[2].log.*.fail ~> $count = 2"]
-> .out
+## snapshots
+Snapshots save the state of a stated template, repeatedly as it runs. Snapshotting allows a Stated Workflow to be stopped
+non-gracefully, and restored from the snapshot. The step logs allow invocations to restart where they left off. 
+```json
+> .init -f "example/inhabitants.yaml" --options={"snapshot":{"seconds":1}}
 {
-  "output": null,
-  "workflow": "{function:}",
-  "steps": [
-    {
-      "function": "{function:}",
-      "log": {
-        "2023-11-14-1699923328135-1dsf": {
-          "start": {
-            "timestamp": 1699923328136,
-            "args": "luke"
-          },
-          "end": {
-            "timestamp": 1699923329596,
-            "out": {
-              "name": "Luke Skywalker",
-              "height": "172",
-              "mass": "77",
-              "hair_color": "blond",
-              "skin_color": "fair",
-              "eye_color": "blue",
-              "birth_year": "19BBY",
-              "gender": "male",
-              "homeworld": "https://swapi.dev/api/planets/1/",
-              "films": [
-                "https://swapi.dev/api/films/1/",
-                "https://swapi.dev/api/films/2/",
-                "https://swapi.dev/api/films/3/",
-                "https://swapi.dev/api/films/6/"
-              ],
-              "species": [],
-              "vehicles": [
-                "https://swapi.dev/api/vehicles/14/",
-                "https://swapi.dev/api/vehicles/30/"
-              ],
-              "starships": [
-                "https://swapi.dev/api/starships/12/",
-                "https://swapi.dev/api/starships/22/"
-              ],
-              "created": "2014-12-09T13:50:51.644000Z",
-              "edited": "2014-12-20T21:17:56.891000Z",
-              "url": "https://swapi.dev/api/people/1/"
-            }
-          }
-        },
-        "2023-11-14-1699923330297-49lm": {
-          "start": {
-            "timestamp": 1699923330297,
-            "args": "han"
-          },
-          "end": {
-            "timestamp": 1699923331417,
-            "out": {
-              "name": "Han Solo",
-              "height": "180",
-              "mass": "80",
-              "hair_color": "brown",
-              "skin_color": "fair",
-              "eye_color": "brown",
-              "birth_year": "29BBY",
-              "gender": "male",
-              "homeworld": "https://swapi.dev/api/planets/22/",
-              "films": [
-                "https://swapi.dev/api/films/1/",
-                "https://swapi.dev/api/films/2/",
-                "https://swapi.dev/api/films/3/"
-              ],
-              "species": [],
-              "vehicles": [],
-              "starships": [
-                "https://swapi.dev/api/starships/10/",
-                "https://swapi.dev/api/starships/22/"
-              ],
-              "created": "2014-12-10T16:49:14.582000Z",
-              "edited": "2014-12-20T21:17:50.334000Z",
-              "url": "https://swapi.dev/api/people/14/"
-            }
-          }
-        }
-      }
-    },
-    {
-      "function": "{function:}",
-      "log": {
-        "2023-11-14-1699923328135-1dsf": {
-          "start": {
-            "timestamp": 1699923329596,
-            "args": {
-              "name": "Luke Skywalker",
-              "height": "172",
-              "mass": "77",
-              "hair_color": "blond",
-              "skin_color": "fair",
-              "eye_color": "blue",
-              "birth_year": "19BBY",
-              "gender": "male",
-              "homeworld": "https://swapi.dev/api/planets/1/",
-              "films": [
-                "https://swapi.dev/api/films/1/",
-                "https://swapi.dev/api/films/2/",
-                "https://swapi.dev/api/films/3/",
-                "https://swapi.dev/api/films/6/"
-              ],
-              "species": [],
-              "vehicles": [
-                "https://swapi.dev/api/vehicles/14/",
-                "https://swapi.dev/api/vehicles/30/"
-              ],
-              "starships": [
-                "https://swapi.dev/api/starships/12/",
-                "https://swapi.dev/api/starships/22/"
-              ],
-              "created": "2014-12-09T13:50:51.644000Z",
-              "edited": "2014-12-20T21:17:56.891000Z",
-              "url": "https://swapi.dev/api/people/1/"
-            }
-          },
-          "end": {
-            "timestamp": 1699923329596,
-            "out": "https://swapi.dev/api/planets/1/--broken--"
-          }
-        },
-        "2023-11-14-1699923330297-49lm": {
-          "start": {
-            "timestamp": 1699923331417,
-            "args": {
-              "name": "Han Solo",
-              "height": "180",
-              "mass": "80",
-              "hair_color": "brown",
-              "skin_color": "fair",
-              "eye_color": "brown",
-              "birth_year": "29BBY",
-              "gender": "male",
-              "homeworld": "https://swapi.dev/api/planets/22/",
-              "films": [
-                "https://swapi.dev/api/films/1/",
-                "https://swapi.dev/api/films/2/",
-                "https://swapi.dev/api/films/3/"
-              ],
-              "species": [],
-              "vehicles": [],
-              "starships": [
-                "https://swapi.dev/api/starships/10/",
-                "https://swapi.dev/api/starships/22/"
-              ],
-              "created": "2014-12-10T16:49:14.582000Z",
-              "edited": "2014-12-20T21:17:50.334000Z",
-              "url": "https://swapi.dev/api/people/14/"
-            }
-          },
-          "end": {
-            "timestamp": 1699923331417,
-            "out": "https://swapi.dev/api/planets/22/--broken--"
-          }
-        }
-      }
-    },
-    {
-      "function": "{function:}",
-      "log": {
-        "2023-11-14-1699923328135-1dsf": {
-          "start": {
-            "timestamp": 1699923329596,
-            "args": "https://swapi.dev/api/planets/1/--broken--"
-          },
-          "fail": {
-            "error": {
-              "position": null,
-              "token": "json"
-            },
-            "timestamp": 1699923330296
-          },
-          "retryCount": 0
-        },
-        "2023-11-14-1699923330297-49lm": {
-          "start": {
-            "timestamp": 1699923331417,
-            "args": "https://swapi.dev/api/planets/22/--broken--"
-          },
-          "fail": {
-            "error": {
-              "position": null,
-              "token": "json"
-            },
-            "timestamp": 1699923332071
-          },
-          "retryCount": 0
-        }
-      }
-    },
-    {
-      "function": "{function:}"
+  "produceParams": {
+    "type": "my-topic",
+    "data": "${[1..6].($fetch('https://swapi.dev/api/planets/?page=' & $string($)).json().results)}",
+    "client": {
+      "type": "test"
     }
-  ]
+  },
+  "subscribeResidents": {
+    "source": "cloudEvent",
+    "type": "/${ produceParams.type }",
+    "to": "/${ getResidentsWorkflow }",
+    "subscriberId": "subscribeResidents",
+    "parallelism": 4,
+    "client": {
+      "type": "test"
+    }
+  },
+  "getResidentsWorkflow": {
+    "function": "/${ function($planetInfo){ $planetInfo ~> $serial([extractResidents, fetchResidents]) }  }"
+  },
+  "extractResidents": {
+    "function": "/${ function($planet){$planet.residents.($fetch($).json())}  }"
+  },
+  "fetchResidents": {
+    "function": "/${ function($resident){$resident?$set('/residents/-',{'name':$resident.name, 'url':$resident.url})}  }"
+  },
+  "residents": [],
+  "send$": "$publish(produceParams)",
+  "recv$": "$subscribe(subscribeResidents)"
 }
+
 ```
-</details>
+The `--options={"snapshot":{"seconds":1}}` causes a snapshot to be saved to `defaultSnapshot.json` once a
+second. The snapshot is just an ordinary json file with two parts: `{"template":{...}, "output":{...}}`
+
+```shell
+cat defaultSnapshot.json
+```
 
 ### retries
-Each step can provide an optional boolean function `shouldRetry`. On a workflow invocation failure the function will be 
+Each step can provide an optional boolean function `shouldRetry`. On a workflow invocation failure the function will be
 called with an invocation log passed as an argument. If the function returns true, the function will be retried.
-The invocatiopn log contains a `retryCount` field that can be used to limit the number of retries. 
+The invocatiopn log contains a `retryCount` field that can be used to limit the number of retries.
 
 The following example shows how to use the `shouldRetry` function to retry a step 4 times before failing.
 ```json
@@ -1059,199 +391,6 @@ The following example shows how to use the `shouldRetry` function to retry a ste
 }
 ```
 
-<details>
-<summary>Execution output (click to expand)</summary>
 
-```json ["steps[2].log.*.retryCount = 1 and $not($exists(steps[2].log.*.fail))"]
-> .out
-{
-  "output": "Tatooine",
-  "workflow": "{function:}",
-  "connectionError": true,
-  "steps": [
-    {
-      "function": "{function:}",
-      "log": {
-        "2023-11-14-1699922094477-8e85": {
-          "start": {
-            "timestamp": 1699922094477,
-            "args": "luke"
-          },
-          "end": {
-            "timestamp": 1699922095809,
-            "out": {
-              "name": "Luke Skywalker",
-              "height": "172",
-              "mass": "77",
-              "hair_color": "blond",
-              "skin_color": "fair",
-              "eye_color": "blue",
-              "birth_year": "19BBY",
-              "gender": "male",
-              "homeworld": "https://swapi.dev/api/planets/1/",
-              "films": [
-                "https://swapi.dev/api/films/1/",
-                "https://swapi.dev/api/films/2/",
-                "https://swapi.dev/api/films/3/",
-                "https://swapi.dev/api/films/6/"
-              ],
-              "species": [],
-              "vehicles": [
-                "https://swapi.dev/api/vehicles/14/",
-                "https://swapi.dev/api/vehicles/30/"
-              ],
-              "starships": [
-                "https://swapi.dev/api/starships/12/",
-                "https://swapi.dev/api/starships/22/"
-              ],
-              "created": "2014-12-09T13:50:51.644000Z",
-              "edited": "2014-12-20T21:17:56.891000Z",
-              "url": "https://swapi.dev/api/people/1/"
-            }
-          }
-        }
-      }
-    },
-    {
-      "function": "{function:}",
-      "log": {
-        "2023-11-14-1699922094477-8e85": {
-          "start": {
-            "timestamp": 1699922095809,
-            "args": {
-              "name": "Luke Skywalker",
-              "height": "172",
-              "mass": "77",
-              "hair_color": "blond",
-              "skin_color": "fair",
-              "eye_color": "blue",
-              "birth_year": "19BBY",
-              "gender": "male",
-              "homeworld": "https://swapi.dev/api/planets/1/",
-              "films": [
-                "https://swapi.dev/api/films/1/",
-                "https://swapi.dev/api/films/2/",
-                "https://swapi.dev/api/films/3/",
-                "https://swapi.dev/api/films/6/"
-              ],
-              "species": [],
-              "vehicles": [
-                "https://swapi.dev/api/vehicles/14/",
-                "https://swapi.dev/api/vehicles/30/"
-              ],
-              "starships": [
-                "https://swapi.dev/api/starships/12/",
-                "https://swapi.dev/api/starships/22/"
-              ],
-              "created": "2014-12-09T13:50:51.644000Z",
-              "edited": "2014-12-20T21:17:56.891000Z",
-              "url": "https://swapi.dev/api/people/1/"
-            }
-          },
-          "end": {
-            "timestamp": 1699922095809,
-            "out": "https://swapi.dev/api/planets/1/"
-          }
-        }
-      }
-    },
-    {
-      "function": "{function:}",
-      "shouldRetry": "{function:}",
-      "log": {
-        "2023-11-14-1699922094477-8e85": {
-          "start": {
-            "timestamp": 1699922095809,
-            "args": "https://swapi.dev/api/planets/1/"
-          },
-          "retryCount": 1,
-          "end": {
-            "timestamp": 1699922097891,
-            "out": {
-              "name": "Tatooine",
-              "rotation_period": "23",
-              "orbital_period": "304",
-              "diameter": "10465",
-              "climate": "arid",
-              "gravity": "1 standard",
-              "terrain": "desert",
-              "surface_water": "1",
-              "population": "200000",
-              "residents": [
-                "https://swapi.dev/api/people/1/",
-                "https://swapi.dev/api/people/2/",
-                "https://swapi.dev/api/people/4/",
-                "https://swapi.dev/api/people/6/",
-                "https://swapi.dev/api/people/7/",
-                "https://swapi.dev/api/people/8/",
-                "https://swapi.dev/api/people/9/",
-                "https://swapi.dev/api/people/11/",
-                "https://swapi.dev/api/people/43/",
-                "https://swapi.dev/api/people/62/"
-              ],
-              "films": [
-                "https://swapi.dev/api/films/1/",
-                "https://swapi.dev/api/films/3/",
-                "https://swapi.dev/api/films/4/",
-                "https://swapi.dev/api/films/5/",
-                "https://swapi.dev/api/films/6/"
-              ],
-              "created": "2014-12-09T13:50:49.641000Z",
-              "edited": "2014-12-20T20:58:18.411000Z",
-              "url": "https://swapi.dev/api/planets/1/"
-            }
-          }
-        }
-      }
-    },
-    {
-      "function": "{function:}",
-      "log": {
-        "2023-11-14-1699922094477-8e85": {
-          "start": {
-            "timestamp": 1699922097891,
-            "args": {
-              "name": "Tatooine",
-              "rotation_period": "23",
-              "orbital_period": "304",
-              "diameter": "10465",
-              "climate": "arid",
-              "gravity": "1 standard",
-              "terrain": "desert",
-              "surface_water": "1",
-              "population": "200000",
-              "residents": [
-                "https://swapi.dev/api/people/1/",
-                "https://swapi.dev/api/people/2/",
-                "https://swapi.dev/api/people/4/",
-                "https://swapi.dev/api/people/6/",
-                "https://swapi.dev/api/people/7/",
-                "https://swapi.dev/api/people/8/",
-                "https://swapi.dev/api/people/9/",
-                "https://swapi.dev/api/people/11/",
-                "https://swapi.dev/api/people/43/",
-                "https://swapi.dev/api/people/62/"
-              ],
-              "films": [
-                "https://swapi.dev/api/films/1/",
-                "https://swapi.dev/api/films/3/",
-                "https://swapi.dev/api/films/4/",
-                "https://swapi.dev/api/films/5/",
-                "https://swapi.dev/api/films/6/"
-              ],
-              "created": "2014-12-09T13:50:49.641000Z",
-              "edited": "2014-12-20T20:58:18.411000Z",
-              "url": "https://swapi.dev/api/planets/1/"
-            }
-          },
-          "end": {
-            "timestamp": 1699922097891,
-            "out": "Tatooine"
-          }
-        }
-      }
-    }
-  ]
-}
-```
-</details>
+A template can be restored, and each of its invocations begins again, by loading the snapshot
+...coming soon

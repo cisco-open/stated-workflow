@@ -1,0 +1,31 @@
+start: ${ $millis() }
+# producer will be sending some test data
+produceParams:
+  type: "my-topic"
+  data: ${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge'].('https://swapi.dev/api/people/?search='&$)}
+  client:
+    type: test
+# the subscriber's 'to' function will be called on each received event
+subscribeParams: #parameters for subscribing to an event
+  source: cloudEvent
+  type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
+  to: /${joinResistance}
+  subscriberId: rebelArmy
+  initialPosition: latest
+  parallelism: 5
+  client:
+    type: test
+joinResistance:  |
+  /${ 
+    function($url){(
+        $rebel := $fetch($url).json().results[0].name; 
+        $set( "/rebelForces", $rebelForces~>$append($rebel)) /* BUG!! */
+    )}  
+  }
+# starts producer function
+send$: $publish(produceParams)
+# starts consumer function
+recv$: $subscribe(subscribeParams)
+# the subscriber's `to` function will write the received data here
+rebelForces: [ ]
+runtime: ${ (rebelForces; "Rebel forces assembled in " & $string($millis()-start) & " ms")}
