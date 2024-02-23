@@ -211,7 +211,7 @@ The last writer wins, and we get a [lost-update problem](https://medium.com/@bin
 You can see below that using a naive update strategy to update `rebelForces` results in only one of the 10 names
 appearing in the array. The argument `--tail "/rebelForces 10"` instructs tail to stop tailing after 10 changes. Each
 of the concurrent pipeline invocations have updated the array, but only the last writer will win.
-```json
+```json ["$count(data)=1"]
 > .init -f "example/joinResistanceBug.yaml" --tail "/rebelForces 10"
 Started tailing... Press Ctrl+C to stop.
 "Wedge Antilles"
