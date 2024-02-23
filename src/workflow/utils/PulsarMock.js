@@ -1,29 +1,27 @@
 export class PulsarClientMock {
+  static inMemoryStore = new Map(); // Static store to survive client restarts
+  static messageIdCounter = 0; // Global message ID counter
+  static listeners = new Map(); // Global listeners map
+
   constructor() {
-    this.inMemoryStore = new Map();
-    this.messageIdCounter = 0;
-    this.listeners = new Map(); // Add this to track listeners per topic
+    // No longer needed to initialize static properties in the constructor
   }
 
   async createProducer(config) {
     const topic = config.topic;
-    if (!this.inMemoryStore.has(topic)) {
-      this.inMemoryStore.set(topic, []);
+    if (!PulsarClientMock.inMemoryStore.has(topic)) {
+      PulsarClientMock.inMemoryStore.set(topic, []);
     }
 
     return {
       send: async (message) => {
-        const messageId = new MessageId(`message-${++this.messageIdCounter}`);
-        const messageInstance = new Message(topic, undefined, message.data, messageId);
-        const messages = this.inMemoryStore.get(topic) || [];
-        messages.push(messageInstance);
+        const messageId = new MessageId(`message-${++PulsarClientMock.messageIdCounter}`);
+        const messageInstance = new Message(topic, undefined, message.data, messageId, Date.now(), Date.now(), 0, '');
+        const messages = PulsarClientMock.inMemoryStore.get(topic) || [];
+        messages.push({ message: messageInstance, visible: true });
 
         // Notify listeners that a new message is available
-        const listeners = this.listeners.get(topic) || [];
-        if (listeners.length > 0) {
-          const listener = listeners.shift(); // Remove the listener from the queue
-          listener(messageInstance); // Resolve the listener's promise with the new message
-        }
+        PulsarClientMock.notifyListeners(topic);
 
         return { messageId: messageId.toString() };
       },
@@ -37,28 +35,58 @@ export class PulsarClientMock {
     return {
       receive: () => {
         return new Promise((resolve) => {
-          const messages = this.inMemoryStore.get(topic) || [];
-          if (messages.length > 0) {
-            // Immediately resolve with the next message if available
-            const message = messages.shift(); // Assuming FIFO delivery
-            resolve(message);
-          } else {
-            // No messages available, add listener to be resolved later
-            if (!this.listeners.has(topic)) {
-              this.listeners.set(topic, []);
+          const tryResolve = () => {
+            const messages = PulsarClientMock.inMemoryStore.get(topic) || [];
+            const messageIndex = messages.findIndex(m => m.visible);
+            if (messageIndex !== -1) {
+              // Make the message invisible for a certain timeout
+              messages[messageIndex].visible = false;
+              setTimeout(() => {
+                messages[messageIndex].visible = true;
+                PulsarClientMock.notifyListeners(topic);
+              }, 30000); // 30 seconds timeout
+              resolve(messages[messageIndex].message);
+            } else {
+              // No visible messages available, add listener to be resolved later
+              if (!PulsarClientMock.listeners.has(topic)) {
+                PulsarClientMock.listeners.set(topic, []);
+              }
+              PulsarClientMock.listeners.get(topic).push(tryResolve);
             }
-            this.listeners.get(topic).push(resolve);
-          }
+          };
+
+          tryResolve();
         });
       },
       acknowledge: async (message) => {
-        // Acknowledge logic here (not directly relevant to the blocking receive)
+        const messages = PulsarClientMock.inMemoryStore.get(topic) || [];
+        const messageIndex = messages.findIndex(m => m.message.messageId.id === message.messageId.id);
+        if (messageIndex !== -1) {
+          messages.splice(messageIndex, 1); // Remove the acknowledged message
+        }
       },
       acknowledgeId: async (messageId) => {
-        // AcknowledgeId logic here
+        const messages = PulsarClientMock.inMemoryStore.get(topic) || [];
+        const messageIndex = messages.findIndex(m => m.message.messageId.id === messageId.id);
+        if (messageIndex !== -1) {
+          messages.splice(messageIndex, 1); // Remove the acknowledged message
+        }
       },
       close: async () => {},
     };
+  }
+
+  static clear() {
+    PulsarClientMock.inMemoryStore.clear();
+    PulsarClientMock.listeners.clear();
+  }
+
+  static notifyListeners(topic) {
+    const listeners = PulsarClientMock.listeners.get(topic) || [];
+    while (listeners.length > 0) {
+      const listener = listeners.shift(); // Remove the listener from the queue
+      listener(); // Try resolving a listener with any newly available message
+    }
   }
 
   close() {
