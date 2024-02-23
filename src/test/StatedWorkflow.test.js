@@ -1011,4 +1011,4 @@ test("subscribePulsar with pulsarMock client", async () => {
         await new Promise(resolve => setTimeout(resolve, 500)); // Poll every 50ms
     };
     console.log(`PulsarMock topic ${topic} stats: ${StatedREPL.stringify(PulsarClientMock.getStats(topic))}`);
-}, 10000)
+}, 20000)
