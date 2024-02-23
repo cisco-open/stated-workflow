@@ -116,47 +116,43 @@ long running, concurrent workflows:
 
 ## Non-blocking Event Driven
 Stated-Workflows provides a set of functions that allow you to integrate with cloud events, consuming and producing from
-Kafka or Pulsar message buses, as well as HTTP. The following example shows how to use the `publish` and `subscribe`  
-functions. Below producer and subscriber configs are using `test` clients, but `kafka` and `pulsar` clients can be used
-to communicate with the actual message buses. Data for testing can be fed in by setting the `data` field of the `produceParams`.
-As shown below, we produce SWAPI URLs for 10 members of the rebel alliance. The subscriber's `to` function, `joinResistance`,
-looks up the rebel's full name and appends it to the `rebelForces` array. The `runtime` field times how long the template
-has run for. The 'runtime' expression depends on `rebelForces` so will be updated every time a rebel is appended to the
-`rebelForces` array. Note `"parallelism": 1` on the `subscribeParams`.
+Kafka or Pulsar message buses, as well as HTTP. Publishers and subscribers can be initialized with test data. This example,
+`joinResistance.yaml`, generates URLS for members of the resistance, as test data.
 
-```json
-> .log .error
-{
-  "log level": ".error"
-}
-> .init -f "example/joinResistance.yaml"
-{
-  "start": "${ $millis() }",
-  "produceParams": {
-    "type": "my-topic",
-    "data": "${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge'].('https://swapi.dev/api/people/?search='&$)}",
-    "client": {
-      "type": "test"
-    }
-  },
-  "subscribeParams": {
-    "source": "cloudEvent",
-    "type": "/${ produceParams.type }",
-    "to": "/${joinResistance}",
-    "subscriberId": "rebelArmy",
-    "initialPosition": "latest",
-    "parallelism": 1,
-    "client": {
-      "type": "test"
-    }
-  },
-  "joinResistance": "/${ \n  function($url){(\n      $rebel := $fetch($url).json().results[0].name; \n      $set( \"/rebelForces/-\", $rebel) /* append rebel to rebelForces */\n  )}  \n}\n",
-  "send$": "$publish(produceParams)",
-  "recv$": "$subscribe(subscribeParams)",
-  "rebelForces": [],
-  "runtime": "${ (rebelForces; \"Rebel forces assembled in \" & $string($millis()-start) & \" ms\")}"
-}
-````
+```yaml
+start: ${ $millis() }
+# producer will be sending some test data
+produceParams:
+  type: "my-topic"
+  data: ${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge'].('https://swapi.dev/api/people/?search='&$)}
+  client:
+    type: test
+# the subscriber's 'to' function will be called on each received event
+subscribeParams: #parameters for subscribing to an event
+  source: cloudEvent
+  type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
+  to: /${joinResistance}
+  subscriberId: rebelArmy
+  initialPosition: latest
+  parallelism: 1
+  client:
+    type: test
+joinResistance:  |
+  /${ 
+    function($url){(
+        $rebel := $fetch($url).json().results[0].name; 
+        $set( "/rebelForces/-", $rebel) /* append rebel to rebelForces */
+    )}  
+  }
+# starts producer function
+send$: $publish(produceParams)
+# starts consumer function
+recv$: $subscribe(subscribeParams)
+# the subscriber's `to` function will write the received data here
+rebelForces: [ ]
+runtime: ${ (rebelForces; "Rebel forces assembled in " & $string($millis()-start) & " ms")}
+```
+
 Let's see how long it takes to run, using a parallelism of 1 in the subscriber as shown above:
 ```json ["$count(data)=10", "$~>$contains('Rebel forces assembled in')"]
 > .init -f "example/joinResistance.yaml" --tail "/rebelForces until $~>$count=10"
@@ -215,11 +211,11 @@ The last writer wins, and we get a [lost-update problem](https://medium.com/@bin
 You can see below that using a naive update strategy to update `rebelForces` results in only one of the 10 names
 appearing in the array. The argument `--tail "/rebelForces 10"` instructs tail to stop tailing after 10 changes. Each
 of the concurrent pipeline invocations have updated the array, but only the last writer will win.
-
+```json
 > .init -f "example/joinResistanceBug.yaml" --tail "/rebelForces 10"
 Started tailing... Press Ctrl+C to stop.
 "Wedge Antilles"
-
+```
 Stated Workflows provides an atomic primitive that prevents [lost-updates](https://medium.com/@bindubc/distributed-system-concurrency-problem-in-relational-database-59866069ca7c#:~:text=Lost%20Update%20Problem%3A&text=In%20simple%20words%2C%20when%20two,update%20of%20the%20first%20transaction.) 
 with concurrent mutations of arrays.  It does this by using a
 special JSON pointer defined by [RFC 6902 JSON Patch for appending to an array](https://datatracker.ietf.org/doc/html/rfc6902#appendix-A.16).
