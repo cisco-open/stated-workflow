@@ -22,6 +22,7 @@ import {EnhancedPrintFunc} from "./TestTools.js";
 import {rateLimit} from "stated-js/dist/src/utils/rateLimit.js";
 import util from "util";
 import {fn} from "jest-mock";
+import {PulsarClientMock} from "./PulsarMock.js";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -781,10 +782,10 @@ test.skip("Template Data Change Callback with rate limit", async () => {
  *
  *  1. start docker-compose
  *      docker-compose -f docker/docker-compose.yaml up -d
- *  2. run the tests
+ *  2. run the tests with ENABLE_INTEGRATION_TESTS set to "true"
  *      ENABLE_INTEGRATION_TESTS=true yarn test StatedWorkflow.test.js
  */
-if (process.env.ENABLE_INTEGRATION_TESTS) {
+if (process.env.ENABLE_INTEGRATION_TESTS === "true") {
     test("Pulsar consumer integration test", async () => {
         const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub-pulsar.yaml');
         const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
@@ -980,7 +981,7 @@ test("serial workflow with backpressure", async () => {
 }, 100000);
 
 
-test("Pulsar consumer data function mock client test", async () => {
+test("subscribePulsar with pulsarMock client", async () => {
     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'rebelCommunication.yaml');
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     let template = yaml.load(templateYaml);
@@ -997,5 +998,7 @@ test("Pulsar consumer data function mock client test", async () => {
 
     expect(tp.output.interceptedMessages?.length).toBeGreaterThanOrEqual(2)
     expect(tp.output.farFarAway?.length + tp.output.nearBy?.length).toEqual(2);
+
+    PulsarClientMock.inMemoryStore
 
 })
