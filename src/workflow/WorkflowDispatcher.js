@@ -119,6 +119,8 @@ export class WorkflowDispatcher {
                             this.dataAckCallbacks[eventData]();
                         } catch (error) {
                             console.error("Error calling dataAckCallbacks:", error);
+                        } finally {
+                            delete this.dataAckCallbacks[eventData];
                         }
                     }
                 }
