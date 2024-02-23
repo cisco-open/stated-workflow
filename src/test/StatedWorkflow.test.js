@@ -919,7 +919,7 @@ test("serial workflow with backpressure", async () => {
     };
 
     // Load the YAML from the file
-    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'backpressure-wf.yaml');
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'inhabitants-with-delay.yaml');
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     var template = yaml.load(templateYaml);
     const sw = await StatedWorkflow.newWorkflow(template);
@@ -981,7 +981,7 @@ test("serial workflow with backpressure", async () => {
 
 
 test("Pulsar consumer data function mock client test", async () => {
-    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub-data-function-pulsar-mock.yaml');
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'rebelCommunication.yaml');
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     let template = yaml.load(templateYaml);
 
