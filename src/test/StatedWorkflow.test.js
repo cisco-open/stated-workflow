@@ -914,8 +914,8 @@ test("backpressure due to max parallelism", async () => {
 /**
  * This test validates that the workflow can be recovered from a snapshot.
  */
-test("serial workflow with backpressure", async () => {
-    // Logging function to avoid repetition of console.log with date stamps
+test("Snapshot and recovery for workflow", async () => {
+    // Logging function to console.log with date stamps
     const logWithDate = (message) => {
         console.log(`${new Date().toISOString()}: ${message}`);
     };
@@ -979,7 +979,7 @@ test("serial workflow with backpressure", async () => {
     } while (uniqResidents < 82)
 
     logWithDate(`We got ${uniqResidents} unique residents processed with ${tp.output.residents.length} total residents`);
-}, 10000);
+}, 20000); // 20s timeout for times swapi not behaving
 
 
 test("subscribePulsar with pulsarMock client", async () => {

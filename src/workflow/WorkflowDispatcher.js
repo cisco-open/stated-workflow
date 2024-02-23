@@ -114,7 +114,7 @@ export class WorkflowDispatcher {
                 if (index > -1) {
                     this.promises.splice(index, 1);
                     if (this.dataAckCallbacks[eventData]) {
-                        console.log("calling dataAckCallbacks for ", eventData);
+                        console.debug("calling dataAckCallbacks for ", eventData);
                         try {
                             this.dataAckCallbacks[eventData]();
                         } catch (error) {
