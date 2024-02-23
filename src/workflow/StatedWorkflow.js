@@ -91,13 +91,17 @@ export class StatedWorkflow {
             ()=>{this.workflowDispatcher && this.workflowDispatcher.clear()},
             //---  start periodic snapshotting ---
             ()=>{
-                const {snapshotIntervalSeconds=10} = this.templateProcessor.options;
+                const {snapshot: snapshotOpts} = this.templateProcessor.options;
+                if(!snapshotOpts){
+                    return;
+                }
+                const {seconds = 1} = snapshotOpts;
                 this.snapshotInterval = setInterval(async ()=>{
                     if(this.hasChanged){
                         await Snapshot.write(this.templateProcessor);
                         this.hasChanged = false; //changeListener will alter this if the template changes so we are not permanently blocking snapshots
                     }
-                }, snapshotIntervalSeconds*1000)
+                }, seconds*1000)
             },
             //---  listen for changes so we can avoid snapshotting if nothing changed ---
             ()=>{

@@ -5,7 +5,7 @@ export class Snapshot {
     static async write(tp) {
         const {snapshot: snapshotOpts} = tp.options;
         if(!snapshotOpts){
-            tp.logger.debug("no --snapthot options defined, skipping snapshot");
+            tp.logger.debug("no --snapshot options defined, skipping snapshot");
             return;
         }
         const snapshotStr = tp.snapshot();

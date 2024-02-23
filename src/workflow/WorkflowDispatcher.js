@@ -123,6 +123,9 @@ export class WorkflowDispatcher {
     _logActivity(key, val) {
         let record;
         const {subscribeParams} = this;
+        if(!subscribeParams.logActivity){
+            return;
+        }
         const {maxLog = 10, subscriberId} = subscribeParams;
         const path = "/activityRecord/"+subscriberId+"/"+key;
         if(!jp.has(subscribeParams, path)){
