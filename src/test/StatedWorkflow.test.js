@@ -998,7 +998,4 @@ test("subscribePulsar with pulsarMock client", async () => {
 
     expect(tp.output.interceptedMessages?.length).toBeGreaterThanOrEqual(2)
     expect(tp.output.farFarAway?.length + tp.output.nearBy?.length).toEqual(2);
-
-    PulsarClientMock.inMemoryStore
-
 })

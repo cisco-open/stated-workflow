@@ -384,11 +384,12 @@ export class StatedWorkflow {
                         resolve = _resolve; //we assign our resolve variable that is declared outside this promise so that our onDataChange callbacks can use  it
                     });
 
+                    // TODO: switch to pass acknowledgement callback to dispatch
                     this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtrs, removed) => {
                         for (let jsonPtr of jsonPtrs) {
-                            if (/^\/step\d+\/log\/.*$/.test(jsonPtr)) {
-                                fs.writeFileSync(path.join(basePath,'template.json') , StatedREPL.stringify(data), 'utf8');
-                            }
+                            // if (/^\/step\d+\/log\/.*$/.test(jsonPtr)) {
+                            //     fs.writeFileSync(path.join(basePath,'template.json') , StatedREPL.stringify(data), 'utf8');
+                            // }
                             if (/^\/step1\/log\/.*$/.test(jsonPtr)) {
                                 // TODO: await persist the step
                                 const dataThatChanged = jp.get(data, jsonPtr);
