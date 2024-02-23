@@ -26,6 +26,7 @@ export class WorkflowDispatcher {
         this.subscriberId = subscriberId;
         this.type = type;
         this.queue = [];
+        this.dataAckCallbacks = {};
         this.active = 0;
         this.promises = [];
         this.batchMode = false;
@@ -73,12 +74,12 @@ export class WorkflowDispatcher {
         }
     }
 
-    async dispatchToAllSubscribers(type, data) {
+    async dispatchToAllSubscribers(type, data, dataAckCallback) {
         const keysSet = this.dispatchers.get(type);
         if (keysSet) {
             for (let key of keysSet) {
                 const dispatcher = this.dispatcherObjects.get(key);
-                await dispatcher.addToQueue(data); // You can pass the actual data you want to dispatch here
+                await dispatcher.addToQueue(data, dataAckCallback); // You can pass the actual data you want to dispatch here
             }
         } else {
             StatedWorkflow.logger.warn(`No subscribers found for type ${type}`);
@@ -112,6 +113,14 @@ export class WorkflowDispatcher {
                 const index = this.promises.indexOf(promise);
                 if (index > -1) {
                     this.promises.splice(index, 1);
+                    if (this.dataAckCallbacks[eventData]) {
+                        console.log("calling dataAckCallbacks for ", eventData);
+                        try {
+                            this.dataAckCallbacks[eventData]();
+                        } catch (error) {
+                            console.error("Error calling dataAckCallbacks:", error);
+                        }
+                    }
                 }
                 this._dispatch();
                 });
@@ -138,13 +147,14 @@ export class WorkflowDispatcher {
             record.shift(); //we keep a history of the active count for 10 values over time
         }
     }
-    async addToQueue(data) {
+    async addToQueue(data, dataAckCallback) {
 
         return new Promise(async (resolve, reject) => {
             const tryAddToQueue = async () => {
                 this._logActivity("log", {"t": new Date().getTime(), "acivie": this.active, "queue": this.queue.length});
                 if (this.active < this.parallelism) {
                     this.queue.push(data);
+                    if (dataAckCallback) this.dataAckCallbacks[data] = dataAckCallback;
                     resolve(); // Resolve the promise to signal that the data was queued
                     this._dispatch(); // Attempt to dispatch the next task
                 } else {

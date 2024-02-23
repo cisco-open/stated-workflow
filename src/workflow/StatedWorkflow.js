@@ -368,12 +368,11 @@ export class StatedWorkflow {
             while (true) {
                 try {
                     message = await consumer.receive();
-                    let obj;
+                    let messageData;
                     let messageId;
                     try {
-                        const str = message.getData().toString();
-                        messageId = message.getMessageId();
-                        obj = JSON.parse(str);
+                        const messageDataStr = message.getData().toString();
+                        messageData = JSON.parse(messageDataStr);
                     } catch (error) {
                         console.error("unable to parse data to json:", error);
                         // TODO - should we acknowledge the message here?
@@ -384,40 +383,19 @@ export class StatedWorkflow {
                         resolve = _resolve; //we assign our resolve variable that is declared outside this promise so that our onDataChange callbacks can use  it
                     });
 
-                    // TODO: switch to pass acknowledgement callback to dispatch
-                    this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtrs, removed) => {
-                        for (let jsonPtr of jsonPtrs) {
-                            // if (/^\/step\d+\/log\/.*$/.test(jsonPtr)) {
-                            //     fs.writeFileSync(path.join(basePath,'template.json') , StatedREPL.stringify(data), 'utf8');
-                            // }
-                            if (/^\/step1\/log\/.*$/.test(jsonPtr)) {
-                                // TODO: await persist the step
-                                const dataThatChanged = jp.get(data, jsonPtr);
-                                if (dataThatChanged.start !== undefined && dataThatChanged.end === undefined) {
-                                    resolve();
-                                    // consumer.acknowledgeId(data);
-                                    consumer.acknowledge(message);
-                                }
-                            }
-                        }
-
-                    });
-
+                    // we create a callback to acknowledge the message
+                    const dataAckCallback = async () => {
+                        return consumer.acknowledge(message);
+                    }
 
                     //if the dispatchers max parallelism is reached this loop should block, which is why we await
-                    await this.workflowDispatcher.dispatchToAllSubscribers(type, obj);
+                    await this.workflowDispatcher.dispatchToAllSubscribers(type, messageData, dataAckCallback);
                     if(countdown && --countdown===0){
                         break;
                     }
                 } catch (error) {
                     console.error("Error receiving or dispatching message:", error);
                 } finally {
-                    if (message !== undefined) {
-                        // FIXME: remove below, we should be acknowledging in the onDataChange callback
-                        // await this.latch;
-                        // consumer.acknowledge(data);
-                    }
-
                     if (this.pulsarClient === undefined) {
                         break;
                     }

@@ -991,8 +991,6 @@ test("subscribePulsar with pulsarMock client", async () => {
     // keep steps execution logs for debugging
     tp.options = {'keepLogs': true, 'snapshot': {}};
 
-    PulsarClientMock.ackTimeout = 2000; // 2 seconds
-
     await tp.initialize();
 
     while (tp.output.farFarAway?.length + tp.output.nearBy?.length < 10) {
