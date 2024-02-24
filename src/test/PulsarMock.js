@@ -1,47 +1,32 @@
 export class PulsarClientMock {
-  static inMemoryStore = new Map();
-  static messageIdCounter = 0;
-  static listeners = new Map();
-  static ackTimeout = 30000;
-  static acknowledgedMessages = new Map();
-  static operationLocks = new Map(); // Map to keep track of ongoing operations by topic
+  static inMemoryStore = new Map(); // Static store to hold messages for each topic
+  static messageIdCounter = 0; // Global counter to generate unique message IDs
+  static listeners = new Map(); // Global map to hold listeners for message consumption
+  static ackTimeout = 30000; // Default acknowledgment timeout (in milliseconds)
+  static acknowledgedMessages = new Map(); // Static store to hold acknowledged messages for each topic
 
-  // Helper method to lock operations per topic
-  static async lockOperation(topic) {
-    while (this.operationLocks.get(topic)) {
-      await this.operationLocks.get(topic);
-    }
-    let resolveLock;
-    const lockPromise = new Promise(resolve => resolveLock = resolve);
-    this.operationLocks.set(topic, lockPromise);
-    return resolveLock;
-  }
-
+  // Allows configuration of the acknowledgment timeout
   static configureAckTimeout(timeout) {
     this.ackTimeout = timeout;
   }
 
   async createProducer(config) {
     const topic = config.topic;
+    // Ensure a message queue exists for the topic
     if (!PulsarClientMock.inMemoryStore.has(topic)) {
       PulsarClientMock.inMemoryStore.set(topic, []);
     }
 
     return {
       send: async (message) => {
-        const resolveLock = await PulsarClientMock.lockOperation(topic); // Lock operation for topic
-        try {
-          const messageId = new MessageId(`message-${++PulsarClientMock.messageIdCounter}`);
-          const messageInstance = new Message(topic, undefined, message.data, messageId, Date.now(), Date.now(), 0, '');
-          const messages = PulsarClientMock.inMemoryStore.get(topic);
-          messages.push({ message: messageInstance, visible: true });
+        const messageId = new MessageId(`message-${++PulsarClientMock.messageIdCounter}`);
+        const messageInstance = new Message(topic, undefined, message.data, messageId, Date.now(), Date.now(), 0, '');
+        const messages = PulsarClientMock.inMemoryStore.get(topic) || [];
+        messages.push({ message: messageInstance, visible: true });
 
-          PulsarClientMock.notifyListeners(topic);
-          return { messageId: messageId.toString() };
-        } finally {
-          resolveLock(); // Unlock operation for topic
-          PulsarClientMock.operationLocks.delete(topic); // Cleanup lock
-        }
+        PulsarClientMock.notifyListeners(topic);
+
+        return { messageId: messageId.toString() };
       },
       close: async () => {},
     };
@@ -78,40 +63,27 @@ export class PulsarClientMock {
         });
       },
       acknowledge: async (message) => {
-        const resolveLock = await PulsarClientMock.lockOperation(topic); // Lock operation for topic
-        try {
-          await PulsarClientMock.acknowledgeMessage(topic, message.messageId.id);
-        } finally {
-          resolveLock(); // Unlock operation for topic
-          PulsarClientMock.operationLocks.delete(topic); // Cleanup lock
-        }
+        PulsarClientMock.acknowledgeMessage(topic, message.messageId.id);
       },
       acknowledgeId: async (messageId) => {
-        const resolveLock = await PulsarClientMock.lockOperation(topic); // Lock operation for topic
-        try {
-          await PulsarClientMock.acknowledgeMessage(topic, messageId.id);
-        } finally {
-          resolveLock(); // Unlock operation for topic
-          PulsarClientMock.operationLocks.delete(topic); // Cleanup lock
-        }
+        PulsarClientMock.acknowledgeMessage(topic, messageId.id);
       },
       close: async () => {},
     };
   }
 
-  static async acknowledgeMessage(topic, messageId) {
-    // No need to lock here since it's already locked in acknowledge and acknowledgeId methods
+  static acknowledgeMessage(topic, messageId) {
     const messages = PulsarClientMock.inMemoryStore.get(topic) || [];
     const messageIndex = messages.findIndex(m => m.message.messageId.id === messageId);
     if (messageIndex !== -1) {
-      const [acknowledgedMessage] = messages.splice(messageIndex, 1);
+      const [acknowledgedMessage] = messages.splice(messageIndex, 1); // Remove and get the acknowledged message
+      // Store acknowledged message
       if (!this.acknowledgedMessages.has(topic)) {
         this.acknowledgedMessages.set(topic, []);
       }
       this.acknowledgedMessages.get(topic).push(acknowledgedMessage.message);
     }
   }
-
 
   static getTopics() {
     return Array.from(PulsarClientMock.inMemoryStore.keys());

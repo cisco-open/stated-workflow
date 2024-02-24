@@ -4,7 +4,7 @@ produceParams:
   data: | 
     ${ 
       function(){  
-        {'message': 'Rebel Fleet Coordinates', 'location': $random(), 'sender': $floor($random()*10)+1 } 
+        {'message': 'Rebel Fleet Coordinates', 'location': $random(), 'sender': $ceil($random()*10) } 
       } 
     }
   client:
