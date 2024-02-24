@@ -26,7 +26,7 @@ export class WorkflowDispatcher {
         this.subscriberId = subscriberId;
         this.type = type;
         this.queue = [];
-        this.dataAckCallbacks = {};
+        this.dataAckCallbacks = new Map();
         this.active = 0;
         this.promises = [];
         this.batchMode = false;
@@ -113,15 +113,15 @@ export class WorkflowDispatcher {
                 const index = this.promises.indexOf(promise);
                 if (index > -1) {
                     this.promises.splice(index, 1);
-                    if (this.dataAckCallbacks[eventData]) {
-                        console.debug("calling dataAckCallbacks for ", eventData);
-                        try {
-                            this.dataAckCallbacks[eventData]();
-                        } catch (error) {
-                            console.error("Error calling dataAckCallbacks:", error);
-                        } finally {
-                            delete this.dataAckCallbacks[eventData];
-                        }
+                    if (this.dataAckCallbacks.get(eventData)) {
+                        // console.debug("calling dataAckCallbacks for ", eventData);
+                        const callbackPromise = this.dataAckCallbacks.get(eventData)();
+                        callbackPromise.then(() => {
+                                // console.debug("dataAckCallbacks resolved for ", eventData);
+                            }).catch(error => {
+                                console.error("Error calling dataAckCallbacks:", error);
+                            });
+                        delete this.dataAckCallbacks.get(eventData);
                     }
                 }
                 this._dispatch();
@@ -156,7 +156,10 @@ export class WorkflowDispatcher {
                 this._logActivity("log", {"t": new Date().getTime(), "acivie": this.active, "queue": this.queue.length});
                 if (this.active < this.parallelism) {
                     this.queue.push(data);
-                    if (dataAckCallback) this.dataAckCallbacks[data] = dataAckCallback;
+                    if (dataAckCallback) {
+                        // console.debug("adding dataAckCallbacks for ", data);
+                        this.dataAckCallbacks.set(data, dataAckCallback);
+                    }
                     resolve(); // Resolve the promise to signal that the data was queued
                     this._dispatch(); // Attempt to dispatch the next task
                 } else {

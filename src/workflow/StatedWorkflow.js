@@ -362,14 +362,12 @@ export class StatedWorkflow {
             });
             // Store the consumer in the map
             this.consumers.set(type, consumer);
-            let message;
             let countdown = maxConsume;
 
             while (true) {
                 try {
-                    message = await consumer.receive();
+                    const message = await consumer.receive();
                     let messageData;
-                    let messageId;
                     try {
                         const messageDataStr = message.getData().toString();
                         messageData = JSON.parse(messageDataStr);
@@ -385,7 +383,8 @@ export class StatedWorkflow {
 
                     // we create a callback to acknowledge the message
                     const dataAckCallback = async () => {
-                        return consumer.acknowledge(message);
+                        const promise =  consumer.acknowledge(message);
+                        console.log(`acknowledging message ${message} for messageData: ${messageData}`);
                     }
 
                     //if the dispatchers max parallelism is reached this loop should block, which is why we await
@@ -768,8 +767,8 @@ export class StatedWorkflow {
         //     await consumer.disconnect();
         // }
         try {
-            await this.workflowDispatcher.clear();
-            await this.templateProcessor.close();
+            if (this.workflowDispatcher) await this.workflowDispatcher.clear();
+            if (this.templateProcessor) await this.templateProcessor.close();
 
         } catch (error) {
             console.error("Error closing workflow dispatcher:", error);
