@@ -5,16 +5,15 @@
   * [Getting Started](#getting-started)
     * [Installation](#installation)
     * [Running the REPL](#running-the-repl)
-    * [Configuration](#configuration)
-* [Stated Template Jobs](#stated-template-jobs-)
-  * [Job Concurrency](#job-concurrency)
-  * [Internal Job Concurrency](#internal-job-concurrency)
-* [Stated Workflow Functions](#stated-workflow-functions)
-  * [Cloud Events](#cloud-events)
-  * [Durability](#durability)
+* [Stated Templates](#stated-templates)
+* [Stated Workflow Pipelines](#stated-workflow-pipelines)
+  * [Non-blocking Event Driven](#non-blocking-event-driven)
+  * [Atomic Updates](#atomic-updates)
+  * [Pure Function Pipelines - $serial and $parallel](#pure-function-pipelines---serial-and-parallel)
+* [Durability](#durability)
   * [Workflow Step Logs](#workflow-step-logs)
-  * [Error Handling](#error-handling)
-    * [retries](#retries)
+  * [snapshots](#snapshots)
+* [retries](#retries)
 <!-- TOC -->
 
 # Overview
@@ -361,7 +360,7 @@ second. The snapshot is just an ordinary json file with two parts: `{"template":
 cat defaultSnapshot.json
 ```
 
-### retries
+# retries
 Each step can provide an optional boolean function `shouldRetry`. On a workflow invocation failure the function will be
 called with an invocation log passed as an argument. If the function returns true, the function will be retried.
 The invocatiopn log contains a `retryCount` field that can be used to limit the number of retries.
