@@ -19,12 +19,10 @@ import Pulsar from 'pulsar-client';
 import {Kafka, logLevel} from 'kafkajs';
 import winston from "winston";
 import {WorkflowDispatcher} from "./WorkflowDispatcher.js";
-import {StepLog} from "./StepLog.js";
 import Step from "./Step.js";
 import {createStepPersistence} from "./StepPersistence.js";
 import {TemplateUtils} from "./utils/TemplateUtils.js";
 import {WorkflowPersistence} from "./WorkflowPersistence.js";
-import jp from "stated-js/dist/src/JsonPointer.js";
 import util from "util";
 import fs from "fs";
 import path from "path";
@@ -384,7 +382,7 @@ export class StatedWorkflow {
                     // we create a callback to acknowledge the message
                     const dataAckCallback = async () => {
                         const promise =  consumer.acknowledge(message);
-                        console.log(`acknowledging message ${message} for messageData: ${messageData}`);
+                        console.log(`acknowledging messageId ${StatedREPL.stringify(message.getMessageId().toString())} for messageData: ${StatedREPL.stringify(messageData)}`);
                     }
 
                     //if the dispatchers max parallelism is reached this loop should block, which is why we await

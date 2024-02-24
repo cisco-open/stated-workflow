@@ -16,7 +16,6 @@ import fs from 'fs';
 import yaml from 'js-yaml';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import {WorkflowDispatcher} from "../workflow/WorkflowDispatcher.js";
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import {EnhancedPrintFunc} from "./TestTools.js";
 import {rateLimit} from "stated-js/dist/src/utils/rateLimit.js";
@@ -1020,11 +1019,12 @@ test("subscribePulsar with pulsarMock client", async () => {
 
     console.log("waiting for at least 10 messages to be acknowledged");
     const topic = PulsarClientMock.getTopics()[0]; // we use only one topic in the test
+    const subscriberId = tp.output.subscribeParams.type;
 
     while (!Array.isArray(PulsarClientMock.getAcknowledgedMessages(topic))
-            || PulsarClientMock.getAcknowledgedMessages(topic).length < 10) {
-        console.log(`PulsarMock topic ${topic} stats: ${StatedREPL.stringify(PulsarClientMock.getStats(topic))}`);
+            || PulsarClientMock.getAcknowledgedMessages(topic, subscriberId).length < 10) {
+        console.log(`PulsarMock topic ${topic} stats for subscriberId ${subscriberId}: ${StatedREPL.stringify(PulsarClientMock.getStats(topic, subscriberId))}`);
         await new Promise(resolve => setTimeout(resolve, 500)); // Poll every 500ms
     };
-    console.log(`PulsarMock topic ${topic} stats: ${StatedREPL.stringify(PulsarClientMock.getStats(topic))}`);
+    console.log(`PulsarMock topic ${topic} stats for subscriberId ${subscriberId}: ${StatedREPL.stringify(PulsarClientMock.getStats(topic, subscriberId))}`);
 }, 200000)
