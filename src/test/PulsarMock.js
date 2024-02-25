@@ -1,9 +1,18 @@
 export class PulsarClientMock {
+  // A map used to simulate an in-memory store for messages. The keys are topic names, and the values are arrays of message objects.
   static inMemoryStore = new Map();
+
+  // A counter to generate unique message IDs. It is incremented each time a message is sent.
   static messageIdCounter = 0;
+
+  // A map where keys are topic names and values are arrays of receive function invocations (listeners). These listeners are called to notify about new messages.
   static listeners = new Map();
+
+  // The default time in milliseconds to wait before a message is considered not acknowledged (acknowledged messages are removed from visibility to simulate message acknowledgment behavior).
   static ackTimeout = 30000;
-  static acknowledgedMessages = new Map(); // Stores acknowledgments per subscriber ID per topic
+
+  // A nested map where the first key is the topic name, the second key is the subscriber ID, and the value is a set of message IDs that have been acknowledged by the subscriber.
+  static acknowledgedMessages = new Map();
 
   static configureAckTimeout(timeout) {
     this.ackTimeout = timeout;
