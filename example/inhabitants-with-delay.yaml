@@ -1,0 +1,26 @@
+# producer will be sending some test data
+produceParams:
+  type: "residents"
+  # fetch one page of planet data from the Star Wars API
+  data: ${[1].($fetch('https://swapi.dev/api/planets/?page=' & $string($)).json().results)}
+  client:
+    type: test
+subscribeResidents:
+  source: cloudEvent
+  type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
+  to: /${ getResidentsWorkflow }
+  subscriberId: subscribeResidents
+  parallelism: 4
+  client:
+    type: test
+getResidentsWorkflow:
+  function: /${ function($planetInfo){ $planetInfo ~> $serial([extractResidents, fetchResidents]) }  }
+extractResidents:
+    function: /${ function($planet){( $sleep($random() * 10) ; $planet.residents.($fetch($).json()) )}  } # add a random delay
+fetchResidents:
+    function: /${ function($residents){$residents.($set('/residents/-',{'name':$.name, 'url':$.url}))}  }
+residents: [ ]
+# starts producer function
+send$: $publish(produceParams)
+recv$: $subscribe(subscribeResidents)
+

@@ -19,17 +19,17 @@ import Pulsar from 'pulsar-client';
 import {Kafka, logLevel} from 'kafkajs';
 import winston from "winston";
 import {WorkflowDispatcher} from "./WorkflowDispatcher.js";
-import {StepLog} from "./StepLog.js";
 import Step from "./Step.js";
 import {createStepPersistence} from "./StepPersistence.js";
 import {TemplateUtils} from "./utils/TemplateUtils.js";
 import {WorkflowPersistence} from "./WorkflowPersistence.js";
-import jp from "stated-js/dist/src/JsonPointer.js";
 import util from "util";
 import fs from "fs";
 import path from "path";
 import {Delay} from "../test/TestTools.js"
 import {Snapshot} from "./Snapshot.js";
+import {rateLimit} from "stated-js/dist/src/utils/rateLimit.js";
+import {PulsarClientMock} from "../test/PulsarMock.js";
 
 const writeFile = util.promisify(fs.writeFile);
 const basePath = path.join(process.cwd(), '.state');
@@ -89,7 +89,8 @@ export class StatedWorkflow {
         this.templateProcessor.initCallbacks = [
             // --- clear the dispatcher ---
             ()=>{this.workflowDispatcher && this.workflowDispatcher.clear()},
-            //---  start periodic snapshotting ---
+            //---  add rateLimited  ---
+            // ()=>{
             ()=>{
                 const {snapshot: snapshotOpts} = this.templateProcessor.options;
                 if(!snapshotOpts){
@@ -182,13 +183,12 @@ export class StatedWorkflow {
         }
     }
 
+    createPulsarClientMock(params) {
+        if (this.pulsarClient) return;
 
-    ensureClient(params) {
-        if (!params || params.type == 'pulsar') {
-            this.createPulsarClient(params);
-        } else if (params.type == 'kafka') {
-            this.createKafkaClient(params);
-        }
+        this.pulsarClient = new PulsarClientMock({
+            serviceUrl: 'pulsar://localhost:6650',
+        });
     }
 
     createPulsarClient(params) {
@@ -227,6 +227,10 @@ export class StatedWorkflow {
         if (clientType=== 'kafka') {
             this.publishKafka(params, clientParams);
         } else if(clientType==="pulsar") {
+            this.publishPulsar(params, clientParams);
+        }else if(clientType === 'pulsarMock'){
+            this.logger.debug(`publishing to pulsarMock using ${clientParams}`)
+            this.createPulsarClientMock(clientParams);
             this.publishPulsar(params, clientParams);
         }else{
             throw new Error(`Unsupported clientType: ${clientType}`);
@@ -325,8 +329,6 @@ export class StatedWorkflow {
         // });
 
 
-
-
         if (source === 'http') {
             return this.onHttp(subscribeOptions);
         }
@@ -358,54 +360,39 @@ export class StatedWorkflow {
             });
             // Store the consumer in the map
             this.consumers.set(type, consumer);
-            let data;
             let countdown = maxConsume;
 
             while (true) {
                 try {
-                    data = await consumer.receive();
-                    let obj;
+                    const message = await consumer.receive();
+                    let messageData;
                     try {
-                        const str = data.getData().toString();
-                        obj = JSON.parse(str);
+                        const messageDataStr = message.getData().toString();
+                        messageData = JSON.parse(messageDataStr);
                     } catch (error) {
                         console.error("unable to parse data to json:", error);
+                        // TODO - should we acknowledge the message here?
+                        continue;
                     }
                     let resolve;
                     this.latch = new Promise((_resolve) => {
                         resolve = _resolve; //we assign our resolve variable that is declared outside this promise so that our onDataChange callbacks can use  it
                     });
 
-                    this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtrs, removed) => {
-                        for (let jsonPtr of jsonPtrs) {
-                            if (/^\/step\d+\/log\/.*$/.test(jsonPtr)) {
-                                await writeFile(path.join(basePath,'template.json') , StatedREPL.stringify(data), 'utf8');
-                            }
-                            if (/^\/step1\/log\/.*$/.test(jsonPtr)) {
-                                // TODO: await persist the step
-                                const dataThatChanged = jp.get(data, jsonPtr);
-                                if (dataThatChanged.start !== undefined && dataThatChanged.end === undefined) {
-                                    resolve();
-                                }
-                            }
-                        }
-
-                    });
-
+                    // we create a callback to acknowledge the message
+                    const dataAckCallback = async () => {
+                        const promise =  consumer.acknowledge(message);
+                        console.log(`acknowledging messageId ${StatedREPL.stringify(message.getMessageId().toString())} for messageData: ${StatedREPL.stringify(messageData)}`);
+                    }
 
                     //if the dispatchers max parallelism is reached this loop should block, which is why we await
-                    await this.workflowDispatcher.dispatchToAllSubscribers(type, obj);
+                    await this.workflowDispatcher.dispatchToAllSubscribers(type, messageData, dataAckCallback);
                     if(countdown && --countdown===0){
                         break;
                     }
                 } catch (error) {
                     console.error("Error receiving or dispatching message:", error);
                 } finally {
-                    if (data !== undefined) {
-                        await this.latch;
-                        consumer.acknowledge(data);
-                    }
-
                     if (this.pulsarClient === undefined) {
                         break;
                     }
@@ -497,6 +484,10 @@ export class StatedWorkflow {
         }else if(clientType === 'pulsar') {
             this.logger.debug(`subscribing to pulsar (default) using ${clientParams}`)
             this.createPulsarClient(clientParams);
+            this.subscribePulsar(subscriptionParams);
+        }else if(clientType === 'pulsarMock'){
+            this.logger.debug(`subscribing to pulsarMock using ${clientParams}`)
+            this.createPulsarClientMock(clientParams);
             this.subscribePulsar(subscriptionParams);
         }else{
             throw new Error(`unsupported client.type in ${StatedREPL.stringify(subscriptionParams)}`);
@@ -774,8 +765,8 @@ export class StatedWorkflow {
         //     await consumer.disconnect();
         // }
         try {
-            await this.workflowDispatcher.clear();
-            await this.templateProcessor.close();
+            if (this.workflowDispatcher) await this.workflowDispatcher.clear();
+            if (this.templateProcessor) await this.templateProcessor.close();
 
         } catch (error) {
             console.error("Error closing workflow dispatcher:", error);

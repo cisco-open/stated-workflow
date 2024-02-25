@@ -8,16 +8,17 @@ produceParams:
       } 
     }
   client:
-    type: pulsar
+    type: pulsarMock
 # Droid C-3PO will intercept and log each received message for the Rebel Alliance
 subscribeParams: #parameters for subscribing to a holocomm transmission
   source: cloudEvent
   type: /${ produceParams.type } # subscribe to the same channel as R2-D2 to intercept messages
   to: /${processMessageWorkflow}
   subscriberId: protocolDroid
+  parallelism: 5
   initialPosition: latest
   client:
-    type: pulsar
+    type: pulsarMock
 processMessageWorkflow: /${ function($message){ $message ~> $serial([step1, step2, step3]) }}
 step1:
   name: logMessage
@@ -38,8 +39,8 @@ step3:
     /${ function($e){(
       $e.location > 0.5 ? $set('/farFarAway/-', $e) : $set('/nearBy/-', $e); $e
     )} }
-# Activates R2-D2's message transmission function every 500 milliseconds
-send: "${ $setInterval( function(){ $publish(produceParams)}, 500) }"
+# Activates R2-D2's message transmission function every 50 milliseconds
+send: "${ $setInterval( function(){ $publish(produceParams)}, 50) }"
 # Activates C-3PO's message interception function
 recv$: $subscribe(subscribeParams)
 # interceptedMessages is where C-3PO will store the results of message decoding
@@ -47,5 +48,4 @@ interceptedMessages: [ ]
 farFarAway: [ ]
 nearBy: [ ]
 # This condition stops the transmission operation when interceptedMessages has 10 elements
-stop$: ($count(interceptedMessages)>=2?($clearInterval(send);'transmissionAccomplished'):'transmissionOngoing')
-recover$!: $recover(processMessageWorkflow)
+stop$: ($count(interceptedMessages)>=10?($clearInterval(send);'transmissionAccomplished'):'transmissionOngoing')

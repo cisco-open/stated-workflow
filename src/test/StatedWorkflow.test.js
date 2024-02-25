@@ -16,12 +16,13 @@ import fs from 'fs';
 import yaml from 'js-yaml';
 import { fileURLToPath } from 'url';
 import path from 'path';
-import {WorkflowDispatcher} from "../workflow/WorkflowDispatcher.js";
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import {EnhancedPrintFunc} from "./TestTools.js";
 import {rateLimit} from "stated-js/dist/src/utils/rateLimit.js";
 import util from "util";
 import {fn} from "jest-mock";
+import {PulsarClientMock} from "./PulsarMock.js";
+import Pulsar from "pulsar-client";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -550,7 +551,7 @@ test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 
                 }
               }
           }
-      }      
+      }
     step2:
       name: sprayTheNozzle
       function: \${function($e){ $e~>|$|{'sprayed':true}|  }}
@@ -775,9 +776,16 @@ test.skip("Template Data Change Callback with rate limit", async () => {
     expect(counts).toEqual([0,10]);
 
 });
-/*
-const isMacOS = process.platform === 'darwin';
-if (isMacOS) {
+
+/**
+ * Pulsar Integration Tests
+ *
+ *  1. start docker-compose
+ *      docker-compose -f docker/docker-compose.yaml up -d
+ *  2. run the tests with ENABLE_INTEGRATION_TESTS set to "true"
+ *      ENABLE_INTEGRATION_TESTS=true yarn test StatedWorkflow.test.js
+ */
+if (process.env.ENABLE_INTEGRATION_TESTS === "true") {
     test("Pulsar consumer integration test", async () => {
         const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'pubsub-pulsar.yaml');
         const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
@@ -785,7 +793,7 @@ if (isMacOS) {
 
         const {templateProcessor: tp} = await StatedWorkflow.newWorkflow(template);
         // keep steps execution logs for debugging
-        tp.options = {'keepLogs': true}
+        tp.options = {'keepLogs': true, 'snapshot': {'snapshotIntervalSeconds': 0.01}};
 
         await tp.initialize();
 
@@ -871,8 +879,6 @@ if (isMacOS) {
     }, 300000)
 }
 
- */
-
 test("backpressure due to max parallelism", async () => {
 
     // Load the YAML from the file
@@ -904,3 +910,121 @@ test("backpressure due to max parallelism", async () => {
 });
 
 
+/**
+ * This test validates that the workflow can be recovered from a snapshot.
+ */
+test("Snapshot and recover for workflow", async () => {
+    // Logging function to console.log with date stamps
+    const logWithDate = (message) => {
+        console.log(`${new Date().toISOString()}: ${message}`);
+    };
+
+    // Load the YAML from the file
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'inhabitants-with-delay.yaml');
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+    var template = yaml.load(templateYaml);
+    const sw = await StatedWorkflow.newWorkflow(template);
+    const {templateProcessor: tp} = sw;
+    tp.options = {'snapshot': {'snapshotIntervalSeconds': 0.01}}
+
+    const defaultSnapshotPath = path.join(__dirname, '../', '../','defaultSnapshot.json');
+
+    // Make sure default snapshot is deleted before the test
+    try {
+        await unlink(defaultSnapshotPath);
+        logWithDate(`Deleted previous default snapshot file: ${defaultSnapshotPath}`);
+    } catch (e) {
+        if (e.code !== 'ENOENT') {
+            throw e;
+        }
+    }
+
+    await tp.initialize();
+    logWithDate("Initialized stated workflow template...");
+
+    let anyResidentsSnapshotted = false;
+    let snapshot;
+
+    // Wait for the snapshot file to include at least 10 residents
+    while (!anyResidentsSnapshotted) {
+        try {
+            const snapshotContent = fs.readFileSync(defaultSnapshotPath, 'utf8');
+            snapshot = JSON.parse(snapshotContent);
+            logWithDate(`Snapshot has ${snapshot.output.residents.length} residents`);
+            if (snapshot.output?.residents?.length > 5) {
+                anyResidentsSnapshotted = true;
+                break;
+            }
+        } catch (e) {
+            logWithDate(`Error checking snapshot residents: ${e.message}`);
+        }
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every 1s
+    }
+
+    // Kill the wf
+    logWithDate("Stopping stated workflow...");
+    await sw.close();
+    logWithDate(`Stopped stated workflow, with ${tp.output.residents.length} residents`);
+
+    logWithDate(`Recovering from a snapshot with ${snapshot.output.residents.length} residents`);
+    await tp.initialize(snapshot.template, '/', snapshot.output);
+
+    // Calculate unique residents
+    let uniqResidents = 0;
+    do {
+        uniqResidents = Object.keys(tp.output?.residents.reduce((counts, o)=>{ counts[o.name] = (counts[o.name] || 0) + 1; return counts }, {})).length;
+        logWithDate(`Got ${uniqResidents} unique residents processed`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    } while (uniqResidents < 32)
+
+    logWithDate(`We got ${uniqResidents} unique residents processed with ${tp.output.residents.length} total residents`);
+    await sw.close();
+    logWithDate("Stopped stated workflow before test end");
+}, 20000); // 20s timeout for times swapi not behaving
+
+
+test("subscribePulsar with pulsarMock client", async () => {
+
+    const defaultSnapshotPath = path.join(__dirname, '../', '../','defaultSnapshot.json');
+    try {
+        await unlink(defaultSnapshotPath);
+        console.log(`Deleted previous default snapshot file: ${defaultSnapshotPath}`);
+    } catch (e) {
+        if (e.code !== 'ENOENT') {
+            throw e;
+        }
+    }
+
+    PulsarClientMock.clear();
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'rebelCommunication.yaml');
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+    let template = yaml.load(templateYaml);
+
+    const sw = await StatedWorkflow.newWorkflow(template);
+    await sw.close();
+    const {templateProcessor: tp} = sw;
+    // keep steps execution logs for debugging
+    tp.options = {'keepLogs': true, 'snapshot': {}};
+
+    await tp.initialize();
+
+    while (tp.output.farFarAway?.length + tp.output.nearBy?.length < 10) {
+        console.log(`Waiting for at least 10 messages. So far received from farFarAway: ${tp.output.farFarAway?.length}, from nearBy: ${tp.output.nearBy?.length}`);
+        await new Promise(resolve => setTimeout(resolve, 500)); // Poll every 50ms
+    }
+    console.log(`Received 10 or more messages. Received from farFarAway: ${tp.output.farFarAway?.length}, from nearBy: ${tp.output.nearBy?.length}`);
+
+    expect(tp.output.interceptedMessages?.length).toBeGreaterThanOrEqual(10)
+    expect(tp.output.farFarAway?.length + tp.output.nearBy?.length).toBeGreaterThanOrEqual(10);
+
+    console.log("waiting for at least 10 messages to be acknowledged");
+    const topic = PulsarClientMock.getTopics()[0]; // we use only one topic in the test
+    const subscriberId = tp.output.subscribeParams.type;
+
+    while (!Array.isArray(PulsarClientMock.getAcknowledgedMessages(topic))
+            || PulsarClientMock.getAcknowledgedMessages(topic, subscriberId).length < 10) {
+        console.log(`PulsarMock topic ${topic} stats for subscriberId ${subscriberId}: ${StatedREPL.stringify(PulsarClientMock.getStats(topic, subscriberId))}`);
+        await new Promise(resolve => setTimeout(resolve, 500)); // Poll every 500ms
+    };
+    console.log(`PulsarMock topic ${topic} stats for subscriberId ${subscriberId}: ${StatedREPL.stringify(PulsarClientMock.getStats(topic, subscriberId))}`);
+}, 200000)
