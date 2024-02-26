@@ -1,4 +1,4 @@
-start: ${ $millis() }
+start: ${ (produceParams.data; $millis()) } #record start time, after test dataset has been computed
 # producer will be sending some test data
 produceParams:
   type: "my-topic"

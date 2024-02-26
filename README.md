@@ -67,7 +67,7 @@ For example you can enter this command in the REPL:
 > .init -f "example/homeworld.json"
 ```
 
-# Stated Templates
+# Why Not Ordinary Stated Templates?
 Ordinary [stated templates](https://github.com/cisco-open/stated?tab=readme-ov-file#stated) run a change graph called a
 [DAG](https://github.com/cisco-open/stated?tab=readme-ov-file#dag). 
 Stated flattens the DAG and executes it as a sequence of expressions called the `plan`. The example below illustrates how a plan executes a sequence of REST calls and transformations in an ordinary Stated
@@ -91,35 +91,34 @@ template.
 ![homeworld workflow](https://raw.githubusercontent.com/geoffhendrey/jsonataplay/main/homeworld-workflow.svg)
 
 As 'luke' moves through the `plan` two REST calls are made, and no new inputs can enter. This is because Stated 
-quees execution plans, allowing one to complete before the next can enter. This is a clean way to prevent 
+queues execution plans, allowing one to complete before the next can enter. This is a clean way to prevent 
 concurrent state mutations, and works well for in-memory computation DAGs. We can see that long
 running I/O operations, however, will bottleneck the template. If the template engine is shutdown, there is no way to 'restart'
-the work where it left off.
+the work where it left off. We can see that for "workflows", which implies lots of I/O, and hence longer runtimes, we 
+need a way to address these concerns.
 
 # Stated Workflow Pipelines
-Stated Workflows pipeline functions expand the purview of stated templates from fast-running compute graphs into the realm of I/O-heavy, 
-long running, concurrent workflows:
- * _**Pipeline Functions**_ - Stated Workflows provide specific support for `$serial` and `$parallel` execution pipelines that can 
+Stated Workflows solves these problems in order to provide a suitable runtime for long-running, I/O heavy workflows:
+ * _**Concurrent, Event Driven, Non-blocking**_ - Stated Workflows provide specific support for `$serial` and `$parallel` execution pipelines that can 
    be mixed together and safely run in parallel. Unlike an ordinary expression `plan`, `$serial` and `$parallel` are pipelined
    and nonblocking. As events arrive they can directly enter a `$serial` or `$parallel` without waiting. 
+ * _**Atomic State Updates**_ - An atomic state update operator allows concurrent pipelies to avoid Lost Updates.
  * _**Durability**_ - Pipeline Functions (`$serial` and `parallel`) work with `--options={"snapshot":{...opts...}}` to 
    snapshot their state to various stores. Stated Workflows can be started from a snapshot, hence restoring all pipeline
    functions to their state at the time of the snapshot.
- * _**State Safety**_ pipelines cannot access template state except at their inputs and outputs. Pipeline functions pass
-   data from one pipeline step to the next. This means that each invocation of a pipeline function is isolated.
- * _**Pub/Sub Connectors**_ in an ordinary Stated Template, changes are injected into the template, either by using the REPL, or 
-  by building a program that utilizes the [TemplateProcessor API](https://cisco-open.github.io/stated/classes/TemplateProcessor.default.html).
-  Stated Workflows provide direct access to `$publish` and `subscribe` functions that can dispatch into execution pipelines
-  with any desired parallelism. Events are typically dispatched into `$serial` or `$parallel` pipelines to 
-  combine concurrent execution with durability
+ * _**Pub/Sub Connectors**_ - Stated Workflows provide direct access to `$publish` and `subscribe` functions that can 
+     dispatch events into execution pipelines with any desired parallelism. A simple change to the subscriber configuration
+     allows your workflow to operate against Kafka, Pulsar, and other real-world messaging systems.
 
-## Non-blocking Event Driven
+## Concurrent, Event Driven, Non-blocking
 Stated-Workflows provides a set of functions that allow you to integrate with cloud events, consuming and producing from
 Kafka or Pulsar message buses, as well as HTTP. Publishers and subscribers can be initialized with test data. This example,
-`joinResistance.yaml`, generates URLS for members of the resistance, as test data.
+`joinResistance.yaml`, generates URLS for members of the resistance, as test data. The data URLs are then published as 
+events and dispatched to a subscriber with a settable `parallelism` factor. The subscriber `$fetches` the URL and extracts
+the Star Wars character's full name from the REST response.
 
 ```yaml
-start: ${ $millis() }
+start: ${ (produceParams.data; $millis()) } #record start time, after test dataset has been computed
 # producer will be sending some test data
 produceParams:
   type: "my-topic"
@@ -151,7 +150,6 @@ recv$: $subscribe(subscribeParams)
 rebelForces: [ ]
 runtime: ${ (rebelForces; "Rebel forces assembled in " & $string($millis()-start) & " ms")}
 ```
-
 Let's see how long it takes to run, using a parallelism of 1 in the subscriber as shown above:
 ```json ["$count(data)=10", "$~>$contains('Rebel forces assembled in')"]
 > .init -f "example/joinResistance.yaml" --tail "/rebelForces until $~>$count=10"
@@ -171,7 +169,9 @@ Started tailing... Press Ctrl+C to stop.
 > .out /runtime
 "Rebel forces assembled in 3213 ms"
 ```
-Now let's run a modified version where `subscribeParams` have `"parallelism": 5`
+The runtime reflects the fact that `parallelism:1` causes the REST calls to happen in serial. Now let's run a modified 
+version where `subscribeParams` have `"parallelism": 10`. We should expect a speedup because there should be as many as
+5 concurrent REST calls.
 ```json  ["$count(data)=10", "$~>$contains('Rebel forces assembled in')"]
 > .init -f "example/joinResistanceFast.yaml" --tail "/rebelForces until $~>$count=10"
 Started tailing... Press Ctrl+C to stop.
@@ -188,38 +188,20 @@ Started tailing... Press Ctrl+C to stop.
 "Biggs Darklighter"
 ]
 > .out /runtime
-"Rebel forces assembled in 1529 ms"
+"Rebel forces assembled in 775 ms"
 
 ```
-The speedup for `joinResistanceFast.yaml` shows that the events are processed concurrently without any `plan` serialization.
+Notice that the order of elements in `/rebelForces` is not the same as their order in the input data, reflecting the fact
+that we have 10 concurrent events being processed. The speedup for `joinResistanceFast.yaml` shows that many REST calls
+are happening in parallel. The `$parallelism` factor provides backpressure into the messaging system such as kafka which prevents the number of 
+'in flight' events from exceeding the `$parallism` factor.
 
-
-## Atomic Updates
-The example above used an atomic write primitive to update `/rebelForces`. Let's consider what happens if we don't use 
-an atomic write primitive. 
-```yaml
-joinResistance:  |
-  /${ 
-    function($url){(
-        $rebel := $fetch($url).json().results[0].name; 
-        $set( "/rebelForces", $rebelForces~>$append($rebel)) /* BUG!! */
-    )}  
-  }
-```
-The last writer wins, and we get a [lost-update problem](https://medium.com/@bindubc/distributed-system-concurrency-problem-in-relational-database-59866069ca7c#:~:text=Lost%20Update%20Problem%3A&text=In%20simple%20words%2C%20when%20two,update%20of%20the%20first%20transaction.).
-You can see below that using a naive update strategy to update `rebelForces` results in only one of the 10 names
-appearing in the array. The argument `--tail "/rebelForces 10"` instructs tail to stop tailing after 10 changes. Each
-of the concurrent pipeline invocations have updated the array, but only the last writer will win.
-```json ["$count(data)=1"]
-> .init -f "example/joinResistanceBug.yaml" --tail "/rebelForces 10"
-Started tailing... Press Ctrl+C to stop.
-"Wedge Antilles"
-```
-Stated Workflows provides an atomic primitive that prevents [lost-updates](https://medium.com/@bindubc/distributed-system-concurrency-problem-in-relational-database-59866069ca7c#:~:text=Lost%20Update%20Problem%3A&text=In%20simple%20words%2C%20when%20two,update%20of%20the%20first%20transaction.) 
+## Atomic State Updates
+Stated Workflows provides an atomic primitive that prevents [lost-updates](https://medium.com/@bindubc/distributed-system-concurrency-problem-in-relational-database-59866069ca7c#:~:text=Lost%20Update%20Problem%3A&text=In%20simple%20words%2C%20when%20two,update%20of%20the%20first%20transaction.)
 with concurrent mutations of arrays.  It does this by using a
 special JSON pointer defined by [RFC 6902 JSON Patch for appending to an array](https://datatracker.ietf.org/doc/html/rfc6902#appendix-A.16).
 The `joinResistanceFast.yaml` example shows how to use the syntax: `$set( "/rebelForces/-", $rebel)`
-to safely append to an array.
+to safely append to an array. 
 ```yaml
 joinResistance:  |
   /${ 
@@ -229,7 +211,7 @@ joinResistance:  |
     )}  
   }
 ```
-Again we can show that `joinResistanceFast.yaml` produces the expected 10 results.
+Again we can show that `joinResistanceFast.yaml` produces the expected 10 results. The argument `--tail "/rebelForces 10"` instructs tail to stop tailing after 10 changes.
 ```json ["$count(data)=10", "$count(data)<10"]
 > .init -f "example/joinResistanceFast.yaml" --tail "/rebelForces 10"
 Started tailing... Press Ctrl+C to stop.
@@ -247,11 +229,33 @@ Started tailing... Press Ctrl+C to stop.
 ]
 
 ```
+ Let's consider what happens if we don't use an atomic write primitive. Instead, we will read the value of the `$rebelForces`
+array and append $rebel to it. 
+```yaml
+joinResistance:  |
+  /${ 
+    function($url){(
+        $rebel := $fetch($url).json().results[0].name; 
+        $set( "/rebelForces", $rebelForces~>$append($rebel)) /* BUG!! */
+    )}  
+  }
+```
+This type of update, where you read a value, mutate it, write it back is a classic example of the
+[lost-update problem](https://medium.com/@bindubc/distributed-system-concurrency-problem-in-relational-database-59866069ca7c#:~:text=Lost%20Update%20Problem%3A&text=In%20simple%20words%2C%20when%20two,update%20of%20the%20first%20transaction.).
+Each of the concurrent pipeline invocations have updated the array, but they have each updated it with the value they read
+and their change appended to it. The problem is they all read, concurrently, the initial value which is an empty array.
+You can see below that using a naive update strategy to update `rebelForces` results in only one of the 10 names
+appearing in the array.
+```json ["$count(data)=1"]
+> .init -f "example/joinResistanceBug.yaml" --tail "/rebelForces 10"
+Started tailing... Press Ctrl+C to stop.
+"Wedge Antilles"
+```
 
 ## Pure Function Pipelines - $serial and $parallel
-Although stated provides the primitive for atomic updates, it's still advisable to avoid concurrent mutation. We tried
-and true way to avoid shared state mutation is with pure functions like this, that only update shared state at the end
-of the pipeline.
+A tried and true strategy for avoiding concurrent state mutation is to use pure functions like this, that pipeline the
+output of function to the input to the next. If it is necessary to update shared state, it can be done at the end of the
+pipeline, or at any point in between using atomic state mutations, like this.
  ```json
 function($x){ $x ~> f1 ~> f2 ~> f3 ~> function($x){$set('/saveResult/-', $x) } }
 ```
