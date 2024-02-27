@@ -18,9 +18,10 @@ import jp from "stated-js/dist/src/JsonPointer.js";
 // This class is used to add events to a queue and dispatch them to one or more subscribed workflow function with the
 // given parallelism. Tracks the number of active events and the number of events in the queue.
 export class WorkflowDispatcher {
-    constructor(subscribeParams) {
+    constructor(subscribeParams, testDataAckFunctionGenerator) {
         const {to: workflowFunction, parallelism, type, subscriberId} = subscribeParams;
         this.subscribeParams = subscribeParams;
+        this.testDataAckFunctionGenerator = testDataAckFunctionGenerator;
         this.workflowFunction = workflowFunction;
         this.parallelism = parallelism || 1;
         this.subscriberId = subscriberId;
@@ -52,11 +53,11 @@ export class WorkflowDispatcher {
         this.dispatcherObjects.set(key, dispatcher);
     }
 
-    getDispatcher(subscriptionParams) {
+    getDispatcher(subscriptionParams, ackFunctionGenerator) {
         const {type, subscriberId} = subscriptionParams;
         const key = this._generateKey(type, subscriberId);
         if (!this.dispatcherObjects.has(key)) {
-            const newDispatcher = new WorkflowDispatcher(subscriptionParams);
+            const newDispatcher = new WorkflowDispatcher(subscriptionParams, ackFunctionGenerator);
             this._addDispatcher(newDispatcher);
         }
         return this.dispatcherObjects.get(key);
@@ -114,11 +115,8 @@ export class WorkflowDispatcher {
                 if (index > -1) {
                     this.promises.splice(index, 1);
                     if (this.dataAckCallbacks.get(eventData)) {
-                        // console.debug("calling dataAckCallbacks for ", eventData);
                         const callbackPromise = this.dataAckCallbacks.get(eventData)();
-                        callbackPromise.then(() => {
-                                // console.debug("dataAckCallbacks resolved for ", eventData);
-                            }).catch(error => {
+                        callbackPromise.catch(error => {
                                 console.error("Error calling dataAckCallbacks:", error);
                             });
                         delete this.dataAckCallbacks.get(eventData);
@@ -149,6 +147,13 @@ export class WorkflowDispatcher {
             record.shift(); //we keep a history of the active count for 10 values over time
         }
     }
+
+    /**
+     *
+     * @param data - event data to be added to the queue
+     * @param dataAckCallback - a callback function to be called when the event data is processe.
+     * @returns {Promise<unknown>}
+     */
     async addToQueue(data, dataAckCallback) {
 
         return new Promise(async (resolve, reject) => {
@@ -157,8 +162,10 @@ export class WorkflowDispatcher {
                 if (this.active < this.parallelism) {
                     this.queue.push(data);
                     if (dataAckCallback) {
-                        // console.debug("adding dataAckCallbacks for ", data);
                         this.dataAckCallbacks.set(data, dataAckCallback);
+                    }
+                    if (this.testDataAckFunctionGenerator !== undefined) {
+                        this.dataAckCallbacks.set(data, this.testDataAckFunctionGenerator(data));
                     }
                     resolve(); // Resolve the promise to signal that the data was queued
                     this._dispatch(); // Attempt to dispatch the next task
@@ -180,17 +187,27 @@ export class WorkflowDispatcher {
     }
 
 
-    //this is used for testing
+    // this is used for testing.
     async addBatch(testData) {
         // check if testData is a function, and apply it to get the actual data
-        if (typeof testData === 'function') {
-            testData = await testData();
+        try {
+            if (typeof testData === 'function') {
+                testData = await testData();
+            }
+        } catch (error) {
+            console.error("Error executing testData function:", error);
+            throw error;
         }
+
         this.batchMode = true;
         if (Array.isArray(testData)) {
             this.batchCount += testData.length;
             for(let i=0;i<testData.length;i++){
-                await this.addToQueue(testData[i]);
+                if (Array.isArray(this.subscribeParams.acks) && this.subscribeParams.acks.includes(testData[i])) {
+                    console.debug(`Skipping already acknowledged test data: ${testData[i]}`);
+                } else {
+                    await this.addToQueue(testData[i]);
+                }
             }
         } else {
             this.batchCount += 1;

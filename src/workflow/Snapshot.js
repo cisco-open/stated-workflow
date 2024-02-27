@@ -8,7 +8,7 @@ export class Snapshot {
             tp.logger.debug("no --snapshot options defined, skipping snapshot");
             return;
         }
-        const snapshotStr = tp.snapshot();
+        const snapshotStr = await tp.snapshot();
         const {storage = "fs", path = "./defaultSnapshot.json"} = snapshotOpts; // Default path if not provided
 
         if (storage === "fs") {

@@ -6,7 +6,6 @@ subscribeParams: #parameters for subscribing to a http request
 
 myWebLambda$: |
   function($con){
-  
       $con.res.send("Hello Stated Lambda")
       
   }

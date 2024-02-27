@@ -28,11 +28,8 @@ import fs from "fs";
 import path from "path";
 import {Delay} from "../test/TestTools.js"
 import {Snapshot} from "./Snapshot.js";
-import {rateLimit} from "stated-js/dist/src/utils/rateLimit.js";
 import {PulsarClientMock} from "../test/PulsarMock.js";
 
-const writeFile = util.promisify(fs.writeFile);
-const basePath = path.join(process.cwd(), '.state');
 
 //This class is a wrapper around the TemplateProcessor class that provides workflow functionality
 export class StatedWorkflow {
@@ -238,6 +235,7 @@ export class StatedWorkflow {
         return "done";
     }
 
+
     publishKafka(params, clientParams) {
         this.logger.debug(`kafka publish params ${StatedREPL.stringify(params)}`);
         const {type, data} = params;
@@ -311,29 +309,20 @@ export class StatedWorkflow {
         }
     }
 
-    async subscribe(subscribeOptions, resolvedJsonPointers = {}, tp = undefined) {
+    async subscribe(subscribeOptions, resolvedJsonPointers = [], tp = undefined) {
         const {source} = subscribeOptions;
         this.logger.debug(`subscribing ${StatedREPL.stringify(source)}`);
 
+        const subscribeOptionsJsonPointer = Array.isArray(resolvedJsonPointers) && resolvedJsonPointers.length > 0 ? resolvedJsonPointers[0] : undefined;
         if(!this.workflowDispatcher) {
             this.workflowDispatcher = new WorkflowDispatcher(subscribeOptions);
         }
-
-
-        // let resolve;
-        // this.templateProcessor.setDataChangeCallback('/', async (data, jsonPtr, removed) => {
-        //     if (jsonPtr === '/step1/log/*/args') { //TODO: regexify
-        //         // TODO: await persist the step
-        //         resolve();
-        //     }
-        // });
-
 
         if (source === 'http') {
             return this.onHttp(subscribeOptions);
         }
         if (source === 'cloudEvent') {
-            return this.subscribeCloudEvent(subscribeOptions);
+            return this.subscribeCloudEvent(subscribeOptions, subscribeOptionsJsonPointer);
         }
         if (!source) {
             throw new Error("Subscribe source not set");
@@ -379,13 +368,12 @@ export class StatedWorkflow {
                         resolve = _resolve; //we assign our resolve variable that is declared outside this promise so that our onDataChange callbacks can use  it
                     });
 
-                    // we create a callback to acknowledge the message
+                    // create a callback to acknowledge the message
                     const dataAckCallback = async () => {
                         const promise =  consumer.acknowledge(message);
-                        console.log(`acknowledging messageId ${StatedREPL.stringify(message.getMessageId().toString())} for messageData: ${StatedREPL.stringify(messageData)}`);
                     }
 
-                    //if the dispatchers max parallelism is reached this loop should block, which is why we await
+                    // if the dispatchers max parallelism is reached this loop should block, which is why we await
                     await this.workflowDispatcher.dispatchToAllSubscribers(type, messageData, dataAckCallback);
                     if(countdown && --countdown===0){
                         break;
@@ -445,8 +433,16 @@ export class StatedWorkflow {
                 } catch (error) {
                     console.error("Unable to parse data to JSON:", error);
                 }
-    
-                this.workflowDispatcher.dispatchToAllSubscribers(type, data);
+                const ackFunction = async (data) => {
+                    // TODO: make the below code working
+                    // const currentOffset = this.templateProcessor.output(subscribeParamsJsonPointer + 'offset',);
+                    // if (currentOffset < message.offset + 1) {
+                    //   await consumer.commitOffsets([{ topic, partition, offset: message.offset + 1 }]);
+                    //   this.templateProcessor.setData(subscribeParamsJsonPointer + 'offset', message.offset + 1;
+                    // }
+                }
+                this.workflowDispatcher.dispatchToAllSubscribers(type, data, dataAckCallback);
+
     
                 if (countdown && --countdown === 0) {
                     // Disconnect the consumer if maxConsume messages have been processed
@@ -456,7 +452,7 @@ export class StatedWorkflow {
         });
     }
 
-    async subscribeCloudEvent(subscriptionParams) {
+    async subscribeCloudEvent(subscriptionParams, subscribeParamsJsonPointer) {
         const {testData, client:clientParams={type:'test'}, to} = subscriptionParams;
         //to-do fixme do validation of subscriptionParams
         if(!to){
@@ -467,16 +463,37 @@ export class StatedWorkflow {
 
         const {type:clientType} = clientParams;
 
+        // testData may contain some canned data to be used without a publisher.
         if (testData !== undefined) {
             this.logger.debug(`No 'real' subscription created because testData provided for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
-            const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams);
+            const testDataAckFunctionGenerator = ((data) => {
+                return async () => {
+                    // we check if subscriptionParams.acks is an array to enable acks. If the array is missing, acks
+                    // are not enabled and we do not need to do anything.
+                    if (subscriptionParams !== undefined && Array.isArray(subscriptionParams.acks)) {
+                        await this.templateProcessor.setData(subscribeParamsJsonPointer + '/acks/-',data);
+                    }
+                }
+            }).bind(this);
+            const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams, testDataAckFunctionGenerator);
+
             await dispatcher.addBatch(testData);
             await dispatcher.drainBatch(); // in test mode we wanna actually wait for all the test events to process
             return;
         }
+        // clientType test means that the data will be sent directly from publish function to the dispatcher
         if(clientType==='test'){
             this.logger.debug(`No 'real' subscription created because client.type='test' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
-            const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams); // we need a dispatched even if no real message bus
+            const testDataAckFunctionGenerator = (data) => {
+                return async () => {
+                    if (subscriptionParams !== undefined && Array.isArray(subscriptionParams.acks)) {
+                        console.debug(`acknowledging data: ${StatedREPL.stringify(data)}`);
+                        await this.templateProcessor.setData(subscribeParamsJsonPointer + '/acks/-',data);
+                    }
+                }
+            };
+            // validates that we have a dispatcher created for this subscriptionParams.
+            this.workflowDispatcher.getDispatcher(subscriptionParams, testDataAckFunctionGenerator);
         }else if (clientType === 'kafka') {
             this.logger.debug(`subscribing to kafka using ${clientParams}`)
             this.createKafkaClient(clientParams);
@@ -496,9 +513,12 @@ export class StatedWorkflow {
     }
 
     onHttp(subscriptionParams) {
+        if (subscriptionParams.type === undefined) subscriptionParams.type = 'default-type';
+        if (subscriptionParams.subscriberId === undefined) subscriptionParams.subscriberId = 'default-subscriberId';
+        const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams);
         StatedWorkflow.app.all('*', async (req, res) => {
             // Push the request and response objects to the dispatch queue to be handled by callback
-            await this.workflowDispatcher.addToQueue({req, res});
+            await dispatcher.addToQueue({req, res});
         });
 
         StatedWorkflow.app.listen(StatedWorkflow.port, () => {

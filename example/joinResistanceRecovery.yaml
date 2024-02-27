@@ -1,0 +1,66 @@
+start: ${ (produceParams.data; $millis()) } #record start time, after test dataset has been computed
+# producer will be sending some test data
+produceParams:
+  type: "rebelDispatch"
+  data: ['luke', 'han', 'leia']
+  client:
+    type: test # test client produces directly to the test subscriber dispatcher
+# the subscriber's 'to' function will be called on each received event
+subscribeParams: #parameters for subscribing to an event
+  source: cloudEvent
+  type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
+  to: /${saveRebelWorkflow}
+  subscriberId: rebelArmy
+  initialPosition: latest
+  parallelism: 1
+  acks: []
+  client:
+    type: test
+saveRebelWorkflow:
+  function: | 
+    /${ 
+      function($rebel){ 
+        $rebel ~> $serial(
+          [fetchRebel, saveRebel],
+          {'workflowInvocation': $rebel} 
+        ) }  }
+fetchRebel:
+  function: | 
+    /${ 
+      function($rebel){(
+        $console.debug('fetchRebel input: ' & $rebel);
+        $r := $rebel.$fetch('https://swapi.dev/api/people/?search='&$).json().results[0];
+        $console.debug('fetchRebel fetched: ' & $r);  
+        $set('/fetchLog/-',$rebel);
+        $console.debug('logged fetch: ' & $r);
+        $r;
+      )}  
+    }
+saveRebel:
+  function: | 
+    /${ 
+      function($rebel){(
+        $console.debug('saveRebel input: ' & $rebel);
+        ($count(rebels) = 1 and simulateFailure)?(
+          $set('/simulateFailure', false); 
+          $console.log('sleep forever on : ' & $rebel);
+          $sleep(1000000);
+        );
+        $rebel ? $set('/rebels/-',{'name':$rebel.name, 'url':$rebel.homeworld});
+        $console.debug('saveRebel saved: ' & {'name':$rebel.name, 'url':$rebel.homeworld});
+      )}  
+    }
+# starts producer function
+send$: $publish(produceParams)
+# starts consumer function
+recv$: $subscribe(subscribeParams)
+### below are workflow outputs and results
+# the workflow will save the rebel to the rebels array below
+rebels: [ ]
+# fetch log
+fetchLog: [ ]
+# the below field is used to simulate a failure in the saveRebel function
+# it will be set to false after the first failure
+simulateFailure: true
+# measure runtime
+runtime: ${ (rebelForces; "Rebel forces assembled in " & $string($millis()-start) & " ms")}
