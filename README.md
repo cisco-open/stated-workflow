@@ -171,7 +171,7 @@ Started tailing... Press Ctrl+C to stop.
 ```
 The runtime reflects the fact that `parallelism:1` causes the REST calls to happen in serial. Now let's run a modified 
 version where `subscribeParams` have `"parallelism": 10`. We should expect a speedup because there should be as many as
-5 concurrent REST calls.
+10 concurrent REST calls.
 ```json  ["$count(data)=10", "$~>$contains('Rebel forces assembled in')"]
 > .init -f "example/joinResistanceFast.yaml" --tail "/rebelForces until $~>$count=10"
 Started tailing... Press Ctrl+C to stop.
@@ -211,26 +211,9 @@ joinResistance:  |
     )}  
   }
 ```
-Again we can show that `joinResistanceFast.yaml` produces the expected 10 results. The argument `--tail "/rebelForces 10"` instructs tail to stop tailing after 10 changes.
-```json ["$count(data)=10", "$count(data)<10"]
-> .init -f "example/joinResistanceFast.yaml" --tail "/rebelForces 10"
-Started tailing... Press Ctrl+C to stop.
-[
-  "Owen Lars",
-  "Han Solo",
-  "R2-D2",
-  "Luke Skywalker",
-  "Leia Organa",
-  "Chewbacca",
-  "Obi-Wan Kenobi",
-  "Wedge Antilles",
-  "Anakin Skywalker",
-  "Biggs Darklighter"
-]
-
-```
- Let's consider what happens if we don't use an atomic write primitive. Instead, we will read the value of the `$rebelForces`
-array and append $rebel to it. 
+As we showed earlier, both `joinResistance.yaml` and  `joinResistanceFast.yaml` produce the expected 10 results. 
+Let's consider what happens if we don't use an atomic write primitive. Instead, we will read the value of the `$rebelForces`
+array and append $rebel to it, in order to illustrate the dangers of the well-known  [lost-update problem](https://medium.com/@bindubc/distributed-system-concurrency-problem-in-relational-database-59866069ca7c#:~:text=Lost%20Update%20Problem%3A&text=In%20simple%20words%2C%20when%20two,update%20of%20the%20first%20transaction.).
 ```yaml
 joinResistance:  |
   /${ 
@@ -242,8 +225,8 @@ joinResistance:  |
 ```
 This type of update, where you read a value, mutate it, write it back is a classic example of the
 [lost-update problem](https://medium.com/@bindubc/distributed-system-concurrency-problem-in-relational-database-59866069ca7c#:~:text=Lost%20Update%20Problem%3A&text=In%20simple%20words%2C%20when%20two,update%20of%20the%20first%20transaction.).
-Each of the concurrent pipeline invocations have updated the array, but they have each updated it with the value they read
-and their change appended to it. The problem is they all read, concurrently, the initial value which is an empty array.
+Each of the concurrent pipeline invocations read the array, update it in memory, and write the result. 
+The problem is they all read, concurrently, the same initial value which is an empty array.
 You can see below that using a naive update strategy to update `rebelForces` results in only one of the 10 names
 appearing in the array.
 ```json ["$count(data)=1"]
@@ -251,6 +234,8 @@ appearing in the array.
 Started tailing... Press Ctrl+C to stop.
 "Wedge Antilles"
 ```
+This explains why you should use the "dash syntax", like `/rebelForces/-` to append an element to an array which is 
+a safe operation to perform concurrently.
 
 ## Pure Function Pipelines - $serial and $parallel
 A tried and true strategy for avoiding concurrent state mutation is to use pure functions like this, that pipeline the
@@ -319,6 +304,9 @@ When the step completes, its invocation log is removed.
   }
 }
 ```
+The `$serial` and `$parallel` functions understand the logs. When a template is restored from a snapshot, `$serial` and 
+`$parallel` use these logs to skip completed steps and resume their work at the last incomplete step in every invocation log.
+
 ## snapshots
 Snapshots save the state of a stated template, repeatedly as it runs. Snapshotting allows a Stated Workflow to be stopped
 non-gracefully, and restored from the snapshot. The step logs allow invocations to restart where they left off. 
