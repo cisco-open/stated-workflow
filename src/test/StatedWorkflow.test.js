@@ -1,3 +1,4 @@
+
 // Copyright 2023 Cisco Systems, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,7 +24,7 @@ import util from "util";
 import {fn} from "jest-mock";
 import {PulsarClientMock} from "./PulsarMock.js";
 import Pulsar from "pulsar-client";
-
+import TemplateProcessor from "stated-js/dist/src/TemplateProcessor.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -832,7 +833,6 @@ if (process.env.ENABLE_INTEGRATION_TESTS === "true") {
         function copyStepLogs(objSrc, objDst) {
             Object.keys(objSrc).forEach(key => {
                 if (key.match(/^step\d+$/)) {
-                    // console.log(`Found ${key}:`, objSrc[key]);
                     if (objSrc[key].hasOwnProperty('log')) {
                         console.log(`Copying og ${key}/log:`, objSrc[key].log);
                         objDst[key].log = objSrc[key].log;
@@ -923,16 +923,19 @@ test("Snapshot and recover for workflow", async () => {
     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'inhabitants-with-delay.yaml');
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     var template = yaml.load(templateYaml);
+
     const sw = await StatedWorkflow.newWorkflow(template);
     const {templateProcessor: tp} = sw;
-    tp.options = {'snapshot': {'snapshotIntervalSeconds': 0.01}}
 
-    const defaultSnapshotPath = path.join(__dirname, '../', '../','defaultSnapshot.json');
+    const snapshotFile = 'SnapshotAndRecoverForWorkflowTest.json';
+    tp.options = {'snapshot': {'snapshotIntervalSeconds': 0.01, path: `./${snapshotFile}`}};
 
-    // Make sure default snapshot is deleted before the test
+    const snapshotFilePath = path.join(__dirname, '../', '../', snapshotFile);
+
+    // Make sure snapshot is deleted before the test
     try {
-        await unlink(defaultSnapshotPath);
-        logWithDate(`Deleted previous default snapshot file: ${defaultSnapshotPath}`);
+        await unlink(snapshotFilePath);
+        logWithDate(`Deleted previous snapshot file: ${snapshotFilePath}`);
     } catch (e) {
         if (e.code !== 'ENOENT') {
             throw e;
@@ -948,7 +951,7 @@ test("Snapshot and recover for workflow", async () => {
     // Wait for the snapshot file to include at least 10 residents
     while (!anyResidentsSnapshotted) {
         try {
-            const snapshotContent = fs.readFileSync(defaultSnapshotPath, 'utf8');
+            const snapshotContent = fs.readFileSync(snapshotFilePath, 'utf8');
             snapshot = JSON.parse(snapshotContent);
             logWithDate(`Snapshot has ${snapshot.output.residents.length} residents`);
             if (snapshot.output?.residents?.length > 5) {
@@ -985,10 +988,11 @@ test("Snapshot and recover for workflow", async () => {
 
 test("subscribePulsar with pulsarMock client", async () => {
 
-    const defaultSnapshotPath = path.join(__dirname, '../', '../','defaultSnapshot.json');
+    const snapshotFile = 'subscribePulsarTest.json';
+    const snapshotRelativePath = path.join(__dirname, '../', '../',`${snapshotFile}`);
     try {
-        await unlink(defaultSnapshotPath);
-        console.log(`Deleted previous default snapshot file: ${defaultSnapshotPath}`);
+        await unlink(snapshotRelativePath);
+        console.log(`Deleted previous snapshot file: ${snapshotRelativePath}`);
     } catch (e) {
         if (e.code !== 'ENOENT') {
             throw e;
@@ -1004,7 +1008,7 @@ test("subscribePulsar with pulsarMock client", async () => {
     await sw.close();
     const {templateProcessor: tp} = sw;
     // keep steps execution logs for debugging
-    tp.options = {'keepLogs': true, 'snapshot': {}};
+    tp.options = {'keepLogs': true, 'snapshot': {path: `./${snapshotFile}`}};
 
     await tp.initialize();
 
@@ -1027,4 +1031,123 @@ test("subscribePulsar with pulsarMock client", async () => {
         await new Promise(resolve => setTimeout(resolve, 500)); // Poll every 500ms
     };
     console.log(`PulsarMock topic ${topic} stats for subscriberId ${subscriberId}: ${StatedREPL.stringify(PulsarClientMock.getStats(topic, subscriberId))}`);
-}, 200000)
+    await sw.close();
+}, 10000)
+
+
+/**
+ * This test validates
+ * 1. that the workflow can be restored from a snapshot
+ * 2. Test Client with acknowledgement
+ * 3. Step logs
+ *
+ * How it works:
+ * 1. Test publisher sends 3 messages with rebel names to the test subscriber - ['luke', 'han', 'leia']
+ * 2. The subscriber function runs with parallelism one and executes a workflow with 2 steps: fetchRebel and saveRebel
+ * 3. The test is designed so that on the .init of the tempalate
+ *   3.1 Workflow processes luke, and saves and acknowledges it
+ *   3.2 Workflow completes the first step fetchRebel for han, but hangs on the second step saveRebel and sets simulateFailure=false
+ * 4. test waits for successful snapshot with simulateFailure=false, and then shuts down the workflow
+ * 5. the test validates that the fetchRebel.log.han has both start and end, and saveRebel.log.han has start but no end
+ * 6. the test restores the workflow from the snapshot and waits for the workflow to process all 3 rebels
+ * 7. validates exactly once processing for all 3 rebels
+ * 8. validates that the fetchRebel step was completed exactly once for each rebel, because 'han' completed this step
+ *    before the snapshot was taken.
+ * 8. validates the acks for each rebel
+ */
+test("workflow snapshot and restore", async () => {
+
+    // Load the YAML from the file
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'joinResistanceRecovery.yaml');
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+    let template = yaml.load(templateYaml);
+
+    let sw = await StatedWorkflow.newWorkflow(template);
+    let {templateProcessor: tp} = sw;
+    const snapshotFile = 'workflowSnapshotAndRestoreTest.json';
+    tp.options = {'snapshot': {'snapshotIntervalSeconds': 1, path: `./${snapshotFile}`}};
+
+    const snapshotRelativePath = path.join(__dirname, '../', '../',`${snapshotFile}`);
+
+    // Make sure snapshot is deleted before the test
+    try {
+        await unlink(snapshotRelativePath);
+        console.log(`Deleted previous snapshot file: ${snapshotRelativePath}`);
+    } catch (e) {
+        if (e.code !== 'ENOENT') {
+            throw e;
+        }
+    }
+
+    await tp.initialize();
+    console.log("Initialized stated workflow template...");
+
+    let snapshot;
+
+    // Wait for snapshot to capture field simulateFailure set to true
+    while (true) {
+            // read snapshot and check if output.simulateFailure is set to true
+            try {
+                const snapshotContent = fs.readFileSync(snapshotRelativePath, 'utf8');
+                snapshot = JSON.parse(snapshotContent);
+            } catch (e) {
+                if (e.code === 'ENOENT' || e.message === 'Unexpected end of JSON input') {
+                    console.log(`Snapshot is not ready yet: ${snapshotRelativePath}, waiting...`)
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every 1s
+                    continue; // waiting for snapshot to be made
+                }
+                console.error(`Error checking snapshot residents: ${e.message}`);
+                throw e;
+            }
+            console.log(`Snapshot has ${snapshot.output.rebels.length} rebels, waiting for output.simulateFailure set to true...`);
+            if (snapshot.output.simulateFailure === false) {
+                // by the test design, failure occurs when we're processing second rebel 'han'. 'luke' should be saved and
+                // acknowledged.
+                expect(snapshot.output.rebels.length).toEqual(1);
+                expect(StatedREPL.stringify(snapshot.output.rebels)).toEqual(StatedREPL.stringify([
+                    {"name": "Luke Skywalker", "url": "https://swapi.dev/api/planets/1/"}]));
+                expect(StatedREPL.stringify(snapshot.output.subscribeParams.acks)).toEqual(StatedREPL.stringify(["luke"]));
+                // the output should also have a log for 'han' invocationId complete for fetchRebel
+                expect (snapshot.output.fetchRebel.log.han.end).toBeDefined();
+
+                // the second step saveRebel is designed to hang on 'han' and not to complete.
+                // ... it should have a start log
+                expect (snapshot.output.saveRebel.log.han.start).toBeDefined();
+                // ... but no end log.
+                expect (snapshot.output.saveRebel.log.han.end).toBeUndefined();
+                break;
+            }
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every 1s
+    };
+
+    // Kill the wf
+    console.log("Stopping stated workflow with ${tp.output.rebels.length} rebels saved in the output...");
+    await sw.close();
+    console.log(`Stopped stated workflow`);
+
+    console.log(`Restore from a snapshot...`);
+    sw = await StatedWorkflow.newWorkflow(template);
+    tp = sw.templateProcessor;
+    await TemplateProcessor.prepareSnapshotInPlace(snapshot);
+    await tp.initialize(snapshot.template, '/', snapshot.output);
+
+    while (tp.output.rebels.length !== 3) {
+        console.log(`Waiting for 3 rebels. So far saved: ${tp.output.rebels.length}`);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Poll every 1s
+    }
+
+    // Validate each rebel saved exactly once
+    expect(StatedREPL.stringify(tp.output.rebels)).toEqual(StatedREPL.stringify([
+        {"name": "Luke Skywalker", "url": "https://swapi.dev/api/planets/1/"},
+        {"name": "Han Solo", "url": "https://swapi.dev/api/planets/22/"},
+        {"name": "Leia Organa", "url": "https://swapi.dev/api/planets/2/"}
+    ]));
+    // Expect that each rebel data was acknowledged once.
+    expect(StatedREPL.stringify(tp.output.subscribeParams.acks)).toEqual(StatedREPL.stringify(["luke", "han", "leia"]));
+    // validate that fetchRebel step was completed exactly once. On the first try, it leaves a log for 'han' with start
+    // and end. On the second try the workflow starts from 'han', which hasn't been acknowledged, but has a complete
+    // fetchRebel log and will be skipped.
+    expect(tp.output.fetchLog).toEqual( ["luke", "han", "leia"]);
+
+    await sw.close();
+}, 10000); //

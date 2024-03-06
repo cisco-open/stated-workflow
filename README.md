@@ -247,9 +247,52 @@ function($x){ $x ~> f1 ~> f2 ~> f3 ~> function($x){$set('/saveResult/-', $x) } }
 This pipeline can be concurrently dispatched safely. 
 
 # Durability
-Stated Workflows provides a `$serial` and a `$parallel` function that should be used when you want each stage of a concurrent
-pipeline to be snapshotted to durable storage. The `stateflow` REPL provides a local persistence option, as well as 
-pluggable snapshot persistence. 
+Stated Workflows provides a `$serial` and a `$parallel` function that should be used when you want to run continuous 
+workflow with data coming from a HTTP or cloudEvent sources. Each workflow invocation input and step processing logs are 
+persisted in the template in the beginning of step invocation and in the end. When the workflow is finished, the logs 
+are removed. Periodic snapshots include TemplateProcessor template, output and options, and can be used to recover 
+workflow processing from the last snapshotted state. 
+
+StatedREPL `restore` command can be used to recover the template execution from a snapshot. 
+
+## Pub/Sub durability models
+Stated Workflow comes with built-in HTTP, Pulsar, Kafka and Test clients for cloudEvent subscribe command. Each client 
+implements its own durability model. 
+
+Pulsar and Kafka use server side acknowledgement to ensure that the message is not lost. Test client uses a simple 
+acknowledgement in the template. HTTP client blocks the synchronous HTTP response until the first step persist.
+ 
+### Test Data 
+Test publisher and subscriber can be used to develop and test workflows. Test publisher may include a `data` type to 
+send it directly to test subscriber dispatcher with acknowledgement in the template. 
+
+Example snippets from `example/joinResistanceRecovery.yaml` template.
+```yaml
+produceParams:
+  type: "rebelDispatch"
+  data: ['luke', 'han', 'leia']
+  client:
+    type: test # test client produces directly to the test subscriber dispatcher
+subscribeParams: #parameters for subscribing to an event
+  source: cloudEvent
+  type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
+  to: /${saveRebelWorkflow}
+  subscriberId: rebelArmy
+  initialPosition: latest
+  parallelism: 1
+  acks: [] # if the acks are present in client: type: test, then the subscriber will be storing acknowledgement in this field
+  client:
+    type: test
+```
+## Pulsar
+Pulsar pub/sub relies on server side acknowledgement, similar to the test data. On failure or restart, the subscriber 
+will continue from the next unacknowledged message, and will skip steps already completed in the restored workflow 
+snapshot.
+
+## Kafka
+Kafka can rely on the consumer group commited offset. For parallelism greater than 1, the subscriber will be storing 
+all unacknowledged messages and calculating the lowest offset to be commited. A combination of snapshotted stated and 
+kafka server side consumer offset helps to minimize double-processing of already processed steps. 
 
 ## Workflow Step Logs
 The `$serial` and `$parallel` functions accept an array of object called "steps". A step is nothing but an object with
@@ -309,47 +352,87 @@ The `$serial` and `$parallel` functions understand the logs. When a template is 
 
 ## snapshots
 Snapshots save the state of a stated template, repeatedly as it runs. Snapshotting allows a Stated Workflow to be stopped
-non-gracefully, and restored from the snapshot. The step logs allow invocations to restart where they left off. 
-```json
-> .init -f "example/inhabitants.yaml" --options={"snapshot":{"seconds":1}}
+non-gracefully, and restored from the snapshot. The step logs allow invocations to restart where they left off.  
+
+`example/joinResistanceRecovery.yaml` shows a workflow with 2 serial steps - `fetchRebel` and `saveRebel`. The `saveRebel` step is design to 
+fail after processing the first rebel to demonstrate how snapshot, restore, and step logs work. 
+
+The `--options={"snapshot":{"seconds":1}}` option causes a snapshot to be saved to`defaultSnapshot.json` once a second 
+(use `path` to change the snapshot file location, i.e. 
+`--options={"snapshot":{"seconds":1, "path":"./example/resistanceSnapshot.json"}}`).  
+
+Below command will start the workflow and tail the output until `simulateFailure` expression will be set to false.
+```json ["$count(data.rebels)=1"]
+> .init -f "example/joinResistanceRecovery.yaml" --options={"snapshot":{"seconds":1}} --tail "/ until $$.simulateFailure=false"
 {
+  "start": "${ (produceParams.data; $millis()) }",
   "produceParams": {
-    "type": "my-topic",
-    "data": "${[1..6].($fetch('https://swapi.dev/api/planets/?page=' & $string($)).json().results)}",
+    "type": "rebelDispatch",
+    "data": [
+      "luke",
+      "han",
+      "leia"
+    ],
     "client": {
       "type": "test"
     }
   },
-  "subscribeResidents": {
+  "subscribeParams": {
     "source": "cloudEvent",
     "type": "/${ produceParams.type }",
-    "to": "/${ getResidentsWorkflow }",
-    "subscriberId": "subscribeResidents",
-    "parallelism": 4,
+    "to": "/${saveRebelWorkflow}",
+    "subscriberId": "rebelArmy",
+    "initialPosition": "latest",
+    "parallelism": 1,
+    "acks": [],
     "client": {
       "type": "test"
     }
   },
-  "getResidentsWorkflow": {
-    "function": "/${ function($planetInfo){ $planetInfo ~> $serial([extractResidents, fetchResidents]) }  }"
+  "saveRebelWorkflow": {
+    "function": "/${ \n  function($rebel){ \n    $rebel ~> $serial(\n      [fetchRebel, saveRebel],\n      {'workflowInvocation': $rebel} \n    ) }  }\n"
   },
-  "extractResidents": {
-    "function": "/${ function($planet){$planet.residents.($fetch($).json())}  }"
+  "fetchRebel": {
+    "function": "/${ \n  function($rebel){(\n    $console.debug('fetchRebel input: ' & $rebel);\n    $r := $rebel.$fetch('https://swapi.dev/api/people/?search='&$).json().results[0];\n    $console.debug('fetchRebel fetched: ' & $r);  \n    $set('/fetchLog/-',$rebel);\n    $console.debug('logged fetch: ' & $r);\n    $r;\n  )}  \n}\n"
   },
-  "fetchResidents": {
-    "function": "/${ function($resident){$resident?$set('/residents/-',{'name':$resident.name, 'url':$resident.url})}  }"
+  "saveRebel": {
+    "function": "/${ \n  function($rebel){(\n    $console.debug('saveRebel input: ' & $rebel);\n    ($count(rebels) = 1 and simulateFailure)?(\n      $set('/simulateFailure', false); \n      $console.log('sleep forever on : ' & $rebel);\n      $sleep(1000000);\n    );\n    $rebel ? $set('/rebels/-',{'name':$rebel.name, 'url':$rebel.homeworld});\n    $console.debug('saveRebel saved: ' & {'name':$rebel.name, 'url':$rebel.homeworld});\n  )}  \n}\n"
   },
-  "residents": [],
   "send$": "$publish(produceParams)",
-  "recv$": "$subscribe(subscribeResidents)"
+  "recv$": "$subscribe(subscribeParams)",
+  "rebels": [],
+  "fetchLog": [],
+  "simulateFailure": true,
+  "runtime": "${ (rebelForces; \"Rebel forces assembled in \" & $string($millis()-start) & \" ms\")}"
 }
-
 ```
-The `--options={"snapshot":{"seconds":1}}` causes a snapshot to be saved to `defaultSnapshot.json` once a
-second. The snapshot is just an ordinary json file with two parts: `{"template":{...}, "output":{...}}`
-
+The snapshot can be viewed with the `cat` command:
 ```shell
 cat defaultSnapshot.json
+```
+
+On restore from the snapshot, the workflow will skip the first acknowledged data for the first rebel `luke`, skip 
+complete logs of the first step `fetchRebel` and start from the second step `saveRebel` for `han`, and run both step 
+for the last rebel `leia` in our test data. 
+
+The below example shows how to restore the workflow from the snapshot, and will be tailing the `/rebels` output until we 
+get all 3 of them there. 
+```json ["$count(data)=3"]
+> .restore -f "example/resistanceSnapshot.json" --tail "/rebels until $~>$count=3"
+[
+  {
+    "name": "Luke Skywalker",
+    "url": "https://swapi.dev/api/planets/1/"
+  },
+  {
+    "name": "Han Solo",
+    "url": "https://swapi.dev/api/planets/22/"
+  },
+  {
+    "name": "Leia Organa",
+    "url": "https://swapi.dev/api/planets/2/"
+  }
+]
 ```
 
 # retries
