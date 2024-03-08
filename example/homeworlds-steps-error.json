@@ -3,7 +3,7 @@
   "workflow": "${ function($person){$person~>$serial(steps)} }",
   "steps": [
     {
-      "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
+      "function": "${  function($person){$fetch('https://swapi.tech/api/people/?search='& $person).json().results[0]}   }"
     },
     {
       "function": "${  function($personDetail){$personDetail.homeworld & '--broken--'}  }"
