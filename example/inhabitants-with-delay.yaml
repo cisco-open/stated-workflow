@@ -2,7 +2,7 @@
 produceParams:
   type: "residents"
   # fetch one page of planet data from the Star Wars API
-  data: ${[1].($fetch('https://swapi.dev/api/planets/?page=' & $string($)).json().results)}
+  data: ${[1].($fetch('https://swapi.tech/api/planets/?page=' & $string($)).json().results)}
   client:
     type: test
 subscribeResidents:
@@ -16,9 +16,21 @@ subscribeResidents:
 getResidentsWorkflow:
   function: /${ function($planetInfo){ $planetInfo ~> $serial([extractResidents, fetchResidents]) }  }
 extractResidents:
-    function: /${ function($planet){( $sleep($random() * 10) ; $planet.residents.($fetch($).json()) )}  } # add a random delay
+    function: |
+      /${ 
+        function($planet){( 
+          $sleep($random() * 10) ;
+          $console.log("extracting residents for planet: " & $planet);
+          $planet.($fetch("https://swapi.tech/api/people/?homeworld=" & $)).json().results[]
+        )}  
+      }
 fetchResidents:
-    function: /${ function($residents){$residents.($set('/residents/-',{'name':$.name, 'url':$.url}))}  }
+    function: | 
+      /${ 
+        function($residents){
+          $residents.($set('/residents/-',{'name':$.name, 'url':$.url}))
+        }  
+      }
 residents: [ ]
 # starts producer function
 send$: $publish(produceParams)

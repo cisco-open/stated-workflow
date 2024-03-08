@@ -1,0 +1,7 @@
+{
+  "step1": {"function": "${   function($e){ $e~>|$|{'primed':true}|}  }"},
+  "step2": {"function": "${   function($e){ $e~>|$|{'sprayed':true}|}  }"},
+  "workflow": "${   function($e){ $e ~> $serial([step1, step2]) }   }",
+  "output": "${ (koink; [{'name': '1'}, {'name': '2'}] ~> $map(workflow))}",
+  "konik": "some konik"
+}
