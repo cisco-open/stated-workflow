@@ -513,6 +513,8 @@ export class StatedWorkflow {
     }
 
     onHttp(subscriptionParams) {
+        // Path = /workflow/:workflowId
+        // workflowIdToWorkflowDispatcher
         if (subscriptionParams.type === undefined) subscriptionParams.type = 'default-type';
         if (subscriptionParams.subscriberId === undefined) subscriptionParams.subscriberId = 'default-subscriberId';
         const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams);

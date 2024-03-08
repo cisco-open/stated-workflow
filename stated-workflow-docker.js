@@ -3,6 +3,8 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import { StatedWorkflow } from "./src/workflow/StatedWorkflow.js";
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
+import fs from "fs";
+import TemplateProcessor from "stated-js";
 
 const app = express();
 app.use(bodyParser.json());
@@ -13,11 +15,14 @@ app.post('/workflow', async (req, res) => {
     console.log('Received POST /workflow with data:', req.body);
     try {
         const template = req.body;
+        // const options = req.body.options;
         const workflowId = generateUniqueId();
         console.log(`Creating new workflow with ID ${workflowId}`);
-        const tp = await StatedWorkflow.newWorkflow(template);
-        workflows[workflowId] = tp;
-        console.log(`Workflow ${workflowId} started`);
+        const sw = await StatedWorkflow.newWorkflow(template);
+        sw.templateProcessor.options = {'snapshot': {'snapshotIntervalSeconds': 1, path: `./${workflowId}.json`}};
+        workflows[workflowId] = sw;
+        await sw.templateProcessor.initialize()
+        console.log(`Workflow ${workflowId} started, output:`, StatedREPL.stringify(sw.templateProcessor.output));
         res.json({ workflowId, status: 'Started' });
     } catch (error) {
         console.error('Error in POST /workflow:', error);
@@ -25,7 +30,36 @@ app.post('/workflow', async (req, res) => {
     }
 });
 
-app.get('/workflow', (req, res) => {
+app.post('/restore', async (req, res) => {
+    console.log('Received POST /restore with data:', req.body);
+    try {
+        const workflowId = req.body.workflowId;
+        console.log(`Restoring workflow with ID ${workflowId}`);
+
+        const snapshotContent = fs.readFileSync(`./${workflowId}.json`, 'utf8');
+        const snapshot = JSON.parse(snapshotContent);
+
+        if (workflows[workflowId]) {
+            console.log(`Closing ${workflowId} workflow`);
+            await workflows[workflowId].close();
+        }
+
+        await TemplateProcessor.prepareSnapshotInPlace(snapshot);
+        const sw = await StatedWorkflow.newWorkflow(snapshot.template);
+        workflows[workflowId] = sw;
+        sw.templateProcessor.options = snapshot.options;
+        await sw.templateProcessor.initialize(snapshot.template, '/', snapshot.output);
+
+        console.log(`Workflow ${workflowId} restored from snapshot ${StatedREPL.stringify(snapshot)}`);
+        console.log(`Workflow ${workflowId}:`, StatedREPL.stringify(sw.templateProcessor.output));
+        res.json({ workflowId, status: 'restored' });
+    } catch (error) {
+        console.error('Error in POST /workflow:', error);
+        res.status(500).send(error.toString());
+    }
+});
+
+app.get('/workflow', (req, res  ) => {
     console.log('Received GET /workflow');
     const workflowIds = Object.keys(workflows);
     res.json({ workflowIds });
@@ -36,8 +70,8 @@ app.get('/workflow/:workflowId', (req, res) => {
     console.log(`Received GET /workflow/${workflowId}`);
     const workflow = workflows[workflowId];
     if (workflow) {
-        console.log(`Workflow ${workflowId}:`, StatedREPL.stringify(workflow));
-        res.json(workflow.templateProcessor?.output);
+        console.log(`Workflow ${workflowId}:`, StatedREPL.stringify(workflow.templateProcessor));
+        res.json(workflow.templateProcessor.output);
     } else {
         console.log(`Workflow ${workflowId} not found`);
         res.status(404).send('Workflow not found');
