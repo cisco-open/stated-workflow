@@ -34,9 +34,6 @@ import {PulsarClientMock} from "../test/PulsarMock.js";
 //This class is a wrapper around the TemplateProcessor class that provides workflow functionality
 export class StatedWorkflow {
     // static express = require('express');
-    static app = express();
-    static port = 8080;
-
 
     static persistence = createStepPersistence();
 
@@ -513,18 +510,22 @@ export class StatedWorkflow {
     }
 
     onHttp(subscriptionParams) {
+
+        this.port = 8080;
+        this.app = express();
+        this.app.use(express.json());
+        this.app.listen(this.port, () => {
+            console.log(`Server started on http://localhost:${StatedWorkflow.port}`);
+        });
         // Path = /workflow/:workflowId
         // workflowIdToWorkflowDispatcher
         if (subscriptionParams.type === undefined) subscriptionParams.type = 'default-type';
         if (subscriptionParams.subscriberId === undefined) subscriptionParams.subscriberId = 'default-subscriberId';
         const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams);
-        StatedWorkflow.app.all('*', async (req, res) => {
+        this.app.all('*', async (req, res) => {
+            console.debug("Received HTTP request: ", req.body, req.method, req.url);
             // Push the request and response objects to the dispatch queue to be handled by callback
-            await dispatcher.addToQueue({req, res});
-        });
-
-        StatedWorkflow.app.listen(StatedWorkflow.port, () => {
-            console.log(`Server started on http://localhost:${StatedWorkflow.port}`);
+            await dispatcher.addToQueue(req.body, ()=>{ res.send("sucess")});
         });
 
         return "listening http ..."

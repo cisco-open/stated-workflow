@@ -78,6 +78,41 @@ app.get('/workflow/:workflowId', (req, res) => {
     }
 });
 
+app.post('/workflow/:workflowId/:type/:subscriberId', async (req, res) => {
+    const workflowId = req.params.workflowId;
+    const type = req.params.type;
+    const subscriberId = req.params.subscriberId;
+    console.log(`Received POST /workflow/${workflowId}/${type}/${subscriberId} with data: ${req.body}`);
+    if (!Array.isArray(req.body)) {
+        console.log(`data must be an array of events, but received ${req.body}`);
+        res.status(400).send('data must be an array of events');
+        return;
+    };
+
+    const workflow = workflows[workflowId];
+    if (!workflow) {
+        console.log(`Workflow ${workflowId} not found`);
+        res.status(404).send('Workflow not found');
+        return;
+    }
+
+    const dispatcher = workflow.workflowDispatcher.getDispatcher({type, subscriberId});
+    if (!dispatcher) {
+        console.log(`dispatcher not found for type ${type} and subscriberId ${subscriberId}`);
+        res.status(404).send('Workflow not found');
+        return;
+    }
+
+    console.log(`Adding events to dispatcher ${dispatcher}`);
+    const promises = [];
+    for (const event of req.body) {
+        const ackDataCallback = () => res.send('success');
+        dispatcher.addToQueue(event, ackDataCallback);
+        promises.push(ackDataCallback);
+    }
+    await Promise.all(promises);
+});
+
 app.delete('/workflow/:workflowId', (req, res) => {
     const workflowId = req.params.workflowId;
     console.log(`Received DELETE /workflow/${workflowId}`);

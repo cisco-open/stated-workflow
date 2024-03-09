@@ -115,10 +115,18 @@ export class WorkflowDispatcher {
                 if (index > -1) {
                     this.promises.splice(index, 1);
                     if (this.dataAckCallbacks.get(eventData)) {
-                        const callbackPromise = this.dataAckCallbacks.get(eventData)();
+                        const dataAckCallback = this.dataAckCallbacks.get(eventData);
+
+                        // promisify the callback function, in case it is a sync one
+                        const callbackPromise = Promise.resolve().then(() => {
+                            console.log(`calling dataAckCallback ${dataAckCallback} for eventData: ${eventData}`);
+                            dataAckCallback()
+                            console.log(`finished calling dataAckCallback ${dataAckCallback} for eventData: ${eventData}`);
+                        });
                         callbackPromise.catch(error => {
-                                console.error("Error calling dataAckCallbacks:", error);
-                            });
+                            console.error(`Error calling dataAckCallback ${dataAckCallback}, error: ${error}`);
+                        });
+
                         delete this.dataAckCallbacks.get(eventData);
                     }
                 }
@@ -163,8 +171,7 @@ export class WorkflowDispatcher {
                     this.queue.push(data);
                     if (dataAckCallback) {
                         this.dataAckCallbacks.set(data, dataAckCallback);
-                    }
-                    if (this.testDataAckFunctionGenerator !== undefined) {
+                    } else if (this.testDataAckFunctionGenerator !== undefined) {
                         this.dataAckCallbacks.set(data, this.testDataAckFunctionGenerator(data));
                     }
                     resolve(); // Resolve the promise to signal that the data was queued
