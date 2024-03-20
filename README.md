@@ -5,15 +5,20 @@
   * [Getting Started](#getting-started)
     * [Installation](#installation)
     * [Running the REPL](#running-the-repl)
-* [Stated Templates](#stated-templates)
+* [Why Not Ordinary Stated Templates?](#why-not-ordinary-stated-templates)
 * [Stated Workflow Pipelines](#stated-workflow-pipelines)
-  * [Non-blocking Event Driven](#non-blocking-event-driven)
-  * [Atomic Updates](#atomic-updates)
+  * [Concurrent, Event Driven, Non-blocking](#concurrent-event-driven-non-blocking)
+  * [Atomic State Updates](#atomic-state-updates)
   * [Pure Function Pipelines - $serial and $parallel](#pure-function-pipelines---serial-and-parallel)
 * [Durability](#durability)
+  * [Pub/Sub durability models](#pubsub-durability-models)
+    * [Test Data](#test-data-)
+  * [Pulsar](#pulsar)
+  * [Kafka](#kafka)
   * [Workflow Step Logs](#workflow-step-logs)
   * [snapshots](#snapshots)
 * [retries](#retries)
+* [Workflow APIs](#workflow-apis)
 <!-- TOC -->
 
 # Overview
@@ -464,3 +469,7 @@ The following example shows how to use the `shouldRetry` function to retry a ste
   ]
 }
 ```
+
+# Workflow APIs
+[README.API.md](README.API.md) provides a REST API to manage the workflow. The API can be used to start, stop, and view 
+workflows. The API can also be used to fetch the latest snapshot and restore the workflow from the snapshot.
