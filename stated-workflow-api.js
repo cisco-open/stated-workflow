@@ -26,12 +26,12 @@ app.post('/workflow', async (req, res) => {
         const sw = await StatedWorkflow.newWorkflow(template);
         sw.templateProcessor.options = {'snapshot': {'snapshotIntervalSeconds': 1, path: `./${workflowId}.json`}};
         workflows[workflowId] = sw;
-        await sw.templateProcessor.initialize()
+        await sw.templateProcessor.initialize(template)
         console.log(`Workflow ${workflowId} started, output:`, StatedREPL.stringify(sw.templateProcessor.output));
         res.json({ workflowId, status: 'Started' });
     } catch (error) {
         console.error('Error in POST /workflow:', error);
-        res.status(500).send(error.toString());
+        res.status(500).send({'error': error.toString()});
     }
 });
 
@@ -50,7 +50,7 @@ app.get('/workflow/:workflowId', (req, res) => {
         res.json(workflow.templateProcessor.output);
     } else {
         console.log(`Workflow ${workflowId} not found`);
-        res.status(404).send('Workflow not found');
+        res.status(404).send({'error': 'Workflow not found'});
     }
 });
 
@@ -61,39 +61,57 @@ app.post('/workflow/:workflowId/:type/:subscriberId', async (req, res) => {
     console.log(`Received POST /workflow/${workflowId}/${type}/${subscriberId} with data: ${req.body}`);
     if (!Array.isArray(req.body)) {
         console.log(`data must be an array of events, but received ${req.body}`);
-        res.status(400).send('data must be an array of events');
+        res.status(400).send({'error': 'data must be an array of events'});
         return;
     };
 
     const workflow = workflows[workflowId];
     if (!workflow) {
         console.log(`Workflow ${workflowId} not found`);
-        res.status(404).send('Workflow not found');
+        res.status(404).send({'error': 'Workflow not found'});
         return;
     }
 
     if (!workflow.workflowDispatcher) {
         console.log(`Workflow ${workflowId} does not have a dispatcher`);
         console.error(`workflow ${StatedREPL.stringify(workflow)}`);
-        res.status(500).send('WorkflowDispatcher is not defined for the workflow');
+        res.status(500).send({'error': 'WorkflowDispatcher is not defined for the workflow'});
         return;
     }
 
     const dispatcher = workflow.workflowDispatcher.getDispatcher({type, subscriberId});
     if (!dispatcher) {
         console.log(`dispatcher not found for type ${type} and subscriberId ${subscriberId}`);
-        res.status(404).send('Workflow not found');
+        res.status(404).send({'error': 'Workflow not found'});
         return;
     }
 
+    if (!Array.isArray(req.body) || req.body.length === 0) {
+        console.log(`data must be an array of events, but received ${req.body}`);
+        res.status(400).send({'error': 'data must be an array of events'});
+        return;
+    }
+
+    let acknowledgedEvents = 0;
+
     console.log(`Adding events to dispatcher ${dispatcher}`);
     const promises = [];
-    for (const event of req.body) {
-        const ackDataCallback = () => res.send('success');
-        dispatcher.addToQueue(event, ackDataCallback);
-        promises.push(ackDataCallback);
+    try {
+        for (const event of req.body) {
+            const ackDataCallback = () => {
+                acknowledgedEvents++;
+                if (acknowledgedEvents === req.body.length) {
+                    res.send({'status': 'success'});
+                }
+            }
+            dispatcher.addToQueue(event, ackDataCallback);
+            promises.push(ackDataCallback);
+        }
+        await Promise.all(promises);
+    } catch (error) {
+        console.error(`Error in POST /workflow/${workflowId}/${type}/${subscriberId}`, error);
+        res.status(500).send({'error': error.toString()});
     }
-    await Promise.all(promises);
 });
 
 app.delete('/workflow/:workflowId', (req, res) => {
@@ -102,10 +120,10 @@ app.delete('/workflow/:workflowId', (req, res) => {
     if (workflows[workflowId]) {
         delete workflows[workflowId];
         console.log(`Workflow ${workflowId} deleted`);
-        res.send('Workflow stopped');
+        res.send({ workflowId, status: 'deleted'});
     } else {
         console.log(`Workflow ${workflowId} not found for deletion`);
-        res.status(404).send('Workflow not found');
+        res.status(404).send({'error': 'Workflow not found'});
     }
 });
 
@@ -120,7 +138,7 @@ app.get('/restore/:workflowId', (req, res) => {
         res.json(snapshot)
     } catch (error) {
         console.error(`Error in GET /restore/${workflowId}`, error);
-        res.status(500).send(error.toString());
+        res.status(500).send({'error': error.toString()});
     }
 
 });

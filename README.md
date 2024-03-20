@@ -464,14 +464,3 @@ The following example shows how to use the `shouldRetry` function to retry a ste
   ]
 }
 ```
-
-
-A template can be restored, and each of its invocations begins again, by loading the snapshot
-...coming soon
-
-# 
-In memory storage of workflows in workflow manager process, 
-
-Location to store a snapshot and location to store logs,  
-
-<delete>"I want to debug the workflow at this host and port, and in the response to the hearbeat"<delete>
