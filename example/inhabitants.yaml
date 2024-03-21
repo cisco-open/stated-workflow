@@ -1,7 +1,7 @@
 # producer will be sending some test data
 produceParams:
   type: "my-topic"
-  data: ${[1..6].($fetch('https://swapi.tech/api/planets/?page=' & $string($)).json().results)}
+  data: ${[1..6].($fetch('https://swapi.dev/api/planets/?page=' & $string($)).json().results)}
   client:
     type: test
 subscribeResidents:

@@ -29,7 +29,7 @@ step2:
     ${ function($e){(
        {
           'sender': $e.sender, 
-          'name': $fetch('https://swapi.tech/api/people/'& $e.sender).json().name,
+          'name': $fetch('https://swapi.dev/api/people/'& $e.sender).json().name,
           'location': $e.location
        }
     )} }

@@ -972,16 +972,15 @@ test("Snapshot and recover for workflow", async () => {
     logWithDate(`Recovering from a snapshot with ${snapshot.output.residents.length} residents`);
     await tp.initialize(snapshot.template, '/', snapshot.output);
 
-    // Calculate residents
-    let residents = 0;
+    // Calculate unique residents
+    let uniqResidents = 0;
     do {
-        // uniqResidents = Object.keys(tp.output?.residents.reduce((counts, o)=>{ counts[o.name] = (counts[o.name] || 0) + 1; return counts }, {})).length;
-        residents = tp.output?.residents;
-        logWithDate(`Got ${residents} unique residents processed`);
+        uniqResidents = Object.keys(tp.output?.residents.reduce((counts, o)=>{ counts[o.name] = (counts[o.name] || 0) + 1; return counts }, {})).length;
+        logWithDate(`Got ${uniqResidents} unique residents processed`);
         await new Promise(resolve => setTimeout(resolve, 1000));
-    } while (residents < 32)
+    } while (uniqResidents < 32)
 
-    logWithDate(`We got ${residents} unique residents processed with ${tp.output.residents.length} total residents`);
+    logWithDate(`We got ${uniqResidents} unique residents processed with ${tp.output.residents.length} total residents`);
     await sw.close();
     logWithDate("Stopped stated workflow before test end");
 }, 20000); // 20s timeout for times swapi not behaving
@@ -1106,7 +1105,7 @@ test("workflow snapshot and restore", async () => {
                 // acknowledged.
                 expect(snapshot.output.rebels.length).toEqual(1);
                 expect(StatedREPL.stringify(snapshot.output.rebels)).toEqual(StatedREPL.stringify([
-                    {"name": "Luke Skywalker", "url": "https://www.swapi.tech/api/planets/1"}]));
+                    {"name": "Luke Skywalker", "url": "https://swapi.dev/api/planets/1/"}]));
                 expect(StatedREPL.stringify(snapshot.output.subscribeParams.acks)).toEqual(StatedREPL.stringify(["luke"]));
                 // the output should also have a log for 'han' invocationId complete for fetchRebel
                 expect (snapshot.output.fetchRebel.log.han.end).toBeDefined();
@@ -1139,9 +1138,9 @@ test("workflow snapshot and restore", async () => {
 
     // Validate each rebel saved exactly once
     expect(StatedREPL.stringify(tp.output.rebels)).toEqual(StatedREPL.stringify([
-        {"name": "Luke Skywalker", "url": "https://www.swapi.tech/api/planets/1"},
-        {"name": "Han Solo", "url": "https://www.swapi.tech/api/planets/22"},
-        {"name": "Leia Organa", "url": "https://www.swapi.tech/api/planets/2"}
+        {"name": "Luke Skywalker", "url": "https://swapi.dev/api/planets/1/"},
+        {"name": "Han Solo", "url": "https://swapi.dev/api/planets/22/"},
+        {"name": "Leia Organa", "url": "https://swapi.dev/api/planets/2/"}
     ]));
     // Expect that each rebel data was acknowledged once.
     expect(StatedREPL.stringify(tp.output.subscribeParams.acks)).toEqual(StatedREPL.stringify(["luke", "han", "leia"]));
