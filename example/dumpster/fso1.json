@@ -1,6 +1,0 @@
-{
-  "lukePersonDetails": "${ curl -i -X 'GET' -H 'Accept: application/json' -H 'Layer-Id: 55f8da9d-93de-4bf2-b818-c2c2ac1d3f8d' -H 'Layer-Type: TENANT' $APPD_JSON_STORE_URL/v1/objects/extensibility:solution/agent -H'appd-pty: IlVTRVIi' -H'appd-pid: ImZvb0BiYXIuY29tIg=='}",
-  "lukeHomeworldURL": "${ lukePersonDetails.homeworld }",
-  "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
-  "homeworldName": "${ homeworldDetails.name }"
-}

@@ -28,7 +28,7 @@
       "function": "/${ \n  function($rebel){ \n    $rebel ~> $serial(\n      [fetchRebel, saveRebel],\n      {'workflowInvocation': $rebel} \n    ) }  }\n"
     },
     "fetchRebel": {
-      "function": "/${ \n  function($rebel){(\n    $console.debug('fetchRebel input: ' & $rebel);\n    $r := $rebel.$fetch('https://swapi.tech/api/people/?search='&$).json().results[0];\n    $console.debug('fetchRebel fetched: ' & $r);  \n    $set('/fetchLog/-',$rebel);\n    $console.debug('logged fetch: ' & $r);\n    $r;\n  )}  \n}\n"
+      "function": "/${ \n  function($rebel){(\n    $console.debug('fetchRebel input: ' & $rebel);\n    $r := $rebel.$fetch('https://swapi.dev/api/people/?search='&$).json().results[0];\n    $console.debug('fetchRebel fetched: ' & $r);  \n    $set('/fetchLog/-',$rebel);\n    $console.debug('logged fetch: ' & $r);\n    $r;\n  )}  \n}\n"
     },
     "saveRebel": {
       "function": "/${ \n  function($rebel){(\n    $console.debug('saveRebel input: ' & $rebel);\n    ($count(rebels) = 1 and simulateFailure)?(\n      $set('/simulateFailure', false); \n      $console.log('sleep forever on : ' & $rebel);\n      $sleep(1000000);\n    );\n    $rebel ? $set('/rebels/-',{'name':$rebel.name, 'url':$rebel.homeworld});\n    $console.debug('saveRebel saved: ' & {'name':$rebel.name, 'url':$rebel.homeworld});\n  )}  \n}\n"
@@ -91,21 +91,21 @@
               "eye_color": "brown",
               "birth_year": "29BBY",
               "gender": "male",
-              "homeworld": "https://swapi.tech/api/planets/22/",
+              "homeworld": "https://swapi.dev/api/planets/22/",
               "films": [
-                "https://swapi.tech/api/films/1/",
-                "https://swapi.tech/api/films/2/",
-                "https://swapi.tech/api/films/3/"
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/2/",
+                "https://swapi.dev/api/films/3/"
               ],
               "species": [],
               "vehicles": [],
               "starships": [
-                "https://swapi.tech/api/starships/10/",
-                "https://swapi.tech/api/starships/22/"
+                "https://swapi.dev/api/starships/10/",
+                "https://swapi.dev/api/starships/22/"
               ],
               "created": "2014-12-10T16:49:14.582000Z",
               "edited": "2014-12-20T21:17:50.334000Z",
-              "url": "https://swapi.tech/api/people/14/"
+              "url": "https://swapi.dev/api/people/14/"
             }
           }
         }
@@ -126,21 +126,21 @@
               "eye_color": "brown",
               "birth_year": "29BBY",
               "gender": "male",
-              "homeworld": "https://swapi.tech/api/planets/22/",
+              "homeworld": "https://swapi.dev/api/planets/22/",
               "films": [
-                "https://swapi.tech/api/films/1/",
-                "https://swapi.tech/api/films/2/",
-                "https://swapi.tech/api/films/3/"
+                "https://swapi.dev/api/films/1/",
+                "https://swapi.dev/api/films/2/",
+                "https://swapi.dev/api/films/3/"
               ],
               "species": [],
               "vehicles": [],
               "starships": [
-                "https://swapi.tech/api/starships/10/",
-                "https://swapi.tech/api/starships/22/"
+                "https://swapi.dev/api/starships/10/",
+                "https://swapi.dev/api/starships/22/"
               ],
               "created": "2014-12-10T16:49:14.582000Z",
               "edited": "2014-12-20T21:17:50.334000Z",
-              "url": "https://swapi.tech/api/people/14/"
+              "url": "https://swapi.dev/api/people/14/"
             }
           }
         }
@@ -151,7 +151,7 @@
     "rebels": [
       {
         "name": "Luke Skywalker",
-        "url": "https://swapi.tech/api/planets/1/"
+        "url": "https://swapi.dev/api/planets/1/"
       }
     ],
     "fetchLog": [
