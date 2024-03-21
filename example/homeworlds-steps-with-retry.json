@@ -4,7 +4,7 @@
   "connectionError": true,
   "steps": [
     {
-      "function": "${  function($person){$fetch('https://swapi.tech/api/people/?name='& $person).json().result[0].properties}   }"
+      "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
     },
     {
       "function": "${  function($personDetail){$personDetail.homeworld }  }"

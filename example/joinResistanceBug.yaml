@@ -2,7 +2,7 @@ start: ${ (produceParams.data; $millis()) } #record start time, after test datas
 # producer will be sending some test data
 produceParams:
   type: "my-topic"
-  data: ${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge'].('https://swapi.tech/api/people/?name='&$)}
+  data: ${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge'].('https://swapi.dev/api/people/?search='&$)}
   client:
     type: test
 # the subscriber's 'to' function will be called on each received event
@@ -18,7 +18,7 @@ subscribeParams: #parameters for subscribing to an event
 joinResistance:  |
   /${ 
     function($url){(
-        $rebel := $fetch($url).json().result[0].properties.name; 
+        $rebel := $fetch($url).json().results[0].name; 
         $set( "/rebelForces", $rebelForces~>$append($rebel)) /* BUG!! */
     )}  
   }

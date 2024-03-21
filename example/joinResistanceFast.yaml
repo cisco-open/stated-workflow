@@ -2,7 +2,7 @@ start: ${ (produceParams.data; $millis()) } #record start time, after test datas
 # producer will be sending some test data
 produceParams:
   type: "my-topic"
-  data: ${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge'].('https://swapi.tech/api/people/?search='&$)}
+  data: ${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge'].('https://swapi.dev/api/people/?search='&$)}
   client:
     type: test
 # the subscriber's 'to' function will be called on each received event

@@ -29,7 +29,7 @@ fetchRebel:
     /${ 
       function($rebel){(
         $console.debug('fetchRebel input: ' & $rebel);
-        $r := $rebel.$fetch('https://swapi.tech/api/people/?name='&$).json().result[0].properties;
+        $r := $rebel.$fetch('https://swapi.dev/api/people/?search='&$).json().results[0];
         $console.debug('fetchRebel fetched: ' & $r);  
         $set('/fetchLog/-',$rebel);
         $console.debug('logged fetch: ' & $r);

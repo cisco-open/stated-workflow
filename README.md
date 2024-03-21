@@ -80,7 +80,7 @@ template.
 ```json
 > .init -f "example/homeworld.json"
 {
-  "lukePersonDetails": "${ $fetch('https://swapi.tech/api/people/?name=luke').json().result[0].properties}",
+  "lukePersonDetails": "${ $fetch('https://swapi.dev/api/people/?search=luke').json().results[0]}",
   "lukeHomeworldURL": "${ lukePersonDetails.homeworld }",
   "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
   "homeworldName": "${ homeworldDetails.name }"
@@ -127,7 +127,7 @@ start: ${ (produceParams.data; $millis()) } #record start time, after test datas
 # producer will be sending some test data
 produceParams:
   type: "my-topic"
-  data: ${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge'].('https://swapi.tech/api/people/?search='&$)}
+  data: ${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge'].('https://swapi.dev/api/people/?search='&$)}
   client:
     type: test
 # the subscriber's 'to' function will be called on each received event
@@ -398,7 +398,7 @@ Below command will start the workflow and tail the output until `simulateFailure
     "function": "/${ \n  function($rebel){ \n    $rebel ~> $serial(\n      [fetchRebel, saveRebel],\n      {'workflowInvocation': $rebel} \n    ) }  }\n"
   },
   "fetchRebel": {
-    "function": "/${ \n  function($rebel){(\n    $console.debug('fetchRebel input: ' & $rebel);\n    $r := $rebel.$fetch('https://swapi.tech/api/people/?name='&$).json().result[0].properties;\n    $console.debug('fetchRebel fetched: ' & $r);  \n    $set('/fetchLog/-',$rebel);\n    $console.debug('logged fetch: ' & $r);\n    $r;\n  )}  \n}\n"
+    "function": "/${ \n  function($rebel){(\n    $console.debug('fetchRebel input: ' & $rebel);\n    $r := $rebel.$fetch('https://swapi.dev/api/people/?search='&$).json().results[0];\n    $console.debug('fetchRebel fetched: ' & $r);  \n    $set('/fetchLog/-',$rebel);\n    $console.debug('logged fetch: ' & $r);\n    $r;\n  )}  \n}\n"
   },
   "saveRebel": {
     "function": "/${ \n  function($rebel){(\n    $console.debug('saveRebel input: ' & $rebel);\n    ($count(rebels) = 1 and simulateFailure)?(\n      $set('/simulateFailure', false); \n      $console.log('sleep forever on : ' & $rebel);\n      $sleep(1000000);\n    );\n    $rebel ? $set('/rebels/-',{'name':$rebel.name, 'url':$rebel.homeworld});\n    $console.debug('saveRebel saved: ' & {'name':$rebel.name, 'url':$rebel.homeworld});\n  )}  \n}\n"
@@ -427,15 +427,15 @@ get all 3 of them there.
 [
   {
     "name": "Luke Skywalker",
-    "url": "https://www.swapi.tech/api/planets/1"
+    "url": "https://swapi.dev/api/planets/1/"
   },
   {
     "name": "Han Solo",
-    "url": "https://www.swapi.tech/api/planets/22"
+    "url": "https://swapi.dev/api/planets/22/"
   },
   {
     "name": "Leia Organa",
-    "url": "https://www.swapi.tech/api/planets/2"
+    "url": "https://swapi.dev/api/planets/2/"
   }
 ]
 ```
@@ -454,7 +454,7 @@ The following example shows how to use the `shouldRetry` function to retry a ste
   "connectionError": true,
   "steps": [
     {
-      "function": "${  function($person){$fetch('https://swapi.tech/api/people/?name='& $person).json().result[0].properties}   }"
+      "function": "${  function($person){$fetch('https://swapi.dev/api/people/?search='& $person).json().results[0]}   }"
     },
     {
       "function": "${  function($personDetail){$personDetail.homeworld }  }"
