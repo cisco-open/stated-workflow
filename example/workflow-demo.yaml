@@ -1,0 +1,57 @@
+
+# fetch workflows
+getWorkflow$: callApi('/workflow', getWorkflowContext)
+
+## start workflow
+startWorkflow$: callApi('/workflow', startWorkflowContext)
+
+
+# set up
+# url serving stated-workflow APIs
+baseUrl: "http://localhost:8080"
+# read a token from fsoc current config file
+token: |
+    /${(
+      $fsoc := $readObject('~/.fsoc');
+      $fsoc.contexts[name=$fsoc.current_context].token;
+    )}
+start: | 
+    /${(
+        console.log('startWorkflow');
+        $startApi();
+    )}
+callApi: |
+  /${ function($path, $context) {( 
+    start?(
+      $r := $fetch(baseUrl & $path, $context);
+      ($r = 'undefined')? $r : 
+      ( 
+        $console.debug('response: ' & $r); 
+        $r.json();
+      )
+    ):'starting APIs failed';
+  )}}
+
+# check workflows status
+# request headers
+getWorkflowContext:
+  method: GET
+  headers:
+    Content-Type: "application/json"
+    Authorization: /${ "Bearer " & token }
+
+# start a new workflow
+# read the joinResistanceRecovery.yaml file
+joinResistanceRecovery: |
+  /${(
+      console.log('starting to read jrr');
+      $c := $readObject('example/joinResistanceRecovery.yaml');
+  )}
+## request headers
+startWorkflowContext:
+  method: POST
+  headers:
+    Content-Type: "application/json"
+    Authorization: /${ "Bearer " & token }
+  body: /${ $toJson(joinResistanceRecovery) }
+
