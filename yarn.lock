@@ -2124,7 +2124,7 @@ json5@^2.2.3:
 
 jsonata@^2.0.3:
   version "2.0.4"
-  resolved "https://registry.yarnpkg.com/jsonata/-/jsonata-2.0.4.tgz#d8575d4c7695a2086162a2baebce0f0ee4e84fdb"
+  resolved "https://registry.npmjs.org/jsonata/-/jsonata-2.0.4.tgz"
   integrity sha512-vfavX4/G/yrYxE+UrmT/oUJ3ph7KqUrb0R7b0LVRcntQwxw+Z5kA1pNUIQzX5hF04Oe1eKxyoIPsmXtc2LgJTQ==
 
 kafkajs@^2.2.4:
@@ -2816,10 +2816,10 @@ stack-utils@^2.0.3:
   dependencies:
     escape-string-regexp "^2.0.0"
 
-stated-js@^0.1.8:
-  version "0.1.8"
-  resolved "https://registry.npmjs.org/stated-js/-/stated-js-0.1.8.tgz"
-  integrity sha512-8oDXhSmrWAvu9jeyq/o37miM6JOa5FXxMTAgL6DSXORFoXus7KXwObLj+bG0XtWL84W/OEp79ZV53mBxfJOk0Q==
+stated-js@^0.1.13:
+  version "0.1.16"
+  resolved "https://registry.npmjs.org/stated-js/-/stated-js-0.1.16.tgz"
+  integrity sha512-tKqa13skpQCuEiUBAItU6vYCXyiKonGoA6hyvAPp/vypnfL6Sq6tc9hUmVgPtU47om/UhB4b3VC7P9CovZWqSw==
   dependencies:
     chalk "^5.3.0"
     flatbuffers "^23.5.26"
