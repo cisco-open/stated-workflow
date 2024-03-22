@@ -1,23 +1,42 @@
+# this demo shows how to use the stated-workflow APIs. The demo consists of a stated template workflow-demo.yaml with
+# demo logic, and workflow-demo.js with helper functions. Stated evaluates the template and builds a graph of
+# dependencies. Once an expression dependencies are resolved, the expression is evaluated.
+#
+# To run the demo:
+#   node stated-workflow example/workflow-demo.yaml --xf=example/workflow-demo.js
+#
+# Demo sequence:
+# 1. start workflow APIs service on localhost:8080 with $startApi() function
+# 2. demonstrates how to fetch workflows
+# 3. starts a new workflow from example/joinResistanceRecovery.yaml
+# 4. waits for the workflow to simulate a failure
+# 5. restores the workflow from a snapshot
+# 6. waits for the workflow to receive 3 rebels
+# 7. sends the last rebel to the workflow
+# 8. stops the workflow APIs service with $stopApi() function
+#
+# It also supports fetching COP platform token from ~/.fsoc file, and using it to authenticate with the platform APIs to
+# run as a COP Zodiac function.
 
-# fetch workflows
+# start workflow APIs service
+start: |
+  /${(
+    console.log('startWorkflow');
+    $startApi();
+  )}
+
+# fetch all running workflows
 getWorkflow$: callApi('/workflow', getWorkflowContext)
 
-## start workflow
-startWorkflow$: callApi('/workflow', startWorkflowContext)
+# start workflow. startWorkflowContext is request context, and includes joinResistanceRecovery.yaml template content
+# the response includes workflowId, which value is placed to workflowId$ and is used by the next steps
+workflowId$: callApi('/workflow', startWorkflowContext).workflowId
 
-workflowId$: startWorkflow$.workflowId
-
+# demonstrates how to fetch a workflow by workflowId
 getWorkflowStatus$: callApi('/workflow/' & workflowId$, getWorkflowContext)
 
-waitForFailure: |
-  /${ function() {( 
-      $simulateFailure := callApi('/workflow/' & workflowId$, getWorkflowContext).simulateFailure;
-      $console.log('simulateFailure: ' & $simulateFailure);
-      $set('/part2', $not($simulateFailure));
-    )}
-  }
-
-startWaiting: ${ $setInterval(waitForFailure, 500) }
+# run waitForSimulatedFailure function every 500ms. The function will check if the workflow has simulated a failure
+startWaiting: ${ $setInterval(waitForSimulatedFailure, 500) }
 continuePart2: | 
   /${( part2 ? (
     $clearInterval(startWaiting); 
@@ -54,7 +73,6 @@ sendLastRebel: |
 startWaitingRebels: ${ $setInterval(waitForRebels, 500) }
 
 
-
 part2: false
 #stopWorkflow$: part2 ? $stopApi()
 
@@ -68,11 +86,9 @@ token: |
     $fsoc := $readObject('~/.fsoc');
     $fsoc.contexts[name=$fsoc.current_context].token;
   )}
-start: | 
-  /${(
-    console.log('startWorkflow');
-    $startApi();
-  )}
+
+## helper functions
+# helper function to call APIs and handle response
 callApi: |
   /${ function($path, $context) {( 
     start?(
@@ -84,34 +100,41 @@ callApi: |
       )
     ):'starting APIs failed';
   )}}
+# a function to wait for a failure simulated in joinResistanceRecovery.yaml workflow
+# The failure is simulated when simulateFailure is true
+waitForSimulatedFailure: |
+  /${ function() {( 
+      $simulateFailure := callApi('/workflow/' & workflowId$, getWorkflowContext).simulateFailure;
+      $console.log('simulateFailure: ' & $simulateFailure);
+      $set('/part2', $not($simulateFailure));
+    )}
+  }
 
-# check workflows status
-getWorkflowContext:
-  method: GET
-  headers:
-    Content-Type: "application/json"
-    Authorization: /${ "Bearer " & token }
 
-# start a new workflow
-# read the joinResistanceRecovery.yaml file
+# read the joinResistanceRecovery.yaml template content
 joinResistanceRecovery: |
   /${(
       console.log('starting to read jrr');
       $c := $readObject('example/joinResistanceRecovery.yaml');
   )}
+
+## HTTP Request headers
+getWorkflowContext:
+  method: GET
+  headers:
+    Content-Type: "application/json"
+    Authorization: /${ "Bearer " & token }
 startWorkflowContext:
   method: POST
   headers:
     Content-Type: "application/json"
     Authorization: /${ "Bearer " & token }
   body: /${ $toJson(joinResistanceRecovery) }
-
 restoreWorkflowContext:
   method: POST
   headers:
     Content-Type: "application/json"
     Authorization: /${ "Bearer " & token }
-
 sendEventContext:
   method: POST
   headers:
