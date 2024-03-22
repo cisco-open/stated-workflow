@@ -46,7 +46,7 @@ app.get('/workflow/:workflowId', (req, res) => {
     console.log(`Received GET /workflow/${workflowId}`);
     const workflow = workflows[workflowId];
     if (workflow) {
-        console.log(`Workflow ${workflowId}:`, StatedREPL.stringify(workflow.templateProcessor));
+        // console.log(`Workflow ${workflowId}:`, StatedREPL.stringify(workflow.templateProcessor));
         res.json(workflow.templateProcessor.output);
     } else {
         console.log(`Workflow ${workflowId} not found`);

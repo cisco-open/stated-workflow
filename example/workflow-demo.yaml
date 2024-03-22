@@ -5,21 +5,42 @@ getWorkflow$: callApi('/workflow', getWorkflowContext)
 ## start workflow
 startWorkflow$: callApi('/workflow', startWorkflowContext)
 
+workflowId$: startWorkflow$.workflowId
 
+getWorkflowStatus$: callApi('/workflow/' & workflowId$, getWorkflowContext)
+
+waitForFailure: |
+  /${ function() {( 
+      $simulateFailure := callApi('/workflow/' & workflowId$, getWorkflowContext).simulateFailure;
+      $console.log('simulateFailure: ' & $simulateFailure);
+      $set('/part2', $not($simulateFailure));
+    )}
+  }
+
+startWaiting: ${ $setInterval(waitForFailure, 500) }
+continuePart2: | 
+  /${( part2 ? ($clearInterval(startWaiting); restore() ): 'waiting' )}
+
+restore: ${ function() { callApi('/restore/' & workflowId$, restoreWorkflowContext) } }
+
+part2: false
+#stopWorkflow$: part2 ? $stopApi()
+
+rebels: ${ getWorkflowStatus$.rebels }
 # set up
 # url serving stated-workflow APIs
 baseUrl: "http://localhost:8080"
 # read a token from fsoc current config file
 token: |
-    /${(
-      $fsoc := $readObject('~/.fsoc');
-      $fsoc.contexts[name=$fsoc.current_context].token;
-    )}
+  /${(
+    $fsoc := $readObject('~/.fsoc');
+    $fsoc.contexts[name=$fsoc.current_context].token;
+  )}
 start: | 
-    /${(
-        console.log('startWorkflow');
-        $startApi();
-    )}
+  /${(
+    console.log('startWorkflow');
+    $startApi();
+  )}
 callApi: |
   /${ function($path, $context) {( 
     start?(
@@ -33,7 +54,6 @@ callApi: |
   )}}
 
 # check workflows status
-# request headers
 getWorkflowContext:
   method: GET
   headers:
@@ -47,7 +67,6 @@ joinResistanceRecovery: |
       console.log('starting to read jrr');
       $c := $readObject('example/joinResistanceRecovery.yaml');
   )}
-## request headers
 startWorkflowContext:
   method: POST
   headers:
@@ -55,3 +74,8 @@ startWorkflowContext:
     Authorization: /${ "Bearer " & token }
   body: /${ $toJson(joinResistanceRecovery) }
 
+restoreWorkflowContext:
+  method: POST
+  headers:
+    Content-Type: "application/json"
+    Authorization: /${ "Bearer " & token }

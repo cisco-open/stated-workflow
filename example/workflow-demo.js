@@ -3,10 +3,11 @@ import path from "path";
 import fs from "fs";
 import yaml from "js-yaml";
 
+let apiProcess;
 export const startApi = async ()=>{
     return new Promise((resolve, reject) => {
         try {
-            let apiProcess = exec('node stated-workflow-api', (error, stdout, stderr) => {
+            apiProcess = exec('node stated-workflow-api', (error, stdout, stderr) => {
                 if (error) {
                     console.error(`exec error: ${error}`);
                     reject(error); // Reject the promise on error.
@@ -70,4 +71,11 @@ export const readObject = async (file) => {
 }
 export const toJson = async (obj) => {
     return JSON.stringify(obj);
+}
+
+export const stopApi = async () => {
+    if (apiProcess) {
+        console.log(`killing stated-workflow-api with pid ${apiProcess.pid}`);
+        apiProcess.kill();
+    }
 }
