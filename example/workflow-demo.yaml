@@ -36,45 +36,19 @@ workflowId$: callApi('/workflow', startWorkflowContext).workflowId
 getWorkflowStatus$: callApi('/workflow/' & workflowId$, getWorkflowContext)
 
 # run waitForSimulatedFailure function every 500ms. The function will check if the workflow has simulated a failure
-startWaiting: ${ $setInterval(waitForSimulatedFailure, 500) }
+startWaitingForSimulatedFailure: ${ $setInterval(waitForSimulatedFailure, 500) }
+
 continuePart2: | 
   /${( part2 ? (
-    $clearInterval(startWaiting); 
+    $clearInterval(startWaitingForSimulatedFailure); 
     $sleep(1500); 
     restore();
     $setInterval(waitForRebels, 500);
   ): 'waiting' )}
 
-restore: ${ function() { callApi('/restore/' & workflowId$, restoreWorkflowContext) } }
-
-waitForRebels: |
-  /${ function() {( 
-      $rebels := callApi('/workflow/' & workflowId$, getWorkflowContext).rebels;
-      $console.log('rebels: ' & $rebels);
-      $set('/rebelsCount', $count($rebels));
-      ($count($rebels) = 3) ? (
-        console.log('continuePart2: ' & continuePart2);
-        $clearInterval(continuePart2);
-        sendLastRebel();
-        'done'
-      ) : 'waiting';
-    )}
-  }
-
-sendLastRebel: |
-  /${ function() {( 
-      callApi('/workflow/' & workflowId$ & '/rebelDispatch/rebelArmy', sendEventContext);
-      $sleep(1000);
-      console.log("rebels: " & callApi('/workflow/' & workflowId$, getWorkflowContext).rebels);
-      $stopApi();
-    )}
-  }
-
 startWaitingRebels: ${ $setInterval(waitForRebels, 500) }
 
-
 part2: false
-#stopWorkflow$: part2 ? $stopApi()
 
 rebels: ${ getWorkflowStatus$.rebels }
 # set up
@@ -95,7 +69,6 @@ callApi: |
       $r := $fetch(baseUrl & $path, $context);
       ($r = 'undefined')? $r : 
       ( 
-        $console.debug('response: ' & $r); 
         $r.json();
       )
     ):'starting APIs failed';
@@ -109,7 +82,33 @@ waitForSimulatedFailure: |
       $set('/part2', $not($simulateFailure));
     )}
   }
-
+# function to call restore API to restore the workflow from a snapshot
+restore: ${ function() { callApi('/restore/' & workflowId$, restoreWorkflowContext) } }
+# a function to wait for the workflow to receive 3 rebels. Once it receives the rebels, it calls sendLastRebel function
+waitForRebels: |
+  /${ function() {( 
+      $rebels := callApi('/workflow/' & workflowId$, getWorkflowContext).rebels;
+      $console.log('waitForRebels rebels: ' & $rebels);
+      $set('/rebelsCount', $count($rebels));
+      ($count($rebels) = 3) ? (
+        console.log('continuePart2: ' & continuePart2);
+        $clearInterval(continuePart2);
+        sendLastRebel();
+        'done'
+      ) : 'waiting';
+    )}
+  }
+# a function to send event data into the workflow dispatcher. It sends ["obi"] event to "rebelDispatch" topic and
+# rebelArmy subscriber. It also waits for 1 second for event to be processed and stops the APIs service.
+sendLastRebel: |
+  /${ function() {( 
+      callApi('/workflow/' & workflowId$ & '/rebelDispatch/rebelArmy', sendEventContext);
+      $sleep(1000);
+      console.log("sendLastRebel rebels: " & callApi('/workflow/' & workflowId$, getWorkflowContext).rebels);
+      $sleep(1000);
+      $stopApi();
+    )}
+  }
 
 # read the joinResistanceRecovery.yaml template content
 joinResistanceRecovery: |

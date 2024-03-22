@@ -48,22 +48,18 @@ export const readObject = async (file) => {
         }
         file = path.resolve(file);
 
-        console.log(`opening file ${file}`);
-
         if (!fs.existsSync(file)) {
             console.log(`file ${file} does not exist`);
             return;
         }
         const fileContent = fs.readFileSync(file, 'utf8');
         try {
-            resolve(JSON.parse(fileContent));
+            return resolve(JSON.parse(fileContent));
         } catch (e) {
-            console.log(`error parsing file as json: ${e.message}`);
         }
         try {
-            resolve(yaml.load(fileContent));
+            return resolve(yaml.load(fileContent));
         } catch (e) {
-            console.log(`error parsing file as yaml: ${e.message}`);
         }
         console.log(`file ${file} could not be parsed as json or yaml`);
         reject(`file ${file} could not be parsed as json or yaml`);
