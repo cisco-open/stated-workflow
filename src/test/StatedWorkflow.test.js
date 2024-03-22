@@ -1154,7 +1154,8 @@ test("workflow snapshot and restore", async () => {
 }, 10000); //
 
 
-test("run example/workflow-demo.yaml", async () => {
+// This test is for running a demo template with a custom API
+test.skip("run example/workflow-demo.yaml", async () => {
     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'workflow-demo.yaml');
     const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
     let template = yaml.load(templateYaml);
