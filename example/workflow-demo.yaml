@@ -19,9 +19,41 @@ waitForFailure: |
 
 startWaiting: ${ $setInterval(waitForFailure, 500) }
 continuePart2: | 
-  /${( part2 ? ($clearInterval(startWaiting); restore() ): 'waiting' )}
+  /${( part2 ? (
+    $clearInterval(startWaiting); 
+    $sleep(1500); 
+    restore();
+    $setInterval(waitForRebels, 500);
+  ): 'waiting' )}
 
 restore: ${ function() { callApi('/restore/' & workflowId$, restoreWorkflowContext) } }
+
+waitForRebels: |
+  /${ function() {( 
+      $rebels := callApi('/workflow/' & workflowId$, getWorkflowContext).rebels;
+      $console.log('rebels: ' & $rebels);
+      $set('/rebelsCount', $count($rebels));
+      ($count($rebels) = 3) ? (
+        console.log('continuePart2: ' & continuePart2);
+        $clearInterval(continuePart2);
+        sendLastRebel();
+        'done'
+      ) : 'waiting';
+    )}
+  }
+
+sendLastRebel: |
+  /${ function() {( 
+      callApi('/workflow/' & workflowId$ & '/rebelDispatch/rebelArmy', sendEventContext);
+      $sleep(1000);
+      console.log("rebels: " & callApi('/workflow/' & workflowId$, getWorkflowContext).rebels);
+      $stopApi();
+    )}
+  }
+
+startWaitingRebels: ${ $setInterval(waitForRebels, 500) }
+
+
 
 part2: false
 #stopWorkflow$: part2 ? $stopApi()
@@ -79,3 +111,10 @@ restoreWorkflowContext:
   headers:
     Content-Type: "application/json"
     Authorization: /${ "Bearer " & token }
+
+sendEventContext:
+  method: POST
+  headers:
+    Content-Type: "application/json"
+    Authorization: /${ "Bearer " & token }
+  body: /${ $toJson(["obi"]) }
