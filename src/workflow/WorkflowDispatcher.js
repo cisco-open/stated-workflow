@@ -119,9 +119,7 @@ export class WorkflowDispatcher {
 
                         // promisify the callback function, in case it is a sync one
                         const callbackPromise = Promise.resolve().then(() => {
-                            console.log(`calling dataAckCallback ${dataAckCallback} for eventData: ${eventData}`);
                             dataAckCallback()
-                            console.log(`finished calling dataAckCallback ${dataAckCallback} for eventData: ${eventData}`);
                         });
                         callbackPromise.catch(error => {
                             console.error(`Error calling dataAckCallback ${dataAckCallback}, error: ${error}`);

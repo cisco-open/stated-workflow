@@ -15,18 +15,22 @@ subscribeParams: #parameters for subscribing to an event
   client:
     type: test
 # workflow and step functions definitions below
-joinResistanceWorkflow: |
-  /${ function($rebel){( $rebel ~> $serial([makeUrl, fetchRebel], {'workflowInvocation':$rebel}) )} }
+joinResistanceWorkflow:
+  function: |
+    /${ function($rebel){( $rebel ~> $serial([makeUrl,fetchRebel], {'workflowInvocation':$rebel}) )} }
 # first step is just to create a URL for the fetch step
-makeUrl: | 
-  /${ function($rebel){$rebel ~> ('https://swapi.dev/api/people/?search=' & $)} }
+makeUrl:
+  function: | 
+    /${ function($rebel){ 'https://swapi.dev/api/people/?search=' & $rebel} }
 # second step is to fetch the rebel data from the URL
-fetchRebel:  |
-  /${ function($url){(
-    $sleep($random()*1000); /* simulate some processing time */
-    ($random() < 0.5) ? $rebel := $fetch($url).json().results[0].name : $fetch('deathstar').fail();
-    $set( "/rebelForces/-", $rebel); /* append rebel to rebelForces */
-  )} }
+fetchRebel:
+  function: |
+    /${ function($url){(
+      $console.log("fetching rebel from: " & $url);
+      $sleep($random()*3000); /* simulate some processing time */
+      ($random() < 0.5) ? $rebel := $fetch($url).json().results[0].name : $rebel := $fetch('deathstar').fail();
+      $set( "/rebelForces/-", $rebel); /* append rebel to rebelForces */
+    )} }
 
 # starts producer function
 send$: $publish(produceParams)

@@ -37,7 +37,7 @@ export class StatedWorkflow {
 
     static persistence = createStepPersistence();
 
-    constructor(template, context, stepPersistence ){
+    constructor(template, context, stepPersistence, cbmon){
         this.stepPersistence = stepPersistence;
         this.logger = winston.createLogger({
             format: winston.format.json(),
@@ -101,20 +101,24 @@ export class StatedWorkflow {
             //---  listen for changes so we can avoid snapshotting if nothing changed ---
             ()=>{
                 this.templateProcessor.setDataChangeCallback("/", this.changeListener);
-            }
-
-
+            },
         ];
+        if (cbmon !== undefined) {
+            this.templateProcessor.initCallbacks.push(
+                ()=>{
+                    this.templateProcessor.setDataChangeCallback("/", cbmon);
+                });
+        }
         //add a named initializer for stated-workflows that runs all of the stated-workflows init callbacks
         this.templateProcessor.onInitialize.set("stated-workflows",()=>this.templateProcessor.initCallbacks.map(cb=>cb())); //call all initCallbacks
     }
 
     // this method returns a StatedWorkflow instance with TemplateProcesor with the default functions and Stated Workflow
     // functions. It also initializes persistence store, and set generator functions.
-    static async newWorkflow(template, stepPersistenceType = 'noop', context = {}) {
+    static async newWorkflow(template, stepPersistenceType = 'noop', context = {}, cbmon) {
         const stepPersistence = createStepPersistence({persistenceType: stepPersistenceType});
         await stepPersistence.init();
-        return new StatedWorkflow(template, context, stepPersistence);
+        return new StatedWorkflow(template, context, stepPersistence, cbmon);
     }
 
 
