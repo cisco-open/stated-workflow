@@ -2804,7 +2804,7 @@ stack-utils@^2.0.3:
 
 stated-js@^0.1.17:
   version "0.1.17"
-  resolved "https://registry.yarnpkg.com/stated-js/-/stated-js-0.1.17.tgz#2bf19f0c4c9f8f3a9f80c5c7a098f20f9e27aef1"
+  resolved "https://registry.npmjs.org/stated-js/-/stated-js-0.1.17.tgz"
   integrity sha512-R7tzX45uUd1M9w+KxngtdxpodbFmdQZaB9aj3uxE+UvIqTFxLseC/PFrPAY5uABcM9h80zUzF7xbkiCdFPRCyw==
   dependencies:
     chalk "^5.3.0"
