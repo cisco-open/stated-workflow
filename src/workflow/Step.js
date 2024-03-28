@@ -52,13 +52,17 @@ export default class Step {
                     timestamp: new Date().getTime(),
                     out
                 };
-                this.tp.setData(jsonPtr + "/end", end);
+                await this.tp.setData(jsonPtr + "/end", end);
                 if (invocationLog.fail !== undefined) {
                     jp.remove(this.tp.output, jsonPtr + "/fail");
                 }
                 return out;
             } catch (error) {
-                await this.tp.setData(jsonPtr + "/fail", {error, timestamp: new Date().getTime()});
+                const errorLog = {error, timestamp: new Date().getTime()};
+                await this.tp.setData(jsonPtr + "/fail", errorLog);
+
+                // each step returns an error object and never throws an exception
+                return errorLog;
             }
 
             if (retryCount === undefined) {

@@ -30,6 +30,9 @@ import {Delay} from "../test/TestTools.js"
 import {Snapshot} from "./Snapshot.js";
 import {PulsarClientMock} from "../test/PulsarMock.js";
 
+import { metrics } from '@opentelemetry/api';
+import { MeterProvider } from '@opentelemetry/sdk-metrics-base';
+
 
 //This class is a wrapper around the TemplateProcessor class that provides workflow functionality
 export class StatedWorkflow {
@@ -54,6 +57,35 @@ export class StatedWorkflow {
 
         // TODO: parameterize
         this.host = process.env.HOST_IP
+
+
+        this.customRestMetrics = {
+            workflowInvocations: 0,
+            workflowInvocationSuccesses: 0,
+            workflowInvocationFailures: 0,
+            // For latency, you might want to keep individual records or a summary
+            workflowInvocationLatencies: [],
+        };
+
+        // create metrics provider
+        this.meterProvider = new MeterProvider({});
+        metrics.setGlobalMeterProvider(this.meterProvider);
+
+        this.meter = metrics.getMeter('workflowMetrics');
+        // Create metrics
+        this.workflowInvocationsCounter = this.meter.createCounter('workflow_invocations', {
+            description: 'Counts the number of times workflows are invoked',
+        });
+        this.workflowInvocationSuccessesCounter = this.meter.createCounter('workflow_invocation_successes', {
+            description: 'Counts the number of times workflow invocations succeed',
+        });
+        this.workflowInvocationFailuresCounter = this.meter.createCounter('workflow_invocation_failures', {
+            description: 'Counts the number of times workflow invocations fail',
+        });
+        this.workflowInvocationLatency = this.meter.createHistogram('workflow_invocation_latency', {
+            description: 'Tracks the latency of workflow invocations',
+            unit: 'ms',
+        });
 
         this.consumers = new Map(); //key is type, value is pulsar consumer
         this.dispatchers = new Map(); //key is type, value Set of WorkflowDispatcher
@@ -549,6 +581,8 @@ export class StatedWorkflow {
     async serial(input, stepJsons, context={}, resolvedJsonPointers = {}, tp = undefined) {
         let {workflowInvocation} = context;
 
+        let workflowStart = new Date().getTime();
+
         if (workflowInvocation === undefined) {
             workflowInvocation = StatedWorkflow.generateDateAndTimeBasedID();
         }
@@ -567,8 +601,15 @@ export class StatedWorkflow {
             const step = new Step(stepJsons[i], StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
             steps.push(step);
             currentInput = await this.runStep(workflowInvocation, step, currentInput);
+            if (currentInput !== undefined && currentInput.error) {
+                this.workflowInvocationFailuresCounter.add(1, {workflowInvocation});
+                return currentInput;
+            }
         }
 
+        // metrics
+        this.workflowInvocationsCounter.add(1, {workflowInvocation});
+        this.workflowInvocationLatency.record(new Date().getTime() - workflowStart, {workflowInvocation});
 
         //we do not need to await this. Deletion can happen async
         if (!tp.options.keepLogs) StatedWorkflow.deleteStepsLogs(workflowInvocation, steps)
@@ -799,5 +840,7 @@ export class StatedWorkflow {
             console.error("Error closing workflow dispatcher:", error);
         }
         clearInterval(this.snapshotInterval);
+        await this.meterProvider.shutdown().catch((err) => console.error('Error shutting down MeterProvider:', err));;
+        await metrics.disable();
     }
 }

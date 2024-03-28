@@ -81,11 +81,7 @@ app.get('/restore/:workflowId', (req, res) => {
     const workflowId = req.params.workflowId;
     console.log(`Received GET /restore/${workflowId}`);
     try {
-        console.log(`Fetching snapshot object with ID ${workflowId}`);
-
-        const snapshotContent = fs.readFileSync(`./${workflowId}.json`, 'utf8');
-        const snapshot = JSON.parse(snapshotContent);
-        res.json(snapshot)
+        res.json(workflowManager.getWorkflowSnapshot(workflowId));
     } catch (error) {
         console.error(`Error in GET /restore/${workflowId}`, error);
         res.status(500).send({'error': error.toString()});

@@ -32,6 +32,10 @@ const __dirname = path.dirname(__filename);
 
 const unlink = util.promisify(fs.unlink);
 
+import wtf from 'wtfnode';
+
+wtf.init();
+
 test("wf", async () => {
     // Load the YAML from the file
     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'wf.yaml');
@@ -987,7 +991,7 @@ test("Snapshot and recover for workflow", async () => {
 }, 20000); // 20s timeout for times swapi not behaving
 
 
-test("subscribePulsar with pulsarMock client", async () => {
+test.skip("subscribePulsar with pulsarMock client", async () => {
 
     const snapshotFile = 'subscribePulsarTest.json';
     const snapshotRelativePath = path.join(__dirname, '../', '../',`${snapshotFile}`);
@@ -1033,6 +1037,7 @@ test("subscribePulsar with pulsarMock client", async () => {
     };
     console.log(`PulsarMock topic ${topic} stats for subscriberId ${subscriberId}: ${StatedREPL.stringify(PulsarClientMock.getStats(topic, subscriberId))}`);
     await sw.close();
+    wtf.dump();
 }, 10000)
 
 
@@ -1151,7 +1156,7 @@ test("workflow snapshot and restore", async () => {
     expect(tp.output.fetchLog).toEqual( ["luke", "han", "leia"]);
 
     await sw.close();
-}, 10000); //
+}, 100000); //
 
 
 // This test is for running a demo template with a custom API

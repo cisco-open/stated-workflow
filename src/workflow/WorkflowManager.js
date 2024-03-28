@@ -7,16 +7,15 @@ import TemplateProcessor from "stated-js";
 import { metrics } from '@opentelemetry/api';
 import { MeterProvider } from '@opentelemetry/sdk-metrics-base';
 
-
 // WorkflowManager.js.js
 export class WorkflowManager {
     constructor() {
         this.workflows = {};
         this.stats = {}
-        this.meter = metrics.getMeter('workflowMetrics');
 
         const meterProvider = new MeterProvider({});
         metrics.setGlobalMeterProvider(meterProvider);
+        this.meter = metrics.getMeter('workflowMetrics');
 
         // Create metrics
         this.workflowInvocationsCounter = this.meter.createCounter('workflow_invocations', {
@@ -115,6 +114,13 @@ export class WorkflowManager {
             throw error;
         }
 
+    }
+
+    async getWorkflowSnapshot(workflowId) {
+        console.log(`Reading snapshot object with ID ${workflowId}`);
+
+        const snapshotContent = fs.readFileSync(`./${workflowId}.json`, 'utf8');
+        return JSON.parse(snapshotContent);
     }
 
     async restoreWorkflow(workflowId) {
