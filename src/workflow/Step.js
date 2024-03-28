@@ -43,6 +43,11 @@ export default class Step {
                     await this.tp.setData(jsonPtr + "/retryCount", ++retryCount);
                 }
                 let out = await fn.apply(this, [args, {workflowInvocation}]);
+
+                if (out !== undefined && out.error !== undefined) {
+                    throw out.error;
+                }
+
                 const end = {
                     timestamp: new Date().getTime(),
                     out
@@ -68,6 +73,10 @@ export default class Step {
 
     async deleteLogs(workflowInvocation) {
         const jsonPtr = this.stepJsonPtr + "/log/" + workflowInvocation;
+        const invocationLog = jp.get(this.tp.output, jsonPtr);
+        if (invocationLog === undefined || invocationLog.end === undefined) {
+            return;
+        }
         this.tp.setData(jsonPtr, undefined, "delete");
     }
 

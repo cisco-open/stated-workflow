@@ -34,13 +34,10 @@ import {PulsarClientMock} from "../test/PulsarMock.js";
 //This class is a wrapper around the TemplateProcessor class that provides workflow functionality
 export class StatedWorkflow {
     // static express = require('express');
-    static app = express();
-    static port = 8080;
-
 
     static persistence = createStepPersistence();
 
-    constructor(template, context, stepPersistence ){
+    constructor(template, context, stepPersistence, cbmon){
         this.stepPersistence = stepPersistence;
         this.logger = winston.createLogger({
             format: winston.format.json(),
@@ -104,20 +101,24 @@ export class StatedWorkflow {
             //---  listen for changes so we can avoid snapshotting if nothing changed ---
             ()=>{
                 this.templateProcessor.setDataChangeCallback("/", this.changeListener);
-            }
-
-
+            },
         ];
+        if (cbmon !== undefined) {
+            this.templateProcessor.initCallbacks.push(
+                ()=>{
+                    this.templateProcessor.setDataChangeCallback("/", cbmon);
+                });
+        }
         //add a named initializer for stated-workflows that runs all of the stated-workflows init callbacks
         this.templateProcessor.onInitialize.set("stated-workflows",()=>this.templateProcessor.initCallbacks.map(cb=>cb())); //call all initCallbacks
     }
 
     // this method returns a StatedWorkflow instance with TemplateProcesor with the default functions and Stated Workflow
     // functions. It also initializes persistence store, and set generator functions.
-    static async newWorkflow(template, stepPersistenceType = 'noop', context = {}) {
+    static async newWorkflow(template, stepPersistenceType = 'noop', context = {}, cbmon) {
         const stepPersistence = createStepPersistence({persistenceType: stepPersistenceType});
         await stepPersistence.init();
-        return new StatedWorkflow(template, context, stepPersistence);
+        return new StatedWorkflow(template, context, stepPersistence, cbmon);
     }
 
 
@@ -513,16 +514,22 @@ export class StatedWorkflow {
     }
 
     onHttp(subscriptionParams) {
+
+        this.port = 8080;
+        this.app = express();
+        this.app.use(express.json());
+        this.app.listen(this.port, () => {
+            console.log(`Server started on http://localhost:${StatedWorkflow.port}`);
+        });
+        // Path = /workflow/:workflowId
+        // workflowIdToWorkflowDispatcher
         if (subscriptionParams.type === undefined) subscriptionParams.type = 'default-type';
         if (subscriptionParams.subscriberId === undefined) subscriptionParams.subscriberId = 'default-subscriberId';
         const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams);
-        StatedWorkflow.app.all('*', async (req, res) => {
+        this.app.all('*', async (req, res) => {
+            console.debug("Received HTTP request: ", req.body, req.method, req.url);
             // Push the request and response objects to the dispatch queue to be handled by callback
-            await dispatcher.addToQueue({req, res});
-        });
-
-        StatedWorkflow.app.listen(StatedWorkflow.port, () => {
-            console.log(`Server started on http://localhost:${StatedWorkflow.port}`);
+            await dispatcher.addToQueue(req.body, ()=>{ res.send("sucess")});
         });
 
         return "listening http ..."
