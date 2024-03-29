@@ -106,6 +106,9 @@ sendLastRebel: |
       $sleep(1000);
       console.log("sendLastRebel rebels: " & callApi('/workflow/' & workflowId$, getWorkflowContext).rebels);
       $sleep(1000);
+      $clearInterval(startWaitingRebels);
+      $clearInterval(continuePart2);
+      console.log("thank you for attending the demo");
       $stopApi();
     )}
   }
