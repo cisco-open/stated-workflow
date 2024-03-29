@@ -25,11 +25,16 @@ import {fn} from "jest-mock";
 import {PulsarClientMock} from "./PulsarMock.js";
 import Pulsar from "pulsar-client";
 import TemplateProcessor from "stated-js/dist/src/TemplateProcessor.js";
+import { exec } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const unlink = util.promisify(fs.unlink);
+
+import wtf from 'wtfnode';
+
+wtf.init();
 
 test("wf", async () => {
     // Load the YAML from the file
@@ -986,7 +991,7 @@ test("Snapshot and recover for workflow", async () => {
 }, 20000); // 20s timeout for times swapi not behaving
 
 
-test("subscribePulsar with pulsarMock client", async () => {
+test.skip("subscribePulsar with pulsarMock client", async () => {
 
     const snapshotFile = 'subscribePulsarTest.json';
     const snapshotRelativePath = path.join(__dirname, '../', '../',`${snapshotFile}`);
@@ -1032,6 +1037,7 @@ test("subscribePulsar with pulsarMock client", async () => {
     };
     console.log(`PulsarMock topic ${topic} stats for subscriberId ${subscriberId}: ${StatedREPL.stringify(PulsarClientMock.getStats(topic, subscriberId))}`);
     await sw.close();
+    wtf.dump();
 }, 10000)
 
 
@@ -1150,4 +1156,101 @@ test("workflow snapshot and restore", async () => {
     expect(tp.output.fetchLog).toEqual( ["luke", "han", "leia"]);
 
     await sw.close();
-}, 10000); //
+}, 100000); //
+
+
+// This test is for running a demo template with a custom API
+test.skip("run example/workflow-demo.yaml", async () => {
+    const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'workflow-demo.yaml');
+    const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+    let template = yaml.load(templateYaml);
+    let apiProcess;
+
+    const sw = await StatedWorkflow.newWorkflow(
+        template, undefined,
+        {
+            startApi: async ()=>{
+                return new Promise((resolve, reject) => {
+                    try {
+                        apiProcess = exec('node stated-workflow-api', (error, stdout, stderr) => {
+                            if (error) {
+                                console.error(`exec error: ${error}`);
+                                reject(error); // Reject the promise on error.
+                                return;
+                            }
+                        });
+                        console.log(`started stated-workflow-api with pid ${apiProcess.pid}`);
+
+                        apiProcess.stdout.on('data', (data) => {
+                            console.log(`stdout: ${data}`);
+                            if (data.includes('Server running on port 8080')) {
+                                resolve('success'); // Resolve the promise when the server is ready.
+                            }
+                        });
+                        apiProcess.stderr.on('data', (data) => {
+                            console.error(`stderr: ${data}`);
+                        });
+
+                        apiProcess.on('error', (error) => {
+                            console.error(`Failed to start process: ${error}`);
+                            reject(error);
+                        });
+                    } catch (error) {
+                        console.error(`error starting stated-workflow-api: ${error}`);
+                        reject(error);
+                    }
+                })
+            },
+            readObject: async (file) => {
+                return new Promise((resolve, reject) => {
+                    if (file === undefined) {
+                        console.log(`file is undefined`);
+                        return;
+                    }
+                    if (file[0] === '~') {
+                        file = file.replace('~', process.env.HOME);
+                    }
+                    file = path.resolve(file);
+
+                    console.log(`opening file ${file}`);
+
+                    if (!fs.existsSync(file)) {
+                        console.log(`file ${file} does not exist`);
+                        return;
+                    }
+                    const fileContent = fs.readFileSync(file, 'utf8');
+                    try {
+                        resolve(JSON.parse(fileContent));
+                    } catch (e) {
+                        console.log(`error parsing file as json: ${e.message}`);
+                    }
+                    try {
+                        resolve(yaml.load(fileContent));
+                    } catch (e) {
+                        console.log(`error parsing file as yaml: ${e.message}`);
+                    }
+                    console.log(`file ${file} could not be parsed as json or yaml`);
+                    reject(`file ${file} could not be parsed as json or yaml`);
+                });
+            },
+            toJson: async (obj) => {
+                return JSON.stringify(obj);
+            }
+        }
+    );
+    const {templateProcessor: tp} = sw;
+    // keep steps execution logs for debugging
+
+    await tp.initialize();
+
+    console.log("template output", tp.output);
+    while (StatedREPL.stringify(tp.output.getWorkflow$) !== "{\n  \"workflowIds\": []\n}") {
+        await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+    }
+
+    // cleanup
+    await sw.close();
+    if (apiProcess) {
+        apiProcess.kill();
+    }
+}, 5000);

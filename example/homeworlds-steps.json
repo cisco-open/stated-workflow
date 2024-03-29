@@ -1,5 +1,5 @@
 {
-  "output": "${   ['luke', 'han']~>$map(workflow) }",
+  "output": "${   ['obi', 'luke', 'han']~>$map(workflow) }",
   "workflow": "${ function($person){$person~>$serial(steps)} }",
   "steps": [
     {

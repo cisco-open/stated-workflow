@@ -1,0 +1,41 @@
+# producer will be sending some test data
+produceParams:
+  type: "my-topic"
+  data: ${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge']}
+  client:
+    type: test
+# the subscriber's 'to' function will be called on each received event
+subscribeParams: #parameters for subscribing to an event
+  source: cloudEvent
+  type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
+  to: /${joinResistanceWorkflow}
+  subscriberId: rebelArmy
+  initialPosition: latest
+  parallelism: 3
+  client:
+    type: test
+# workflow and step functions definitions below
+joinResistanceWorkflow:
+  function: |
+    /${ function($rebel){( $rebel ~> $serial([makeUrl,fetchRebel], {'workflowInvocation':$rebel}) )} }
+# first step is just to create a URL for the fetch step
+makeUrl:
+  function: | 
+    /${ function($rebel){ 'https://swapi.dev/api/people/?search=' & $rebel} }
+# second step is to fetch the rebel data from the URL
+fetchRebel:
+  function: |
+    /${ function($url){(
+      $console.log("fetching rebel from: " & $url);
+      $sleep($random()*3000); /* simulate some processing time */
+      ($random() < 0.5) ? $rebel := $fetch($url).json().results[0].name : $rebel := $fetch('deathstar').fail();
+      $set( "/rebelForces/-", $rebel); /* append rebel to rebelForces */
+    )} }
+
+# starts producer function
+send$: $publish(produceParams)
+# starts consumer function
+recv$: $subscribe(subscribeParams)
+
+# fetch Rebel step will write the received rebel here
+rebelForces: [ ]
