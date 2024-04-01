@@ -1,12 +1,5 @@
 # Platform APIs
 
-entity: /${ callKSApi("fmm:entity") }
-
-callKSApiDebug:
-  path: /${ "/knowledge-store/v1/" & $path}
-  context: |
-    /${ (`context!`.tenant? getKSContextLaptop: getKSContextPlatform) }
-
 
 # set up
 # read fsoc config file and get the current context object
@@ -17,14 +10,26 @@ callKSApiDebug:
 #      user: <user@email>
 #      token: <redacted>
 #      refresh_token: <redacted>
-# `context!` indicates that this field is temporary and should not go into the template
-context!: |
+# context indicates that this field is temporary and should not go into the template
+context: |
   /${(
     $fsoc := $readObject('~/.fsoc');
     $fsoc.contexts[name=$fsoc.current_context];
   )}
+env!: |
+  /${(
+    $getEnv();
+  )}
+
 # url serving stated-workflow APIs
-baseUrl: /${ `context!`.url }
+# on the platform, a zodiac function can make calls to the json-store APIs using $APPD_JSON_STORE_URL.
+# platform URL does not require protocol or '/knowledge-store' in the path, while calling from outside of the platform
+# requires it.
+#
+# Zodiac function URL: $APPD_JSON_STORE_URL/v1/objects/extensibility:solution/agent
+# External APIs URL: https://<tenant>.observe.appdynamics.com/knowledge-store/v1/objects/extensibility:solution/agent
+baseUrl: | 
+  /${(`env!`.APPD_JSON_STORE_URL ? `env!`.APPD_JSON_STORE_URL : ((context.url) & "/knowledge-store") )}
 user: "arch3@yopmail.com"
 
 
@@ -40,24 +45,41 @@ callPlatformApi: |
 # knowledge-store
 callKSApi: |
   /${ function($path) {( 
-    callPlatformApi("/knowledge-store/v1/objects/" & $path, (`context!`.tenant? getKSContextLaptop: getKSContextPlatform) );
+    callPlatformApi("/v1/objects/" & $path, (context.tenant? getKSContextLaptop: getKSContextPlatform) );
   )}}
 
 ## HTTP Request headers
+# call knowledge store from platform
+# curl -i -X 'GET'
+#   -H 'Accept: application/json'
+#   -H 'Layer-Id: 55f8da9d-93de-4bf2-b818-c2c2ac1d3f8d'
+#   -H 'Layer-Type: TENANT' $APPD_JSON_STORE_URL/v1/objects/extensibility:solution/agent
+#   -H'appd-pty: IlVTRVIi'
+#   -H'appd-pid: ImZvb0BiYXIuY29tIg=='
 getKSContextPlatform:
   method: GET
   headers:
     Content-Type: "application/json"
-    Layer-Id: /${ `context!`.tenant }
+    Layer-Id: "2d4866c4-0a45-41ec-a534-011e5f4d970a"
     Layer-Type: "TENANT"
     appd-pid: /${ $toBase64(user) }
-    appd-pty: /${ $toBase64(user) }
+    appd-pty: /${ $toBase64('USER') }
 
 getKSContextLaptop:
   method: GET
   headers:
     Content-Type: "application/json"
-    Authorization: /${ "Bearer " & `context!`.token }
-    Layer-Id: /${ `context!`.tenant }
+    Authorization: /${ "Bearer " & context.token }
+    Layer-Id: /${ context.tenant }
     Layer-Type: "TENANT"
 
+# main
+container: | 
+  /${ callKSApi("fmm:entity/infra@1:container") }
+agent: | 
+  /${ callKSApi("extensibility:solution/agent") }
+
+callKSApiDebug:
+  path: /${ "/knowledge-store/v1/" & $path}
+  context: |
+    /${ (context.tenant? getKSContextLaptop: getKSContextPlatform) }

@@ -50,19 +50,19 @@ export const readObject = async (file) => {
 
         if (!fs.existsSync(file)) {
             console.log(`file ${file} does not exist`);
-            return;
+            return resolve  ({error: `file ${file} does not exist`});
         }
         const fileContent = fs.readFileSync(file, 'utf8');
         try {
             return resolve(JSON.parse(fileContent));
-        } catch (e) {
+        } catch (error) {
         }
         try {
             return resolve(yaml.load(fileContent));
         } catch (e) {
         }
         console.log(`file ${file} could not be parsed as json or yaml`);
-        reject(`file ${file} could not be parsed as json or yaml`);
+        resolve({error: `file ${file} could not be parsed as json or yaml`});
     });
 }
 export const toJson = async (obj) => {
@@ -78,4 +78,8 @@ export const stopApi = async () => {
 
 export const toBase64 = async (str) => {
     return Buffer.from(str).toString('base64');
+}
+
+export const getEnv = async () => {
+    return process.env;
 }
