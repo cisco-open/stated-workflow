@@ -2,6 +2,12 @@
 
 entity: /${ callKSApi("fmm:entity") }
 
+callKSApiDebug:
+  path: /${ "/knowledge-store/v1/" & $path}
+  context: |
+    /${ (`context!`.tenant? getKSContextLaptop: getKSContextPlatform) }
+
+
 # set up
 # read fsoc config file and get the current context object
 #      name: <tenant>
@@ -28,13 +34,13 @@ user: "arch3@yopmail.com"
 callPlatformApi: |
   /${ function($path, $context) {( 
     $r := $fetch(baseUrl & $path, $context);
-    ($r = 'undefined')? $r : $r.json();
+    ($r = 'undefined' or $r.status > 200)? $r.json() : $r.json();
   )}}
 
 # knowledge-store
 callKSApi: |
   /${ function($path) {( 
-    callPlatformApi("/knowledge-store/v1/" & $path, (`context!`.tenant? getKSContextLaptop: getKSContextPlatform) );
+    callPlatformApi("/knowledge-store/v1/objects/" & $path, (`context!`.tenant? getKSContextLaptop: getKSContextPlatform) );
   )}}
 
 ## HTTP Request headers
