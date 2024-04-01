@@ -1,0 +1,57 @@
+# Platform APIs
+
+entity: /${ callKSApi("fmm:entity") }
+
+# set up
+# read fsoc config file and get the current context object
+#      name: <tenant>
+#      auth_method: oauth
+#      url: https://<tenant>.observe.appdynamics.com
+#      tenant: <tenant-id>
+#      user: <user@email>
+#      token: <redacted>
+#      refresh_token: <redacted>
+# `context!` indicates that this field is temporary and should not go into the template
+context!: |
+  /${(
+    $fsoc := $readObject('~/.fsoc');
+    $fsoc.contexts[name=$fsoc.current_context];
+  )}
+# url serving stated-workflow APIs
+baseUrl: /${ `context!`.url }
+user: "arch3@yopmail.com"
+
+
+
+## helper functions
+# helper function to call Platform APIs and handle response
+callPlatformApi: |
+  /${ function($path, $context) {( 
+    $r := $fetch(baseUrl & $path, $context);
+    ($r = 'undefined')? $r : $r.json();
+  )}}
+
+# knowledge-store
+callKSApi: |
+  /${ function($path) {( 
+    callPlatformApi("/knowledge-store/v1/" & $path, (`context!`.tenant? getKSContextLaptop: getKSContextPlatform) );
+  )}}
+
+## HTTP Request headers
+getKSContextPlatform:
+  method: GET
+  headers:
+    Content-Type: "application/json"
+    Layer-Id: /${ `context!`.tenant }
+    Layer-Type: "TENANT"
+    appd-pid: /${ $toBase64(user) }
+    appd-pty: /${ $toBase64(user) }
+
+getKSContextLaptop:
+  method: GET
+  headers:
+    Content-Type: "application/json"
+    Authorization: /${ "Bearer " & `context!`.token }
+    Layer-Id: /${ `context!`.tenant }
+    Layer-Type: "TENANT"
+

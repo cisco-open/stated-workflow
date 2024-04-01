@@ -75,3 +75,7 @@ export const stopApi = async () => {
         apiProcess.kill();
     }
 }
+
+export const toBase64 = async (str) => {
+    return Buffer.from(str).toString('base64');
+}
