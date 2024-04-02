@@ -29,7 +29,7 @@ env!: |
 # Zodiac function URL: $APPD_JSON_STORE_URL/v1/objects/extensibility:solution/agent
 # External APIs URL: https://<tenant>.observe.appdynamics.com/knowledge-store/v1/objects/extensibility:solution/agent
 baseUrl: | 
-  /${(`env!`.APPD_JSON_STORE_URL ? `env!`.APPD_JSON_STORE_URL : ((context.url) & "/knowledge-store") )}
+  /${(`env!`.APPD_JSON_STORE_URL ? `env!`.APPD_JSON_STORE_URL : context.url & "/knowledge-store")}
 user: "arch3@yopmail.com"
 
 
@@ -37,16 +37,31 @@ user: "arch3@yopmail.com"
 ## helper functions
 # helper function to call Platform APIs and handle response
 callPlatformApi: |
-  /${ function($path, $context) {( 
-    $r := $fetch(baseUrl & $path, $context);
+  /${ function($baseUrl, $path, $context) {( 
+    $r := $fetch($baseUrl & $path, $context);
     ($r = 'undefined' or $r.status > 200)? $r.json() : $r.json();
   )}}
 
 # knowledge-store
 callKSApi: |
   /${ function($path) {( 
-    callPlatformApi("/v1/objects/" & $path, (context.tenant? getKSContextLaptop: getKSContextPlatform) );
+    $baseUrl := (`env!`.APPD_METRICS_URL ? `env!`.APPD_METRICS_URL : context.url & "/");
+    callPlatformApi($baseUrl, "/v1/objects/" & $path, (context.token? getKSContextLaptop: getKSContextPlatform));
   )}}
+
+# uql
+# curl -X 'POST' -d '{"query":"fetch id from entities"}'
+#   -H 'Accept: application/json'
+#   -H 'Authorization: Bearer REDACTED'
+#   -H 'Content-Type: application/json'
+#     'https://arch3.saas.appd-test.com/monitoring/v1/query/execute'
+callUQLApi: |
+  /${ function($path) {(
+    $baseUrl := (`env!`.APPD_JSON_STORE_URL ? `env!`.APPD_JSON_STORE_URL : context.url & "/knowledge-store");
+    $requestContext := (context.token? getUQLContextLaptop: getUQLContextPlatform);
+    $requestContext := |$requestContext|{"body": { "query": $path }}|;
+  )}}
+#    callPlatformApi($baseUrl, "/monitoring/v1/query/execute/", $uqlContext);
 
 ## HTTP Request headers
 # call knowledge store from platform
@@ -65,6 +80,7 @@ getKSContextPlatform:
     appd-pid: /${ $toBase64(user) }
     appd-pty: /${ $toBase64('USER') }
 
+
 getKSContextLaptop:
   method: GET
   headers:
@@ -73,13 +89,21 @@ getKSContextLaptop:
     Layer-Id: /${ context.tenant }
     Layer-Type: "TENANT"
 
+# curl -X 'POST' -d '{"query":"fetch id from entities"}'
+#   -H 'Accept: application/json'
+#   -H 'Authorization: Bearer REDACTED'
+#   -H 'Content-Type: application/json'
+#     'https://arch3.saas.appd-test.com/monitoring/v1/query/execute'
+postUQLContext:
+    method: POST
+    headers:
+      Content-Type: "application/json"
+      Accept: "application/json"
+      Authorization: /${ "Bearer " & context.token }
 # main
 container: | 
   /${ callKSApi("fmm:entity/infra@1:container") }
 agent: | 
   /${ callKSApi("extensibility:solution/agent") }
-
-callKSApiDebug:
-  path: /${ "/knowledge-store/v1/" & $path}
-  context: |
-    /${ (context.tenant? getKSContextLaptop: getKSContextPlatform) }
+uql: |
+    /${ callUQLApi("fetch id from entities") }
