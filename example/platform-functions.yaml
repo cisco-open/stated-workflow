@@ -45,7 +45,7 @@ callPlatformApi: |
 # knowledge-store
 callKSApi: |
   /${ function($path) {( 
-    $baseUrl := (`env!`.APPD_METRICS_URL ? `env!`.APPD_METRICS_URL : context.url & "/");
+    $baseUrl := (`env!`.APPD_JSON_STORE_URL ? `env!`.APPD_JSON_STORE_URL : context.url & "/knowledge-store");
     callPlatformApi($baseUrl, "/v1/objects/" & $path, (context.token? getKSContextLaptop: getKSContextPlatform));
   )}}
 
@@ -56,12 +56,19 @@ callKSApi: |
 #   -H 'Content-Type: application/json'
 #     'https://arch3.saas.appd-test.com/monitoring/v1/query/execute'
 callUQLApi: |
-  /${ function($path) {(
-    $baseUrl := (`env!`.APPD_JSON_STORE_URL ? `env!`.APPD_JSON_STORE_URL : context.url & "/knowledge-store");
-    $requestContext := (context.token? getUQLContextLaptop: getUQLContextPlatform);
-    $requestContext := |$requestContext|{"body": { "query": $path }}|;
+  /${ function($query) {(
+    $baseUrl := (`env!`.APPD_METRICS_URL ? `env!`.APPD_METRICS_URL : context.url & "/monitoring");
+    $requestContext := (context.token? postUQLContext: postUQLContext);
+    $requestContext := $requestContext ~> |$|{"body": $string({"query": $query })}|;
+    callPlatformApi($baseUrl, "/v1/query/execute", $requestContext);
   )}}
+
+#    $requestContext := (context.token? postUQLContext: postUQLContext);
+#    $requestContext ~> |$|{"data": {"query": $path }}|;
+
+#    $set('/postUQLContextDebug', postUQLContext);
 #    callPlatformApi($baseUrl, "/monitoring/v1/query/execute/", $uqlContext);
+
 
 ## HTTP Request headers
 # call knowledge store from platform
@@ -79,7 +86,6 @@ getKSContextPlatform:
     Layer-Type: "TENANT"
     appd-pid: /${ $toBase64(user) }
     appd-pty: /${ $toBase64('USER') }
-
 
 getKSContextLaptop:
   method: GET
@@ -100,10 +106,13 @@ postUQLContext:
       Content-Type: "application/json"
       Accept: "application/json"
       Authorization: /${ "Bearer " & context.token }
+
 # main
-container: | 
+container: |
   /${ callKSApi("fmm:entity/infra@1:container") }
-agent: | 
+agent: |
   /${ callKSApi("extensibility:solution/agent") }
 uql: |
-    /${ callUQLApi("fetch id from entities") }
+  /${ callUQLApi("fetch id from entities") }
+
+
