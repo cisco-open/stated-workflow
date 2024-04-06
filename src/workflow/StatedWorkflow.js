@@ -23,9 +23,6 @@ import Step from "./Step.js";
 import {createStepPersistence} from "./StepPersistence.js";
 import {TemplateUtils} from "./utils/TemplateUtils.js";
 import {WorkflowPersistence} from "./WorkflowPersistence.js";
-import util from "util";
-import fs from "fs";
-import path from "path";
 import {Delay} from "../test/TestTools.js"
 import {Snapshot} from "./Snapshot.js";
 import {PulsarClientMock} from "../test/PulsarMock.js";
@@ -547,7 +544,7 @@ export class StatedWorkflow {
 
     onHttp(subscriptionParams) {
 
-        this.port = 8080;
+        this.port = subscriptionParams.port ? subscriptionParams.port : 8080;
         this.app = express();
         this.app.use(express.json());
         this.app.listen(this.port, () => {

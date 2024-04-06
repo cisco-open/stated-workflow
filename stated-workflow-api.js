@@ -104,3 +104,19 @@ app.post('/restore/:workflowId', async (req, res) => {
 app.listen(8080, () => {
     console.log('Server running on port 8080');
 });
+
+app.post('/event', async (req, res) => {
+    if (!Array.isArray(req.body)) {
+        console.log(`data must be an array of events, but received ${req.body}`);
+        res.status(400).send({'error': 'data must be an array of events'});
+        return;
+    };
+
+
+    try {
+        res.json(await workflowManager.sendCE(req.body));
+    } catch (error) {
+        console.error(`Error in POST /event`, error);
+        res.status(500).send({'error': error.toString()});
+    }
+});

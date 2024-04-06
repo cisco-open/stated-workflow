@@ -1254,3 +1254,24 @@ test.skip("run example/workflow-demo.yaml", async () => {
         apiProcess.kill();
     }
 }, 5000);
+
+if (process.env.ENABLE_API_INTEGRATION_TESTS === "true") {
+    test("API integration test", async () => {
+        const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'workflow-demo.yaml');
+        const templateYaml = fs.readFileSync(yamlFilePath, 'utf8');
+        let template = yaml.load(templateYaml);
+
+        const sw = await StatedWorkflow.newWorkflow(template);
+        const {templateProcessor: tp} = sw;
+        // keep steps execution logs for debugging
+
+        await tp.initialize();
+
+        while (StatedREPL.stringify(tp.output.getWorkflow$) !== "{\n  \"workflowIds\": []\n}") {
+            await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
+        }
+
+        await sw.close();
+    }, 5000);
+
+}
