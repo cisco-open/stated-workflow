@@ -123,6 +123,8 @@ export class StatedWorkflow {
                 this.snapshotInterval = setInterval(async ()=>{
                     if(this.hasChanged){
                         await Snapshot.write(this.templateProcessor);
+                        // we can acknowledge callbacks after persisting templateProcessor
+                        if (this.workflowDispatcher) await this.workflowDispatcher.acknowledgeCallbacks();
                         this.hasChanged = false; //changeListener will alter this if the template changes so we are not permanently blocking snapshots
                     }
                 }, seconds*1000)

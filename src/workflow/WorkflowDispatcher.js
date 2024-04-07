@@ -228,4 +228,19 @@ export class WorkflowDispatcher {
         this.batchMode = false;
     }
 
+    // We can acknowledge all data in-flight once we persist the data in the template snapshot
+    async acknowledgeCallbacks() {
+        for (const [data, dataAckCallback] of this.dataAckCallbacks.entries()) {
+            console.log(`Acknowledging data: ${data}`);
+            dataAckCallback(data);
+        }
+        for (const dispatcherKeys of this.dispatchers.values()) {
+            for (const dispatcherKey of dispatcherKeys) {
+                if (this.dispatcherObjects.has(dispatcherKey)) {
+                    await this.dispatcherObjects.get(dispatcherKey).acknowledgeCallbacks();
+                }
+            }
+        }
+    }
+
 }

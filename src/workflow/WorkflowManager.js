@@ -75,7 +75,7 @@ export class WorkflowManager {
         let acknowledgedEvents = 0;
 
         console.log(`Adding events data ${data} to dispatcher for type ${type} and subscriberId ${subscriberId}`);
-        const promises = [];
+        const callbacks = [];
         try {
             for (const event of data) {
                 const ackDataCallback = () => {
@@ -86,7 +86,7 @@ export class WorkflowManager {
                     }
                 }
                 dispatcher.addToQueue(event, ackDataCallback);
-                promises.push(ackDataCallback);
+                callbacks.push(ackDataCallback);
             }
             return {'status': 'success'};
         } catch (error) {
