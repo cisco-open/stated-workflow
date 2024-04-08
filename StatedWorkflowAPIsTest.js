@@ -41,7 +41,7 @@ const sendEvent = async () => {
     };
     return fetch(requestContext.url, requestContext)
         .then(response => {
-            console.log(`sendEvent response: ${response}`);
+            console.log(`sendEvent response: ${StatedREPL.stringify(response)}`);
             response.json()
         }).catch((error) => {
             console.error('Error:', error);

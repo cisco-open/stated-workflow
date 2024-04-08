@@ -114,7 +114,7 @@ app.post('/event', async (req, res) => {
 
 
     try {
-        res.json(await workflowManager.sendCE(req.body));
+        res.json(await workflowManager.sendCloudEvent(req.body));
     } catch (error) {
         console.error(`Error in POST /event`, error);
         res.status(500).send({'error': error.toString()});

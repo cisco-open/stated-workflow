@@ -43,21 +43,44 @@ export class WorkflowManager {
         return this.workflows[workflowId];
     }
 
-    async sendCE(data) {
-        const r = [];
+    /**
+     * This method sends an array of events to the workflow dispatchers (if one exists for
+     * the given type). It waits for all events to be acknowledged by the dispatchers.
+     * Event may be acknowledged either when a snapshot is taken or when the event is processed.
+     * The result is either success or failure.
+     */
+    async sendCloudEvent(data) {
+        // Placeholder for promises
+        const promises = [];
         for (const d of data) {
-            this.dispatchersByType[d.type].forEach(
-                async (dispatcher) => {
-                    const dataAckCallback = (data) => {
-                        console.log(`Data Acknowledged: ${StatedREPL.stringify(data)}`);
+            if (this.dispatchersByType[d.type]) {
+                this.dispatchersByType[d.type].forEach((dispatcher) => {
+                    // Add a promise for each data item to be acknowledged
+                    let resolve = () => {};
+                    promises.push(new Promise((_resolve) => {
+                        resolve = _resolve;
+                    }));
+                    const dataAckCallback = (acknowledgedData) => {
+                        console.log(`Data Acknowledged: ${JSON.stringify(acknowledgedData)}`);
+                        resolve();
                     };
-                    r.push(await dispatcher.addToQueue(d.data, dataAckCallback));
+                    dispatcher.addToQueue(d.data, dataAckCallback);
                 });
+            } else {
+                console.log(`Dispatcher not found for type: ${d.type}`);
+            }
         }
 
-
-        return r;
+        try {
+            console.log("Waiting for all promises to resolve");
+            const responses = await Promise.all(promises);
+            return {"status": "success"};
+        } catch (error) {
+            console.error("Error processing events: ", error);
+            return {"status": "failure", "error": error.message};
+        }
     }
+
     async sendEvent(workflowId, type, subscriberId, data) {
         const workflow = this.getWorkflow(workflowId);
         if (!workflow.workflowDispatcher) {
