@@ -23,9 +23,6 @@ import Step from "./Step.js";
 import {createStepPersistence} from "./StepPersistence.js";
 import {TemplateUtils} from "./utils/TemplateUtils.js";
 import {WorkflowPersistence} from "./WorkflowPersistence.js";
-import util from "util";
-import fs from "fs";
-import path from "path";
 import {Delay} from "../test/TestTools.js"
 import {Snapshot} from "./Snapshot.js";
 import {PulsarClientMock} from "../test/PulsarMock.js";
@@ -126,6 +123,8 @@ export class StatedWorkflow {
                 this.snapshotInterval = setInterval(async ()=>{
                     if(this.hasChanged){
                         await Snapshot.write(this.templateProcessor);
+                        // we can acknowledge callbacks after persisting templateProcessor
+                        if (this.workflowDispatcher) await this.workflowDispatcher.acknowledgeCallbacks();
                         this.hasChanged = false; //changeListener will alter this if the template changes so we are not permanently blocking snapshots
                     }
                 }, seconds*1000)
@@ -547,7 +546,7 @@ export class StatedWorkflow {
 
     onHttp(subscriptionParams) {
 
-        this.port = 8080;
+        this.port = subscriptionParams.port ? subscriptionParams.port : 8080;
         this.app = express();
         this.app.use(express.json());
         this.app.listen(this.port, () => {

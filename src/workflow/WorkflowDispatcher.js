@@ -11,7 +11,6 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import {StatedWorkflow} from "./StatedWorkflow.js";
 import jp from "stated-js/dist/src/JsonPointer.js";
 
@@ -119,7 +118,7 @@ export class WorkflowDispatcher {
 
                         // promisify the callback function, in case it is a sync one
                         const callbackPromise = Promise.resolve().then(() => {
-                            dataAckCallback()
+                            dataAckCallback(eventData);
                         });
                         callbackPromise.catch(error => {
                             console.error(`Error calling dataAckCallback ${dataAckCallback}, error: ${error}`);
@@ -227,6 +226,21 @@ export class WorkflowDispatcher {
             await new Promise(resolve => setTimeout(resolve, 50)); // Poll every 50ms
         }
         this.batchMode = false;
+    }
+
+    // We can acknowledge all data in-flight once we persist the data in the template snapshot
+    async acknowledgeCallbacks() {
+        for (const [data, dataAckCallback] of this.dataAckCallbacks.entries()) {
+            console.log(`Acknowledging data: ${data}`);
+            dataAckCallback(data);
+        }
+        for (const dispatcherKeys of this.dispatchers.values()) {
+            for (const dispatcherKey of dispatcherKeys) {
+                if (this.dispatcherObjects.has(dispatcherKey)) {
+                    await this.dispatcherObjects.get(dispatcherKey).acknowledgeCallbacks();
+                }
+            }
+        }
     }
 
 }

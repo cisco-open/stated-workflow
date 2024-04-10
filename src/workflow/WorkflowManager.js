@@ -4,70 +4,38 @@ import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import fs from "fs";
 import TemplateProcessor from "stated-js";
 
-import { metrics } from '@opentelemetry/api';
-import { MeterProvider } from '@opentelemetry/sdk-metrics-base';
+import {WorkflowMetrics} from "./WorkflowMeters.js";
 
 // WorkflowManager.js.js
 export class WorkflowManager {
     constructor() {
         this.workflows = {};
-        this.stats = {}
+        this.dispatchersByType = {};
+        this.workflowMetrics = new WorkflowMetrics();
+    }t
 
-        const meterProvider = new MeterProvider({});
-        metrics.setGlobalMeterProvider(meterProvider);
-        this.meter = metrics.getMeter('workflowMetrics');
-
-        // Create metrics
-        this.workflowInvocationsCounter = this.meter.createCounter('workflow_invocations', {
-            description: 'Counts the number of times workflows are invoked',
-        });
-        this.workflowFailuresCounter = this.meter.createCounter('workflow_failures', {
-            description: 'Counts the number of times workflows fail',
-        });
-
-        this.cbmon = (workflowId) => {return (data, jsonPointers, removed) => {
-            console.log(`cbmon: workflowId: ${workflowId}, Data changed at ${jsonPointers} to ${data}`);
-            // Check for failure pattern
-            const failurePattern = /\/([^/]+)\/log\/([^/]+)\/fail$/;
-            const successPattern = /\/([^/]+)\/log\/([^/]+)$/;
-
-            const firstJsonPointer = jsonPointers?.[0];
-            if (failurePattern.test(firstJsonPointer)) {
-                // Extract workflowStepName and invocationId from jsonPointerString if needed
-                const matches = firstJsonPointer.match(failurePattern);
-                const workflowStepName = matches[1];
-                const invocationId = matches[2];
-                // Record a failure
-                this.workflowFailuresCounter.add(1, { workflowId: workflowId, workflowStepName: workflowStepName, invocationId: invocationId });
-                console.log(`cbmon: Recorded a failure for workflowId: ${workflowId}, workflowStepName: ${workflowStepName}, invocationId: ${invocationId}`);
-            } else if (successPattern.test(firstJsonPointer) && removed) {
-                // Extract workflowStepName and invocationId from jsonPointerString if needed
-                const matches = firstJsonPointer.match(successPattern);
-                const workflowStepName = matches[1];
-                const invocationId = matches[2];
-                // Record a successful invocation
-                this.workflowInvocationsCounter.add(1, { workflowId: workflowId, workflowStepName: workflowStepName, invocationId: invocationId });
-                console.log(`cbmon: Recorded a successful invocation for workflowId: ${workflowId}, workflowStepName: ${workflowStepName}, invocationId: ${invocationId}`);
+    async createTypesMap(sw) {
+        if (sw.workflowDispatcher == undefined) {
+            return;
+        }
+        for (const typeEntry of sw.workflowDispatcher.dispatchers) {
+            if (!this.dispatchersByType[typeEntry[0]]) {
+                this.dispatchersByType[typeEntry[0]] = new Set();
             }
-        }};
+            for (const dispatcherKey of typeEntry[1]) {
+                this.dispatchersByType[typeEntry[0]].add(sw.workflowDispatcher.dispatcherObjects.get(dispatcherKey));
+            }
+        }
     }
 
-    async createWorkflow(template) {
+    async createWorkflow(template, context, callbacks) {
         const workflowId = WorkflowManager.generateUniqueId();
-        const sw = await StatedWorkflow.newWorkflow(template, undefined, {}, this.cbmon(workflowId));
+        const sw = await StatedWorkflow.newWorkflow(template, undefined, context, this.workflowMetrics.monitorCallback(workflowId));
         sw.templateProcessor.options = {'snapshot': {'snapshotIntervalSeconds': 1, path: `./${workflowId}.json`}};
         this.workflows[workflowId] = sw;
         await sw.templateProcessor.initialize(template)
+        await this.createTypesMap(sw);
         return workflowId;
-    }
-
-    createWorkflowMeters(workflowId) {
-        this.workflowInvocationsCounter = this.meter.createCounter('workflow_invocations', {
-            description: 'Counts the number of times workflows are invoked',
-        });
-        this.workflowFailuresCounter = this.meter.createCounter('workflow_failures', {
-            description: 'Counts the number of times workflows fail',
-        });
     }
 
     getWorkflowIds() {
@@ -76,6 +44,51 @@ export class WorkflowManager {
 
     getWorkflow(workflowId) {
         return this.workflows[workflowId];
+    }
+
+    /**
+     * This method sends an array of events to the workflow dispatchers (if one exists for
+     * the given type). It waits for all events to be acknowledged by the dispatchers.
+     * Event may be acknowledged either when a snapshot is taken or when the event is processed.
+     * The result is either success or failure status
+     */
+    async sendCloudEvent(data) {
+
+        if (this.dispatchersByType === undefined) {
+            const errorMessage = `No current subscribers`;
+            console.log(errorMessage);
+            return {'status': 'failure', error: errorMessage};
+        }
+        // Create an array of promises for each event to be acknowledged
+        const promises = [];
+        for (const d of data) {
+            if (this.dispatchersByType[d.type]) {
+                this.dispatchersByType[d.type].forEach((dispatcher) => {
+                    // Add a promise for each data item to be acknowledged
+                    let resolve = () => {};
+                    promises.push(new Promise((_resolve) => {
+                        resolve = _resolve;
+                    }));
+                    const dataAckCallback = (acknowledgedData) => {
+                        console.log(`Data Acknowledged: ${JSON.stringify(acknowledgedData)}`);
+                        resolve();
+                    };
+                    dispatcher.addToQueue(d.data, dataAckCallback);
+                });
+            } else {
+                console.log(`Dispatcher not found for type: ${d.type}`);
+                return {'status': 'failure', error: `No subscriber found for type ${d.type}`};
+            }
+        }
+
+        try {
+            console.log("Waiting for all promises to resolve");
+            const responses = await Promise.all(promises);
+            return {"status": "success"};
+        } catch (error) {
+            console.error("Error processing events: ", error);
+            return {"status": "failure", "error": error.message};
+        }
     }
 
     async sendEvent(workflowId, type, subscriberId, data) {
@@ -95,7 +108,7 @@ export class WorkflowManager {
         let acknowledgedEvents = 0;
 
         console.log(`Adding events data ${data} to dispatcher for type ${type} and subscriberId ${subscriberId}`);
-        const promises = [];
+        const callbacks = [];
         try {
             for (const event of data) {
                 const ackDataCallback = () => {
@@ -106,7 +119,7 @@ export class WorkflowManager {
                     }
                 }
                 dispatcher.addToQueue(event, ackDataCallback);
-                promises.push(ackDataCallback);
+                callbacks.push(ackDataCallback);
             }
             return {'status': 'success'};
         } catch (error) {
@@ -146,6 +159,12 @@ export class WorkflowManager {
 
     static generateUniqueId() {
         return Math.random().toString(36).substr(2, 9);
+    }
+
+    async close() {
+        for (const statedWorkflow of Object.values(this.workflows)) {
+            await statedWorkflow.close();
+        }
     }
 
 }
