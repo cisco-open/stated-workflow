@@ -93,7 +93,7 @@ describe('WorkflowManager', () => {
                         "type": "test"
                     }
                 },
-                "toFunc": "${ function($e) { $sleep(10000) } }"
+                "toFunc": "${ function($e) { $e } }"
             };
         await workflowManager.createWorkflow(t);
         const r = await workflowManager.sendCloudEvent(
@@ -102,5 +102,33 @@ describe('WorkflowManager', () => {
                 {type: 'myType2', subscriberId: 'mySubscriberId', data: {k2: 'v2'}}
             ]);
         expect(r).toEqual({status: 'failure', "error": "No subscriber found for type myType2"});
+    });
+
+    test('Sending events - one ack on processing, one ack on snapshot', async () => {
+        const t =
+            {
+                "start": ["/${$subscribe(subscribeParams)}","/${$subscribe(subscribeParams2)}"],
+                "subscribeParams": {
+                    "type": "myType",
+                    "to": "/${ toFunc }",
+                    "source": "cloudEvent",
+                    "client": {"type": "test"}
+                },
+                "subscribeParams2": {
+                    "type": "myType2",
+                    "to": "/${ toFuncSlow }",
+                    "source": "cloudEvent",
+                    "client": {"type": "test"}
+                },
+                "toFunc": "${ function($e) { $e } }",
+                "toFuncSlow": "${ function($e) { $sleep(10000) } }"
+            };
+        await workflowManager.createWorkflow(t);
+        const r = await workflowManager.sendCloudEvent(
+            [
+                {type: 'myType', subscriberId: 'mySubscriberId', data: {k1: 'v1'}},
+                {type: 'myType2', subscriberId: 'mySubscriberId', data: {k2: 'v2'}}
+            ]);
+        expect(r).toEqual({status: 'success'});
     });
 });
