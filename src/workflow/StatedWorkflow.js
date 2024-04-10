@@ -14,31 +14,25 @@
 // limitations under the License.
 import TemplateProcessor from "stated-js/dist/src/TemplateProcessor.js";
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
+import {WorkflowMetrics} from "./WorkflowMeters.js";
 import express from 'express';
 import Pulsar from 'pulsar-client';
 import {Kafka, logLevel} from 'kafkajs';
 import winston from "winston";
 import {WorkflowDispatcher} from "./WorkflowDispatcher.js";
 import Step from "./Step.js";
-import {createStepPersistence} from "./StepPersistence.js";
 import {TemplateUtils} from "./utils/TemplateUtils.js";
 import {WorkflowPersistence} from "./WorkflowPersistence.js";
 import {Delay} from "../test/TestTools.js"
 import {Snapshot} from "./Snapshot.js";
 import {PulsarClientMock} from "../test/PulsarMock.js";
 
-import { metrics } from '@opentelemetry/api';
-import { MeterProvider } from '@opentelemetry/sdk-metrics-base';
-
 
 //This class is a wrapper around the TemplateProcessor class that provides workflow functionality
 export class StatedWorkflow {
     // static express = require('express');
 
-    static persistence = createStepPersistence();
-
-    constructor(template, context, stepPersistence, cbmon){
-        this.stepPersistence = stepPersistence;
+    constructor(template, context, workflowContext = {}){
         this.logger = winston.createLogger({
             format: winston.format.json(),
             transports: [
@@ -51,6 +45,8 @@ export class StatedWorkflow {
             ],
             level: "error", //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
         });
+
+        this.workflowContext = workflowContext;
 
         // TODO: parameterize
         this.host = process.env.HOST_IP
@@ -65,24 +61,7 @@ export class StatedWorkflow {
         };
 
         // create metrics provider
-        this.meterProvider = new MeterProvider({});
-        metrics.setGlobalMeterProvider(this.meterProvider);
-
-        this.meter = metrics.getMeter('workflowMetrics');
-        // Create metrics
-        this.workflowInvocationsCounter = this.meter.createCounter('workflow_invocations', {
-            description: 'Counts the number of times workflows are invoked',
-        });
-        this.workflowInvocationSuccessesCounter = this.meter.createCounter('workflow_invocation_successes', {
-            description: 'Counts the number of times workflow invocations succeed',
-        });
-        this.workflowInvocationFailuresCounter = this.meter.createCounter('workflow_invocation_failures', {
-            description: 'Counts the number of times workflow invocations fail',
-        });
-        this.workflowInvocationLatency = this.meter.createHistogram('workflow_invocation_latency', {
-            description: 'Tracks the latency of workflow invocations',
-            unit: 'ms',
-        });
+        this.workflowMetrics = new WorkflowMetrics();
 
         this.consumers = new Map(); //key is type, value is pulsar consumer
         this.dispatchers = new Map(); //key is type, value Set of WorkflowDispatcher
@@ -124,7 +103,7 @@ export class StatedWorkflow {
                     if(this.hasChanged){
                         await Snapshot.write(this.templateProcessor);
                         // we can acknowledge callbacks after persisting templateProcessor
-                        if (this.workflowDispatcher) await this.workflowDispatcher.acknowledgeCallbacks();
+                        if (workflowContext.ackOnSnapshot === true && this.workflowDispatcher) await this.workflowDispatcher.acknowledgeCallbacks();
                         this.hasChanged = false; //changeListener will alter this if the template changes so we are not permanently blocking snapshots
                     }
                 }, seconds*1000)
@@ -134,10 +113,10 @@ export class StatedWorkflow {
                 this.templateProcessor.setDataChangeCallback("/", this.changeListener);
             },
         ];
-        if (cbmon !== undefined) {
+        if (this.workflowContext.cbmon !== undefined) {
             this.templateProcessor.initCallbacks.push(
                 ()=>{
-                    this.templateProcessor.setDataChangeCallback("/", cbmon);
+                    this.templateProcessor.setDataChangeCallback("/", this.workflowContext.cbmon);
                 });
         }
         //add a named initializer for stated-workflows that runs all of the stated-workflows init callbacks
@@ -146,30 +125,9 @@ export class StatedWorkflow {
 
     // this method returns a StatedWorkflow instance with TemplateProcesor with the default functions and Stated Workflow
     // functions. It also initializes persistence store, and set generator functions.
-    static async newWorkflow(template, stepPersistenceType = 'noop', context = {}, cbmon) {
-        const stepPersistence = createStepPersistence({persistenceType: stepPersistenceType});
-        await stepPersistence.init();
-        return new StatedWorkflow(template, context, stepPersistence, cbmon);
+    static async newWorkflow(template, context = {}, workflowContext) {
+        return new StatedWorkflow(template, context, workflowContext);
     }
-
-
-    /*
-    async initialize() {
-        await this.templateProcessor.initialize();
-        this.pulsarClient = new Pulsar.Client({
-            serviceUrl: 'pulsar://localhost:6650',
-        });
-
-
-        this.kafkaClient = new Kafka({
-            clientId: 'workflow-kafka-client',
-            brokers: [`${StatedWorkflow.host}:9092`],
-            logLevel: logLevel.DEBUG,
-        });
-
-    }
-
-     */
 
     setWorkflowPersistence() {
         const persistence = new WorkflowPersistence({workflowName: this.templateProcessor.input.name});
@@ -587,7 +545,7 @@ export class StatedWorkflow {
         }
 
         if (input === '__recover__' && stepJsons?.[0]) {
-            const step = new Step(stepJsons[0], StatedWorkflow.persistence, resolvedJsonPointers?.[0], tp);
+            const step = new Step(stepJsons[0], resolvedJsonPointers?.[0], tp);
             for  (let workflowInvocation of step.log.getInvocations()){
                 await this.serial(undefined, stepJsons, {workflowInvocation}, resolvedJsonPointers, tp);
             }
@@ -597,18 +555,18 @@ export class StatedWorkflow {
         let currentInput = input;
         const steps = [];
         for (let i = 0; i < stepJsons.length; i++) {
-            const step = new Step(stepJsons[i], StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
+            const step = new Step(stepJsons[i], resolvedJsonPointers?.[i], tp);
             steps.push(step);
             currentInput = await this.runStep(workflowInvocation, step, currentInput);
             if (currentInput !== undefined && currentInput.error) {
-                this.workflowInvocationFailuresCounter.add(1, {workflowInvocation});
+                this.workflowMetrics.workflowInvocationFailuresCounter.add(1, {workflowInvocation});
                 return currentInput;
             }
         }
 
         // metrics
-        this.workflowInvocationsCounter.add(1, {workflowInvocation});
-        this.workflowInvocationLatency.record(new Date().getTime() - workflowStart, {workflowInvocation});
+        this.workflowMetrics.workflowInvocationsCounter.add(1, {workflowInvocation});
+        this.workflowMetrics.workflowInvocationLatency.record(new Date().getTime() - workflowStart, {workflowInvocation});
 
         //we do not need to await this. Deletion can happen async
         if (!tp.options.keepLogs) StatedWorkflow.deleteStepsLogs(workflowInvocation, steps)
@@ -639,7 +597,7 @@ export class StatedWorkflow {
 
         let promises = [];
         for (let i = 0; i < stepJsons.length; i++) {
-            let step = new Step(stepJsons[i], StatedWorkflow.persistence, resolvedJsonPointers?.[i], tp);
+            let step = new Step(stepJsons[i], resolvedJsonPointers?.[i], tp);
             const promise = this.runStep(workflowInvocation, step, input)
               .then(result => {
                   // step.output.results.push(result);
@@ -693,7 +651,7 @@ export class StatedWorkflow {
 
 
     async recoverStep(stepJson, context, resolvedJsonPointer, tp){
-        let step = new Step(stepJson, StatedWorkflow.persistence, resolvedJsonPointer, tp);
+        let step = new Step(stepJson, resolvedJsonPointer, tp);
         for  (let workflowInvocation of step.log.getInvocations()){
             await this.runStep(workflowInvocation, step);
         }
@@ -839,7 +797,6 @@ export class StatedWorkflow {
             console.error("Error closing workflow dispatcher:", error);
         }
         clearInterval(this.snapshotInterval);
-        await this.meterProvider.shutdown().catch((err) => console.error('Error shutting down MeterProvider:', err));;
-        await metrics.disable();
+        await this.workflowMetrics.shutdown();
     }
 }
