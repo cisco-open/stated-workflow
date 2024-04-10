@@ -15,6 +15,9 @@ export class WorkflowManager {
     }t
 
     async createTypesMap(sw) {
+        if (sw.workflowDispatcher == undefined) {
+            return;
+        }
         for (const typeEntry of sw.workflowDispatcher.dispatchers) {
             if (!this.dispatchersByType[typeEntry[0]]) {
                 this.dispatchersByType[typeEntry[0]] = new Set();
@@ -25,9 +28,9 @@ export class WorkflowManager {
         }
     }
 
-    async createWorkflow(template) {
+    async createWorkflow(template, context, callbacks) {
         const workflowId = WorkflowManager.generateUniqueId();
-        const sw = await StatedWorkflow.newWorkflow(template, undefined, {}, this.workflowMetrics.monitorCallback(workflowId));
+        const sw = await StatedWorkflow.newWorkflow(template, undefined, context, this.workflowMetrics.monitorCallback(workflowId));
         sw.templateProcessor.options = {'snapshot': {'snapshotIntervalSeconds': 1, path: `./${workflowId}.json`}};
         this.workflows[workflowId] = sw;
         await sw.templateProcessor.initialize(template)
@@ -47,10 +50,16 @@ export class WorkflowManager {
      * This method sends an array of events to the workflow dispatchers (if one exists for
      * the given type). It waits for all events to be acknowledged by the dispatchers.
      * Event may be acknowledged either when a snapshot is taken or when the event is processed.
-     * The result is either success or failure.
+     * The result is either success or failure status
      */
     async sendCloudEvent(data) {
-        // Placeholder for promises
+
+        if (this.dispatchersByType === undefined) {
+            const errorMessage = `No current subscribers`;
+            console.log(errorMessage);
+            return {'status': 'failure', error: errorMessage};
+        }
+        // Create an array of promises for each event to be acknowledged
         const promises = [];
         for (const d of data) {
             if (this.dispatchersByType[d.type]) {
@@ -68,6 +77,7 @@ export class WorkflowManager {
                 });
             } else {
                 console.log(`Dispatcher not found for type: ${d.type}`);
+                return {'status': 'failure', error: `No subscriber found for type ${d.type}`};
             }
         }
 
@@ -149,6 +159,12 @@ export class WorkflowManager {
 
     static generateUniqueId() {
         return Math.random().toString(36).substr(2, 9);
+    }
+
+    async close() {
+        for (const statedWorkflow of Object.values(this.workflows)) {
+            await statedWorkflow.close();
+        }
     }
 
 }
