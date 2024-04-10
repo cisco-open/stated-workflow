@@ -28,9 +28,11 @@ export class WorkflowManager {
         }
     }
 
-    async createWorkflow(template, context, callbacks) {
+    async createWorkflow(template, context) {
         const workflowId = WorkflowManager.generateUniqueId();
-        const sw = await StatedWorkflow.newWorkflow(template, undefined, context, this.workflowMetrics.monitorCallback(workflowId));
+        const sw = await StatedWorkflow.newWorkflow(template, context,
+            {cbmon: this.workflowMetrics.monitorCallback(workflowId),
+                ackOnSnapshot: true});
         sw.templateProcessor.options = {'snapshot': {'snapshotIntervalSeconds': 1, path: `./${workflowId}.json`}};
         this.workflows[workflowId] = sw;
         await sw.templateProcessor.initialize(template)

@@ -2,9 +2,8 @@ import {default as jp} from "stated-js/dist/src/JsonPointer.js";
 import {StepLog} from "./StepLog.js";
 
 export default class Step {
-    constructor(stepJson, persistence, jsonPath = null, tp) {
+    constructor(stepJson, jsonPath = null, tp) {
         this.stepJson = stepJson;
-        this.persistence = persistence;
         this.stepJsonPtr = jsonPath;
         this.tp = tp;
         this.log = new StepLog(stepJson);
