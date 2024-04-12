@@ -12,7 +12,8 @@ export class WorkflowManager {
         this.workflows = {};
         this.dispatchersByType = {};
         this.workflowMetrics = new WorkflowMetrics();
-    }t
+        this.statePath = './state';
+    }
 
     async createTypesMap(sw) {
         if (sw.workflowDispatcher == undefined) {
@@ -31,9 +32,12 @@ export class WorkflowManager {
     async createWorkflow(template, context) {
         const workflowId = WorkflowManager.generateUniqueId();
         const sw = await StatedWorkflow.newWorkflow(template, context,
-            {cbmon: this.workflowMetrics.monitorCallback(workflowId),
-                ackOnSnapshot: true});
-        sw.templateProcessor.options = {'snapshot': {'snapshotIntervalSeconds': 1, path: `./${workflowId}.json`}};
+            {
+                cbmon: this.workflowMetrics.monitorCallback(workflowId),
+                ackOnSnapshot: true
+            });
+        sw.templateProcessor.options = {'snapshot': {'snapshotIntervalSeconds': 1, path: `${this.statePath}/${workflowId}.json`}};
+        this.ensureStateDir();
         this.workflows[workflowId] = sw;
         await sw.templateProcessor.initialize(template)
         await this.createTypesMap(sw);
@@ -117,7 +121,7 @@ export class WorkflowManager {
                     acknowledgedEvents++;
                     console.log(`Acknowledged ${acknowledgedEvents} of ${data.length} events`)
                     if (acknowledgedEvents === data.length) {
-                        return({'status': 'success'});
+                        return ({'status': 'success'});
                     }
                 }
                 dispatcher.addToQueue(event, ackDataCallback);
@@ -134,12 +138,12 @@ export class WorkflowManager {
     async getWorkflowSnapshot(workflowId) {
         console.log(`Reading snapshot object with ID ${workflowId}`);
 
-        const snapshotContent = fs.readFileSync(`./${workflowId}.json`, 'utf8');
+        const snapshotContent = fs.readFileSync(`${this.statePath}/${workflowId}.json`, 'utf8');
         return JSON.parse(snapshotContent);
     }
 
     async restoreWorkflow(workflowId) {
-        const snapshotContent = fs.readFileSync(`./${workflowId}.json`, 'utf8');
+        const snapshotContent = fs.readFileSync(`${this.statePath}/${workflowId}.json`, 'utf8');
         const snapshot = JSON.parse(snapshotContent);
 
         console.log(`Restoring workflow with ID ${workflowId}`);
@@ -166,6 +170,12 @@ export class WorkflowManager {
     async close() {
         for (const statedWorkflow of Object.values(this.workflows)) {
             await statedWorkflow.close();
+        }
+    }
+
+    ensureStateDir() {
+        if (!fs.existsSync(this.statePath)) {
+            fs.mkdirSync(this.statePath, {recursive: true});
         }
     }
 

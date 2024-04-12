@@ -518,7 +518,7 @@ export class StatedWorkflow {
         this.app.all('*', async (req, res) => {
             console.debug("Received HTTP request: ", req.body, req.method, req.url);
             // Push the request and response objects to the dispatch queue to be handled by callback
-            await dispatcher.addToQueue(req.body, ()=>{ res.send("sucess")});
+            await dispatcher.addToQueue(req.body, ()=>{ res.send("success")});
         });
 
         return "listening http ..."
