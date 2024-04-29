@@ -395,6 +395,9 @@ export class StatedWorkflow {
     subscribeCOPKafka(subscriptionParams) {
         const {type, initialOffset = 'earliest', maxConsume = -1} = subscriptionParams;
 
+        //make sure a dispatcher exists for the combination of type and subscriberId
+        this.workflowDispatcher.getDispatcher(subscriptionParams);
+
         // TODO: - validate
         const kafkaParams = subscriptionParams.client.params;
         kafkaParams.sasl.password = process.env.KAFKA_SASL_PASSWORD;
@@ -435,12 +438,7 @@ export class StatedWorkflow {
                 }
                 const ackFunction = async (data2ack) => {
                     console.log(`acknowledging data: ${StatedREPL.stringify(data)} with data2ack: ${StatedREPL.stringify(data2ack)}`);
-                    // TODO: make the below code working
-                    // const currentOffset = this.templateProcessor.output(subscribeParamsJsonPointer + 'offset',);
-                    // if (currentOffset < message.offset + 1) {
-                    //   await consumer.commitOffsets([{ topic, partition, offset: message.offset + 1 }]);
-                    //   this.templateProcessor.setData(subscribeParamsJsonPointer + 'offset', message.offset + 1;
-                    // }
+                    // TODO: add ack logic
                 }
                 await this.workflowDispatcher.dispatchToAllSubscribers(type, data, ackFunction);
 

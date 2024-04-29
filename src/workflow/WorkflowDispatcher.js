@@ -13,6 +13,7 @@
 // limitations under the License.
 import {StatedWorkflow} from "./StatedWorkflow.js";
 import jp from "stated-js/dist/src/JsonPointer.js";
+import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 
 // This class is used to add events to a queue and dispatch them to one or more subscribed workflow function with the
 // given parallelism. Tracks the number of active events and the number of events in the queue.
@@ -231,7 +232,7 @@ export class WorkflowDispatcher {
     // We can acknowledge all data in-flight once we persist the data in the template snapshot
     async acknowledgeCallbacks() {
         for (const [data, dataAckCallback] of this.dataAckCallbacks.entries()) {
-            console.log(`Acknowledging data: ${data}`);
+            console.log(`Acknowledging data: ${StatedREPL.stringify(data)}`);
             dataAckCallback(data);
         }
         for (const dispatcherKeys of this.dispatchers.values()) {
