@@ -1,10 +1,12 @@
 #!/usr/bin/env node --experimental-vm-modules
 import { StatedWorkflow } from "./StatedWorkflow.js";
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
-import fs from "fs";
 import TemplateProcessor from "stated-js";
-
 import {WorkflowMetrics} from "./WorkflowMeters.js";
+
+import fs from "fs";
+import util from "util";
+const mkdir = util.promisify(fs.mkdir);
 
 // WorkflowManager.js.js
 export class WorkflowManager {
@@ -12,7 +14,8 @@ export class WorkflowManager {
         this.workflows = {};
         this.dispatchersByType = {};
         this.workflowMetrics = new WorkflowMetrics();
-    }t
+        this.statePath = './.state';
+    }
 
     async createTypesMap(sw) {
         if (sw.workflowDispatcher == undefined) {
@@ -31,9 +34,9 @@ export class WorkflowManager {
     async createWorkflow(template, context) {
         const workflowId = WorkflowManager.generateUniqueId();
         const sw = await StatedWorkflow.newWorkflow(template, context,
-            {cbmon: this.workflowMetrics.monitorCallback(workflowId),
-                ackOnSnapshot: true});
-        sw.templateProcessor.options = {'snapshot': {'snapshotIntervalSeconds': 1, path: `./${workflowId}.json`}};
+            {cbmon: this.workflowMetrics.monitorCallback(workflowId), ackOnSnapshot: true});
+        sw.templateProcessor.options = {'snapshot': {'snapshotIntervalSeconds': 1, path: `${this.statePath}/${workflowId}.json`}};
+        await this.ensureStatePathDir();
         this.workflows[workflowId] = sw;
         await sw.templateProcessor.initialize(template)
         await this.createTypesMap(sw);
@@ -134,12 +137,12 @@ export class WorkflowManager {
     async getWorkflowSnapshot(workflowId) {
         console.log(`Reading snapshot object with ID ${workflowId}`);
 
-        const snapshotContent = fs.readFileSync(`./${workflowId}.json`, 'utf8');
+        const snapshotContent = fs.readFileSync(`${this.statePath}/${workflowId}.json`, 'utf8');
         return JSON.parse(snapshotContent);
     }
 
     async restoreWorkflow(workflowId) {
-        const snapshotContent = fs.readFileSync(`./${workflowId}.json`, 'utf8');
+        const snapshotContent = fs.readFileSync(`${this.statePath}/${workflowId}.json`, 'utf8');
         const snapshot = JSON.parse(snapshotContent);
 
         console.log(`Restoring workflow with ID ${workflowId}`);
@@ -169,5 +172,15 @@ export class WorkflowManager {
         }
     }
 
+    async ensureStatePathDir() {
+        try {
+            await mkdir(this.statePath, {recursive: true});
+        } catch (error) {
+            // if the file exists, we can continue without error
+            if (error.code !== 'EEXIST') {
+                throw error;
+            }
+        }
+    }
 }
 

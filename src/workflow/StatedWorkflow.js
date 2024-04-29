@@ -17,7 +17,6 @@ import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import {WorkflowMetrics} from "./WorkflowMeters.js";
 import express from 'express';
 import Pulsar from 'pulsar-client';
-import {Kafka, logLevel} from 'kafkajs';
 import winston from "winston";
 import {WorkflowDispatcher} from "./WorkflowDispatcher.js";
 import Step from "./Step.js";
@@ -26,6 +25,13 @@ import {WorkflowPersistence} from "./WorkflowPersistence.js";
 import {Delay} from "../test/TestTools.js"
 import {Snapshot} from "./Snapshot.js";
 import {PulsarClientMock} from "../test/PulsarMock.js";
+import {SchemaRegistry} from "@kafkajs/confluent-schema-registry";
+import LZ4 from "kafkajs-lz4";
+
+// workaround for kafkajs issue
+import kafkaPkg from 'kafkajs';
+const {Kafka, KafkaConfig, CompressionTypes, CompressionCodecs, logLevel} = kafkaPkg;
+
 
 
 //This class is a wrapper around the TemplateProcessor class that provides workflow functionality
@@ -385,6 +391,65 @@ export class StatedWorkflow {
         })();
     }
 
+    // this function provide access to COP CloudEvent sources when deployed as a Zodiac function
+    subscribeCOPKafka(subscriptionParams) {
+        const {type, initialOffset = 'earliest', maxConsume = -1} = subscriptionParams;
+
+        //make sure a dispatcher exists for the combination of type and subscriberId
+        this.workflowDispatcher.getDispatcher(subscriptionParams);
+
+        // TODO: - validate
+        const kafkaParams = subscriptionParams.client.params;
+        kafkaParams.sasl.password = process.env.KAFKA_SASL_PASSWORD;
+
+        CompressionCodecs[CompressionTypes.LZ4] = new LZ4().codec;
+        this.kafkaClient = new Kafka(kafkaParams);
+
+        // TODO: SCHEMA_REGISTRY_URL should be coming form the zodiac function
+        const registry = new SchemaRegistry({ host: subscriptionParams.client.schemaRegistryUrl });
+
+        // TODO: parameterize
+        const defaultConsumerGroup = 'alerting.sys.stated-workflow';
+
+        // TODO: merge the default client params with the allowed client params from the subscriptionParams
+        const consumer = this.kafkaClient.consumer({ groupId: defaultConsumerGroup });
+
+        (async () => {try {
+            await consumer.connect();
+            await consumer.subscribe({ topic: type, fromBeginning: true });
+
+        } catch (e) {
+            this.logger.debug(`Kafka subscriber - failed, e: ${e}`);
+        }
+        this.logger.debug(`Kafka subscriber - subscribed.`);
+
+        this.consumers.set(type, consumer);
+        let countdown = maxConsume;
+
+        // main consumer processor
+        await consumer.run({
+            eachMessage: async ({ topic, partition, message }) => {
+                let data;
+                this.logger.debug(`Kafka subscriber got ${message} from ${topic}:${partition}.`);
+                try {
+                    data = await registry.decode(message.value);
+                } catch (error) {
+                    console.error("Unable to parse data to JSON:", error);
+                }
+                const ackFunction = async (data2ack) => {
+                    console.log(`acknowledging data: ${StatedREPL.stringify(data)} with data2ack: ${StatedREPL.stringify(data2ack)}`);
+                    // TODO: add ack logic
+                }
+                await this.workflowDispatcher.dispatchToAllSubscribers(type, data, ackFunction);
+
+                if (countdown && --countdown === 0) {
+                    // Disconnect the consumer if maxConsume messages have been processed
+                    await consumer.disconnect();
+                }
+            }
+        })})();
+    }
+
     async subscribeKafka(subscriptionParams) {
         const { type, initialOffset = 'earliest', maxConsume = -1 } = subscriptionParams;
         this.logger.debug(`Kafka subscribe params ${StatedREPL.stringify(subscriptionParams)} with clientParams ${StatedREPL.stringify(clientParams)}`);
@@ -471,6 +536,7 @@ export class StatedWorkflow {
             await dispatcher.drainBatch(); // in test mode we wanna actually wait for all the test events to process
             return;
         }
+
         // clientType test means that the data will be sent directly from publish function to the dispatcher
         if(clientType==='test'){
             this.logger.debug(`No 'real' subscription created because client.type='test' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
@@ -484,6 +550,9 @@ export class StatedWorkflow {
             };
             // validates that we have a dispatcher created for this subscriptionParams.
             this.workflowDispatcher.getDispatcher(subscriptionParams, testDataAckFunctionGenerator);
+        }else if (clientType === 'cop') {
+            this.logger.debug(`subscribing to cop cloud event sources ${clientParams}`)
+            this.subscribeCOPKafka(subscriptionParams);
         }else if (clientType === 'kafka') {
             this.logger.debug(`subscribing to kafka using ${clientParams}`)
             this.createKafkaClient(clientParams);
