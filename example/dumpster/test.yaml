@@ -1,7 +1,6 @@
 start$: $subscribe(subscribeParams)
 name: nozzleWork
 subscribeParams: #parameters for subscribing to a cloud event
-  testData: "${  [1..10000].({'name': 'nozzleTime', 'order':$})  }"
   type: sys:cron
   filter$: function($e){ $e.name='nozzleTime' }
   to: ../${myWorkflow$}
@@ -9,6 +8,7 @@ subscribeParams: #parameters for subscribing to a cloud event
   source: cloudEvent
   client:
     type: test
+    testData: "${  [1..10000].({'name': 'nozzleTime', 'order':$})  }"
 
 myWorkflow$: |
   function($e){

@@ -2,9 +2,9 @@ start: ${ (produceParams.data; $millis()) } #record start time, after test datas
 # producer will be sending some test data
 produceParams:
   type: "rebelDispatch"
-  data: ['luke', 'han', 'leia']
   client:
     type: test # test client produces directly to the test subscriber dispatcher
+    data: ['luke', 'han', 'leia']
 # the subscriber's 'to' function will be called on each received event
 subscribeParams: #parameters for subscribing to an event
   source: cloudEvent

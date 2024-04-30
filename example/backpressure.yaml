@@ -1,9 +1,9 @@
 # producer will be sending some test data
 produceParams:
   type: "my-topic"
-  data: ${[1..10].('bleep_' & $string($))}
   client:
     type: test
+    data: ${[1..10].('bleep_' & $string($))}
 # the subscriber's 'to' function will be called on each received event
 slowSubscribeParams: #parameters for subscribing to an event
   source: cloudEvent

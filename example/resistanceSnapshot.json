@@ -3,13 +3,13 @@
     "start": "${ (produceParams.data; $millis()) }",
     "produceParams": {
       "type": "rebelDispatch",
-      "data": [
-        "luke",
-        "han",
-        "leia"
-      ],
       "client": {
-        "type": "test"
+        "type": "test",
+        "data": [
+          "luke",
+          "han",
+          "leia"
+        ]
       }
     },
     "subscribeParams": {
@@ -44,13 +44,13 @@
     "start": 1709667624225,
     "produceParams": {
       "type": "rebelDispatch",
-      "data": [
-        "luke",
-        "han",
-        "leia"
-      ],
       "client": {
-        "type": "test"
+        "type": "test",
+        "data": [
+          "luke",
+          "han",
+          "leia"
+        ]
       }
     },
     "subscribeParams": {

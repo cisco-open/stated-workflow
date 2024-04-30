@@ -3,20 +3,24 @@ start2$: "$recover(subscribeParams2) ~> $subscribe(subscribeParams2, {})"
 name: nozzleWork
 subscribeParams1: #parameters for subscribing to a cloud event
   source: cloudEvent
-  testData: "${  [1].([{'name': 'nozzleTime1', 'order':$}])  }"
   type: 'my-topic'
   filter$: function($e){ $e.name='nozzleTime' }
   to: ../${myWorkflow1$}
   parallelism: 2
   subscriberId: ../${name}
+  client:
+    type: test
+    testData: "${  [1].([{'name': 'nozzleTime1', 'order':$}])  }"
 subscribeParams2: #parameters for subscribing to a cloud event
   source: cloudEvent
-  testData: "${  [1].([{'name': 'nozzleTime2', 'order':$}])  }"
   type: 'my-topic'
   filter$: function($e){ $e.name='nozzleTime' }
   to: ../${myWorkflow2$}
   parallelism: 2
   subscriberId: 'nozzleWork2'
+  client:
+    type: test
+    testData: "${  [1].([{'name': 'nozzleTime2', 'order':$}])  }"
 myWorkflow1$: |
   function($e){
       $e ~> $serial([step1, step2])

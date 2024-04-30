@@ -1,9 +1,9 @@
 # producer will be sending some test data
 produceParams:
   type: "my-topic"
-  data: ${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge']}
   client:
     type: test
+    data: ${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge']}
 # the subscriber's 'to' function will be called on each received event
 subscribeParams: #parameters for subscribing to an event
   source: cloudEvent

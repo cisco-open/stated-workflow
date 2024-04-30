@@ -2,9 +2,9 @@
 produceParams:
   type: "residents"
   # fetch one page of planet data from the Star Wars API
-  data: ${[1].($fetch('https://swapi.tech/api/planets/?page=' & $string($)).json().results)}
   client:
     type: test
+    data: ${[1].($fetch('https://swapi.tech/api/planets/?page=' & $string($)).json().results)}
 subscribeResidents:
   source: cloudEvent
   type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events

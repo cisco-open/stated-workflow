@@ -2,9 +2,9 @@
 interval$: ($subscribe(subscribeParams); $setInterval(function(){$publish(pubParams)}, 100))
 pubParams:
   type: /${ subscribeParams.type} #pub to same type we subscribe on
-  testData: [ {'msg':'hello'} ]
   client:
     type: test
+    testData: [ {'msg':'hello'} ]
 subscribeParams: #parameters for subscribing to a cloud event
   source: cloudEvent
   type: 'my-topic'

@@ -1,9 +1,9 @@
 # producer will be sending some test data
 produceParams:
   type: "my-topic"
-  data: ${[1..6].($fetch('https://swapi.tech/api/planets/?page=' & $string($)).json().results)}
   client:
     type: test
+    data: ${[1..6].($fetch('https://swapi.tech/api/planets/?page=' & $string($)).json().results)}
 subscribeResidents:
   source: cloudEvent
   type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events

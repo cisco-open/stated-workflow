@@ -8,9 +8,9 @@
 #   -H'appd-pid: ImZvb0BiYXIuY29tIg=='
 knowledgeStore:
   type: "my-topic"
-  data: "${ function(){  {'msg': 'hello', 'rando': $random()} } }"
   client:
     type: test
+    data: "${ function(){  {'msg': 'hello', 'rando': $random()} } }"
 # producer will be invoking "to" function for each consumed event
 subscribeParams: #parameters for subscribing to a cloud event
   source: cloudEvent

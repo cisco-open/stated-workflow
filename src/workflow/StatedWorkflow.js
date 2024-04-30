@@ -81,7 +81,7 @@ export class StatedWorkflow {
                 "logFunctionInvocation": this.logFunctionInvocation.bind(this),
                 "workflow": this.workflow.bind(this),
                 "recover": this.recover.bind(this),
-                "sleep": Delay.start
+                "sleep": Delay.start,
             }
         };
         this.templateProcessor = new TemplateProcessor(template, context);
@@ -204,15 +204,15 @@ export class StatedWorkflow {
     async publish(params) {
         this.logger.debug(`publish params ${StatedREPL.stringify(params)} }`);
 
-        const {data, type, client:clientParams={}} = params;
+        const {type, client:clientParams={}} = params;
 
         if(!this.workflowDispatcher) {
             this.workflowDispatcher = new WorkflowDispatcher(params);
         }
 
-        if (clientParams  && clientParams.type === 'test') {
+        if (clientParams.type === 'test' && clientParams.data !== undefined) {
             this.logger.debug(`test client provided, will not publish to 'real' message broker for publish parameters ${StatedREPL.stringify(params)}`);
-            await this.workflowDispatcher.addBatchToAllSubscribers(type, data);
+            await this.workflowDispatcher.addBatchToAllSubscribers(type, clientParams.data);
             return "done";
         }
 
@@ -314,9 +314,6 @@ export class StatedWorkflow {
             this.workflowDispatcher = new WorkflowDispatcher(subscribeOptions);
         }
 
-        if (source === 'http') {
-            return this.onHttp(subscribeOptions);
-        }
         if (source === 'cloudEvent') {
             return this.subscribeCloudEvent(subscribeOptions, subscribeOptionsJsonPointer);
         }
@@ -508,7 +505,7 @@ export class StatedWorkflow {
     }
 
     async subscribeCloudEvent(subscriptionParams, subscribeParamsJsonPointer) {
-        const {testData, client:clientParams={type:'test'}, to} = subscriptionParams;
+        const {client:clientParams={type:'test'}, to} = subscriptionParams;
         //to-do fixme do validation of subscriptionParams
         if(!to){
             throw new Error(`mandatory 'to' field was not provided for '${subscriptionParams.subscriberId}'`);
@@ -519,7 +516,7 @@ export class StatedWorkflow {
         const {type:clientType} = clientParams;
 
         // testData may contain some canned data to be used without a publisher.
-        if (testData !== undefined) {
+        if (clientParams.type === "test" && clientParams.testData !== undefined) {
             this.logger.debug(`No 'real' subscription created because testData provided for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
             const testDataAckFunctionGenerator = ((data) => {
                 return async () => {
@@ -532,7 +529,7 @@ export class StatedWorkflow {
             }).bind(this);
             const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams, testDataAckFunctionGenerator);
 
-            await dispatcher.addBatch(testData);
+            await dispatcher.addBatch(clientParams.testData);
             await dispatcher.drainBatch(); // in test mode we wanna actually wait for all the test events to process
             return;
         }
@@ -550,7 +547,9 @@ export class StatedWorkflow {
             };
             // validates that we have a dispatcher created for this subscriptionParams.
             this.workflowDispatcher.getDispatcher(subscriptionParams, testDataAckFunctionGenerator);
-        }else if (clientType === 'cop') {
+        } else if (clientType === 'http') {
+            this.onHttp(subscriptionParams);
+        } else if (clientType === 'cop') {
             this.logger.debug(`subscribing to cop cloud event sources ${clientParams}`)
             this.subscribeCOPKafka(subscriptionParams);
         }else if (clientType === 'kafka') {
