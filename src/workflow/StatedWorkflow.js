@@ -82,6 +82,7 @@ export class StatedWorkflow {
                 "workflow": this.workflow.bind(this),
                 "recover": this.recover.bind(this),
                 "sleep": Delay.start,
+                "ack": this.ack.bind(this),
             }
         };
         this.templateProcessor = new TemplateProcessor(template, context);
@@ -133,6 +134,11 @@ export class StatedWorkflow {
     // functions. It also initializes persistence store, and set generator functions.
     static async newWorkflow(template, context = {}, workflowContext) {
         return new StatedWorkflow(template, context, workflowContext);
+    }
+
+    //
+    async ack(data) {
+        console.log(`acknowledging data: ${StatedREPL.stringify(data)}`);
     }
 
     setWorkflowPersistence() {
@@ -522,8 +528,8 @@ export class StatedWorkflow {
                 return async () => {
                     // we check if subscriptionParams.acks is an array to enable acks. If the array is missing, acks
                     // are not enabled and we do not need to do anything.
-                    if (subscriptionParams !== undefined && Array.isArray(subscriptionParams.acks)) {
-                        await this.templateProcessor.setData(subscribeParamsJsonPointer + '/acks/-',data);
+                    if (clientParams !== undefined && Array.isArray(clientParams.acks)) {
+                        await this.templateProcessor.setData(subscribeParamsJsonPointer + '/client/acks/-',data);
                     }
                 }
             }).bind(this);
@@ -535,13 +541,13 @@ export class StatedWorkflow {
         }
 
         // clientType test means that the data will be sent directly from publish function to the dispatcher
-        if(clientType==='test'){
+        if(clientParams.type === "test"){
             this.logger.debug(`No 'real' subscription created because client.type='test' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
             const testDataAckFunctionGenerator = (data) => {
                 return async () => {
-                    if (subscriptionParams !== undefined && Array.isArray(subscriptionParams.acks)) {
+                    if (Array.isArray(clientParams.acks)) {
                         console.debug(`acknowledging data: ${StatedREPL.stringify(data)}`);
-                        await this.templateProcessor.setData(subscribeParamsJsonPointer + '/acks/-',data);
+                        await this.templateProcessor.setData(subscribeParamsJsonPointer + '/client/acks/-',data);
                     }
                 }
             };

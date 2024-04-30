@@ -208,7 +208,7 @@ export class WorkflowDispatcher {
         if (Array.isArray(testData)) {
             this.batchCount += testData.length;
             for(let i=0;i<testData.length;i++){
-                if (Array.isArray(this.subscribeParams.acks) && this.subscribeParams.acks.includes(testData[i])) {
+                if (this.subscribeParams.client !== undefined && Array.isArray(this.subscribeParams.client.acks) && this.subscribeParams.client.acks.includes(testData[i])) {
                     console.debug(`Skipping already acknowledged test data: ${testData[i]}`);
                 } else {
                     await this.addToQueue(testData[i]);

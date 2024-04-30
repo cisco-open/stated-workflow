@@ -13,9 +13,9 @@ subscribeParams: #parameters for subscribing to an event
   subscriberId: rebelArmy
   initialPosition: latest
   parallelism: 1
-  acks: []
   client:
     type: test
+    acks: []
 saveRebelWorkflow:
   function: | 
     /${ 

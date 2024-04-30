@@ -1113,7 +1113,7 @@ test("workflow snapshot and restore", async () => {
                 expect(snapshot.output.rebels.length).toEqual(1);
                 expect(StatedREPL.stringify(snapshot.output.rebels)).toEqual(StatedREPL.stringify([
                     {"name": "Luke Skywalker", "url": "https://www.swapi.tech/api/planets/1"}]));
-                expect(StatedREPL.stringify(snapshot.output.subscribeParams.acks)).toEqual(StatedREPL.stringify(["luke"]));
+                expect(StatedREPL.stringify(snapshot.output.subscribeParams.client.acks)).toEqual(StatedREPL.stringify(["luke"]));
                 // the output should also have a log for 'han' invocationId complete for fetchRebel
                 expect (snapshot.output.fetchRebel.log.han.end).toBeDefined();
 
@@ -1150,7 +1150,7 @@ test("workflow snapshot and restore", async () => {
         {"name": "Leia Organa", "url": "https://www.swapi.tech/api/planets/2"}
     ]));
     // Expect that each rebel data was acknowledged once.
-    expect(StatedREPL.stringify(tp.output.subscribeParams.acks)).toEqual(StatedREPL.stringify(["luke", "han", "leia"]));
+    expect(StatedREPL.stringify(tp.output.subscribeParams.client.acks)).toEqual(StatedREPL.stringify(["luke", "han", "leia"]));
     // validate that fetchRebel step was completed exactly once. On the first try, it leaves a log for 'han' with start
     // and end. On the second try the workflow starts from 'han', which hasn't been acknowledged, but has a complete
     // fetchRebel log and will be skipped.

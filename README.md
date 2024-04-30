@@ -276,10 +276,10 @@ subscribeParams: #parameters for subscribing to an event
   subscriberId: rebelArmy
   initialPosition: latest
   parallelism: 1
-  acks: [] # if the acks are present in client: type: test, then the subscriber will be storing acknowledgement in this field
   client:
     type: test
     data: ['obi-wan'] # test subscriber may include test data to run without a producer 
+    acks: [] # if the acks are present in client: type: test, then the subscriber will be storing acknowledgement in this field
 ```
 
 ## Dispatcher mode
@@ -301,6 +301,12 @@ acknowledgement in the template. HTTP client blocks the synchronous HTTP respons
 ### Test Client Durability
 To develop and test workflows with the test client adding `acks` field will enable test acknowledgements in the client. Messages processed by 
 the workflow will be added to the `acks` array.
+```
+  client:
+    type: test
+    data: ['obi-wan'] # test subscriber may include test data to run without a producer 
+    acks: [] # if the acks are present in client: type: test, then the subscriber will be storing acknowledgement in this field
+```
 
 ### Pulsar Client Durability
 Pulsar pub/sub relies on server side acknowledgement, similar to the test data. On failure or restart, the subscriber 
