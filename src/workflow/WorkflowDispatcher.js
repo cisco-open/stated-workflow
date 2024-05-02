@@ -64,8 +64,20 @@ export class WorkflowDispatcher {
         return this.dispatcherObjects.get(key);
     }
 
+    async addBatchToAllSubscribers(type, testData) {
+        const keysSet = this.dispatchers.get(type);
+        if (keysSet) {
+            for (let key of keysSet) {
+                const dispatcher = this.dispatcherObjects.get(key);
+                dispatcher.addBatch(testData); // You can pass the actual data you want to dispatch here
+            }
+        } else {
+            console.log(`No subscribers found for type ${type}`);
+        }
+    }
+    /**/
     // this function is only used from test publisher
-    async addBatchToAllSubscribers(type, clientParams = {}, ackFunc) {
+    async addBatchToAllSubscribersWithAck(type, clientParams = {}, ackFunc) {
         const promises = [];
         for (let data of clientParams.data) {
             type = data.type || type;

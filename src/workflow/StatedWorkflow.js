@@ -139,15 +139,17 @@ export class StatedWorkflow {
     //
     async ack(data) {
         console.log(`acknowledging data: ${StatedREPL.stringify(data)}`);
-        const dispatcherType = this.workflowDispatcher.dispatchers.get(data.type);
-        for (let t of dispatcherType) {
-            const dispatcher = this.workflowDispatcher.dispatcherObjects.get(t);
-            const ackCallback = dispatcher.dataAckCallbacks.get(data);
-            if (ackCallback) {
-                ackCallback(data);
-                dispatcher.dataAckCallbacks.delete(data);
-            }
-        }
+/*
+        // const dispatcherType = this.workflowDispatcher.dispatchers.get(data.type);
+        // for (let t of dispatcherType) {
+        //     const dispatcher = this.workflowDispatcher.dispatcherObjects.get(t);
+        //     const ackCallback = dispatcher.dataAckCallbacks.get(data);
+        //     if (ackCallback) {
+        //         ackCallback(data);
+        //         dispatcher.dataAckCallbacks.delete(data);
+        //     }
+        // }
+*/
 
     }
 
@@ -228,7 +230,11 @@ export class StatedWorkflow {
 
         if (clientParams.type === 'test' && clientParams.data !== undefined) {
             this.logger.debug(`test client provided, will not publish to 'real' message broker for publish parameters ${StatedREPL.stringify(params)}`);
-            await this.workflowDispatcher.addBatchToAllSubscribers(type, clientParams);
+            if (clientParams.explicitAck) {
+                await this.workflowDispatcher.addBatchToAllSubscribersWithAck(type, clientParams);
+            } else {
+                await this.workflowDispatcher.addBatchToAllSubscribers(type, clientParams.data);
+            }
             return "done";
         }
 
@@ -550,18 +556,16 @@ export class StatedWorkflow {
             return;
         }
 
-        // clientType test means that the data will be sent directly from publish function to the dispatcher
-        if(clientParams.type === "test") {
+        if(clientParams.type === "test"){
             this.logger.debug(`No 'real' subscription created because client.type='test' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
-            const testDataAckFunctionGenerator = ((data) => {
+            const testDataAckFunctionGenerator = (data) => {
                 return (async () => {
                     if (Array.isArray(clientParams.acks)) {
                         console.debug(`acknowledging data: ${StatedREPL.stringify(data)}`);
-                        await this.templateProcessor.setData(subscribeParamsJsonPointer + '/client/acks/-', data);
-                        console.log(`template output of the json pointer ${subscribeParamsJsonPointer + '/client/acks'} is ${StatedREPL.stringify(this.templateProcessor.out(subscribeParamsJsonPointer + '/client/acks'))}`)
+                        await this.templateProcessor.setData(subscribeParamsJsonPointer + '/client/acks/-',data);
                     }
                 }).bind(this);
-            }).bind(this);
+            };
             // validates that we have a dispatcher created for this subscriptionParams.
             this.workflowDispatcher.getDispatcher(subscriptionParams, testDataAckFunctionGenerator);
         } else if (clientType === 'dispatcher') {
