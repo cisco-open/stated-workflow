@@ -64,16 +64,20 @@ export class WorkflowDispatcher {
         return this.dispatcherObjects.get(key);
     }
 
-    async addBatchToAllSubscribers(type, testData, ackFunc) {
+    // this function is only used from test publisher
+    async addBatchToAllSubscribers(type, clientParams = {}, ackFunc) {
         const promises = [];
-        for (let data of testData) {
-            type = testData.type || type;
+        for (let data of clientParams.data) {
+            type = data.type || type;
             const keysSet = this.dispatchers.get(type);
             if (keysSet) {
                 for (let key of keysSet) {
                     const dispatcher = this.dispatcherObjects.get(key);
-                    dispatcher.addToQueue(data, ackFunc);
-
+                    if (Array.isArray(clientParams.acks) && clientParams.acks.includes(data)) {
+                        console.debug(`Skipping already acknowledged test data: ${StatedREPL.stringify(data)}`);
+                    } else {
+                        promises.push(dispatcher.addToQueue(data, ackFunc));
+                    }
                 }
             } else {
                 console.log(`No subscribers found for type ${type}`);

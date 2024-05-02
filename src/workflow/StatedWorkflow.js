@@ -90,7 +90,7 @@ export class StatedWorkflow {
         this.templateProcessor.functionGenerators.set("parallel", this.parallelGenerator.bind(this));
         this.templateProcessor.functionGenerators.set("recoverStep", this.recoverStepGenerator.bind(this));
         this.templateProcessor.functionGenerators.set("subscribe", this.subscribeGenerator.bind(this));
-        this.templateProcessor.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
+        this.templateProcessor.logLevel = logLevel.DEBUG; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
         this.hasChanged = true;
         this.changeListener = ()=>{this.hasChanged=true};
         this.snapshotInterval = null;
@@ -228,7 +228,7 @@ export class StatedWorkflow {
 
         if (clientParams.type === 'test' && clientParams.data !== undefined) {
             this.logger.debug(`test client provided, will not publish to 'real' message broker for publish parameters ${StatedREPL.stringify(params)}`);
-            await this.workflowDispatcher.addBatchToAllSubscribers(type, clientParams.data);
+            await this.workflowDispatcher.addBatchToAllSubscribers(type, clientParams);
             return "done";
         }
 
@@ -558,7 +558,7 @@ export class StatedWorkflow {
                     if (Array.isArray(clientParams.acks)) {
                         console.debug(`acknowledging data: ${StatedREPL.stringify(data)}`);
                         await this.templateProcessor.setData(subscribeParamsJsonPointer + '/client/acks/-', data);
-                        console.log('success in setData')
+                        console.log(`template output of the json pointer ${subscribeParamsJsonPointer + '/client/acks'} is ${StatedREPL.stringify(this.templateProcessor.out(subscribeParamsJsonPointer + '/client/acks'))}`)
                     }
                 }).bind(this);
             }).bind(this);
