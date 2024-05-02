@@ -553,14 +553,15 @@ export class StatedWorkflow {
         // clientType test means that the data will be sent directly from publish function to the dispatcher
         if(clientParams.type === "test") {
             this.logger.debug(`No 'real' subscription created because client.type='test' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
-            const testDataAckFunctionGenerator = (data) => {
-                return async () => {
+            const testDataAckFunctionGenerator = ((data) => {
+                return (async () => {
                     if (Array.isArray(clientParams.acks)) {
                         console.debug(`acknowledging data: ${StatedREPL.stringify(data)}`);
                         await this.templateProcessor.setData(subscribeParamsJsonPointer + '/client/acks/-', data);
+                        console.log('success in setData')
                     }
-                }
-            };
+                }).bind(this);
+            }).bind(this);
             // validates that we have a dispatcher created for this subscriptionParams.
             this.workflowDispatcher.getDispatcher(subscriptionParams, testDataAckFunctionGenerator);
         } else if (clientType === 'dispatcher') {

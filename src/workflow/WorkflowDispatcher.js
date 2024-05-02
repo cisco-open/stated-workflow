@@ -72,19 +72,6 @@ export class WorkflowDispatcher {
             if (keysSet) {
                 for (let key of keysSet) {
                     const dispatcher = this.dispatcherObjects.get(key);
-
-                    let resolve = () => {};
-                    promises.push(new Promise((_resolve) => {
-                        resolve = _resolve;
-                        resolve();
-                    }));
-
-                    if (ackFunc === undefined) {
-                        ackFunc = async (data) => {
-                            console.log(`Acknowledging data of type ${data.type}, data: ${StatedREPL.stringify(data)}`);
-                            resolve();
-                        }
-                    }
                     dispatcher.addToQueue(data, ackFunc);
 
                 }
@@ -240,9 +227,6 @@ export class WorkflowDispatcher {
                 if (this.subscribeParams.client !== undefined && Array.isArray(this.subscribeParams.client.acks) && this.subscribeParams.client.acks.includes(testData[i])) {
                     console.debug(`Skipping already acknowledged test data: ${testData[i]}`);
                 } else {
-                    const ack = async (data) => {
-                        console.log(`Acknowledging data of type ${data.type}, data: ${StatedREPL.stringify(data)}`);
-                    }
                     await this.addToQueue(testData[i]);
                 }
             }
