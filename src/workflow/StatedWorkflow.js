@@ -139,6 +139,16 @@ export class StatedWorkflow {
     //
     async ack(data) {
         console.log(`acknowledging data: ${StatedREPL.stringify(data)}`);
+        const dispatcherType = this.workflowDispatcher.dispatchers.get(data.type);
+        for (let t of dispatcherType) {
+            const dispatcher = this.workflowDispatcher.dispatcherObjects.get(t);
+            const ackCallback = dispatcher.dataAckCallbacks.get(data);
+            if (ackCallback) {
+                ackCallback(data);
+                dispatcher.dataAckCallbacks.delete(data);
+            }
+        }
+
     }
 
     setWorkflowPersistence() {
@@ -541,18 +551,21 @@ export class StatedWorkflow {
         }
 
         // clientType test means that the data will be sent directly from publish function to the dispatcher
-        if(clientParams.type === "test"){
+        if(clientParams.type === "test") {
             this.logger.debug(`No 'real' subscription created because client.type='test' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
             const testDataAckFunctionGenerator = (data) => {
                 return async () => {
                     if (Array.isArray(clientParams.acks)) {
                         console.debug(`acknowledging data: ${StatedREPL.stringify(data)}`);
-                        await this.templateProcessor.setData(subscribeParamsJsonPointer + '/client/acks/-',data);
+                        await this.templateProcessor.setData(subscribeParamsJsonPointer + '/client/acks/-', data);
                     }
                 }
             };
             // validates that we have a dispatcher created for this subscriptionParams.
             this.workflowDispatcher.getDispatcher(subscriptionParams, testDataAckFunctionGenerator);
+        } else if (clientType === 'dispatcher') {
+            this.logger.debug(`No 'real' subscription created because client.type='dispatcher' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
+            this.workflowDispatcher.getDispatcher(subscriptionParams);
         } else if (clientType === 'http') {
             this.onHttp(subscriptionParams);
         } else if (clientType === 'cop') {

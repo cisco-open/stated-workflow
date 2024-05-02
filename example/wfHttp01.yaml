@@ -2,7 +2,9 @@ start$: $subscribe(subscribeParams)
 subscribeParams: #parameters for subscribing to a http request
   to: ../${myWebLambda$}
   parallelism: 2
-  source: http
+  source: cloudEvent
+  client:
+    type: http
 
 myWebLambda$: |
   function($con){

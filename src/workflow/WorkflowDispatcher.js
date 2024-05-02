@@ -19,13 +19,14 @@ import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 // given parallelism. Tracks the number of active events and the number of events in the queue.
 export class WorkflowDispatcher {
     constructor(subscribeParams, testDataAckFunctionGenerator) {
-        const {to: workflowFunction, parallelism, type, subscriberId} = subscribeParams;
+        const {to: workflowFunction, parallelism, type, subscriberId, explicitAck} = subscribeParams;
         this.subscribeParams = subscribeParams;
         this.testDataAckFunctionGenerator = testDataAckFunctionGenerator;
         this.workflowFunction = workflowFunction;
         this.parallelism = parallelism || 1;
         this.subscriberId = subscriberId;
         this.type = type;
+        this.explicitAck = explicitAck; // if true, requires using explicit ack function
         this.queue = [];
         this.dataAckCallbacks = new Map();
         this.active = 0;
@@ -63,15 +64,40 @@ export class WorkflowDispatcher {
         return this.dispatcherObjects.get(key);
     }
 
-    async addBatchToAllSubscribers(type, testData) {
-        const keysSet = this.dispatchers.get(type);
-        if (keysSet) {
-            for (let key of keysSet) {
-                const dispatcher = this.dispatcherObjects.get(key);
-                dispatcher.addBatch(testData); // You can pass the actual data you want to dispatch here
+    async addBatchToAllSubscribers(type, testData, ackFunc) {
+        const promises = [];
+        for (let data of testData) {
+            type = testData.type || type;
+            const keysSet = this.dispatchers.get(type);
+            if (keysSet) {
+                for (let key of keysSet) {
+                    const dispatcher = this.dispatcherObjects.get(key);
+
+                    let resolve = () => {};
+                    promises.push(new Promise((_resolve) => {
+                        resolve = _resolve;
+                        resolve();
+                    }));
+
+                    if (ackFunc === undefined) {
+                        ackFunc = async (data) => {
+                            console.log(`Acknowledging data of type ${data.type}, data: ${StatedREPL.stringify(data)}`);
+                            resolve();
+                        }
+                    }
+                    dispatcher.addToQueue(data, ackFunc);
+
+                }
+            } else {
+                console.log(`No subscribers found for type ${type}`);
             }
-        } else {
-            console.log(`No subscribers found for type ${type}`);
+        }
+        try {
+            console.log("Waiting for all promises to resolve");
+            return await Promise.all(promises);
+        } catch (error) {
+            console.error("Error processing events: ", error);
+            return {"status": "failure", "error": error.message};
         }
     }
 
@@ -114,7 +140,10 @@ export class WorkflowDispatcher {
                 const index = this.promises.indexOf(promise);
                 if (index > -1) {
                     this.promises.splice(index, 1);
-                    if (this.dataAckCallbacks.get(eventData)) {
+                    if (this.explicitAck) {
+                        // explicitAck means that the workflow will invoke ack() function to acknowledge the invocation
+                        console.log(`ExplicitAck is enabled, skipping dataAckCallback for ${StatedREPL.stringify(eventData)} in _dispatch`);
+                    } else if (this.dataAckCallbacks.get(eventData)) {
                         const dataAckCallback = this.dataAckCallbacks.get(eventData);
 
                         // promisify the callback function, in case it is a sync one
@@ -211,6 +240,9 @@ export class WorkflowDispatcher {
                 if (this.subscribeParams.client !== undefined && Array.isArray(this.subscribeParams.client.acks) && this.subscribeParams.client.acks.includes(testData[i])) {
                     console.debug(`Skipping already acknowledged test data: ${testData[i]}`);
                 } else {
+                    const ack = async (data) => {
+                        console.log(`Acknowledging data of type ${data.type}, data: ${StatedREPL.stringify(data)}`);
+                    }
                     await this.addToQueue(testData[i]);
                 }
             }
