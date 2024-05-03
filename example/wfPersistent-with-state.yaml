@@ -3,12 +3,15 @@ name: nozzleWork
 subscribeParams: #parameters for subscribing to a cloud event
   source: cloudEvent
   # hardcore the messageId to make it easier to validate logs
-  testData: "${ [1].([{'messageId': '2023-10-15-1697394418495-o2d6', 'name': 'nozzleTime', 'order':$}]) }"
   type: 'my-topic'
   filter$: function($e){ $e.name='nozzleTime' }
   to: ../${myWorkflow$}
   parallelism: 2
   subscriberId: ../${name}
+  client:
+    type: test
+    testData: "${ [1].([{'messageId': '2023-10-15-1697394418495-o2d6', 'name': 'nozzleTime', 'order':$}]) }"
+
 myWorkflow$: |
   function($e){(
     $e ~> $serial(

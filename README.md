@@ -10,13 +10,16 @@
   * [Concurrent, Event Driven, Non-blocking](#concurrent-event-driven-non-blocking)
   * [Atomic State Updates](#atomic-state-updates)
   * [Pure Function Pipelines - $serial and $parallel](#pure-function-pipelines---serial-and-parallel)
+* [Pub/Sub Clients Configuration](#pubsub-clients-configuration)
+  * [Test Data](#test-data)
+  * [Dispatcher mode](#dispatcher-mode)
 * [Durability](#durability)
   * [Pub/Sub durability models](#pubsub-durability-models)
-    * [Test Data](#test-data-)
-  * [Pulsar](#pulsar)
-  * [Kafka](#kafka)
+    * [Test Client Durability](#test-client-durability)
+    * [Pulsar Client Durability](#pulsar-client-durability)
+    * [Kafka Client Durability](#kafka-client-durability)
   * [Workflow Step Logs](#workflow-step-logs)
-  * [snapshots](#snapshots)
+  * [Workflow snapshots](#workflow-snapshots)
 * [retries](#retries)
 * [Workflow APIs](#workflow-apis)
 <!-- TOC -->
@@ -127,9 +130,9 @@ start: ${ (produceParams.data; $millis()) } #record start time, after test datas
 # producer will be sending some test data
 produceParams:
   type: "my-topic"
-  data: ${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge'].('https://swapi.tech/api/people/?search='&$)}
   client:
     type: test
+    data: ${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge'].('https://swapi.tech/api/people/?search='&$)}
 # the subscriber's 'to' function will be called on each received event
 subscribeParams: #parameters for subscribing to an event
   source: cloudEvent
@@ -223,7 +226,7 @@ array and append $rebel to it, in order to illustrate the dangers of the well-kn
 joinResistance:  |
   /${ 
     function($url){(
-        $rebel := $fetch($url).json().results[0].name; 
+        $rebel := $fetch($url).json().results[0].name;
         $set( "/rebelForces", $rebelForces~>$append($rebel)) /* BUG!! */
     )}  
   }
@@ -251,6 +254,37 @@ function($x){ $x ~> f1 ~> f2 ~> f3 ~> function($x){$set('/saveResult/-', $x) } }
 ```
 This pipeline can be concurrently dispatched safely. 
 
+# Pub/Sub Clients Configuration
+Stated Workflow comes with built-in HTTP, Pulsar, Kafka, Dispatcher and Test clients for cloudEvent subscribe command. Each client
+implements its own durability model.
+
+## Test Data
+Test clients for publisher and subscriber can be used to develop and test workflows. Test publisher may include `testData` array of data 
+to send it directly to test subscriber dispatcher with acknowledgement in the template.
+
+Example snippets from `example/joinResistanceRecovery.yaml` template.
+```yaml
+produceParams:
+  type: "rebelDispatch"
+  client:
+    type: test # test client produces directly to the test subscriber dispatcher
+    testData: ['luke', 'han', 'leia'] # test producer only makes sense when it includes test data
+subscribeParams: #parameters for subscribing to an event
+  source: cloudEvent
+  type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
+  to: /${saveRebelWorkflow}
+  subscriberId: rebelArmy
+  initialPosition: latest
+  parallelism: 1
+  client:
+    type: test
+    data: ['obi-wan'] # test subscriber may include test data to run without a producer 
+    acks: [] # if the acks are present in client: type: test, then the subscriber will be storing acknowledgement in this field
+```
+
+## Dispatcher mode
+When subscriber client type is set to `dispatcher` or `test`, it will be running the workflow and expecting an external process to add data. 
+
 # Durability
 Stated Workflows provides a `$serial` and a `$parallel` function that should be used when you want to run continuous 
 workflow with data coming from a HTTP or cloudEvent sources. Each workflow invocation input and step processing logs are 
@@ -261,43 +295,28 @@ workflow processing from the last snapshotted state.
 StatedREPL `restore` command can be used to recover the template execution from a snapshot. 
 
 ## Pub/Sub durability models
-Stated Workflow comes with built-in HTTP, Pulsar, Kafka and Test clients for cloudEvent subscribe command. Each client 
-implements its own durability model. 
-
-Pulsar and Kafka use server side acknowledgement to ensure that the message is not lost. Test client uses a simple 
+Pub/Sub clients implement its own durability model. Pulsar and Kafka use server side acknowledgement to ensure that the message is not lost. Test client uses a simple 
 acknowledgement in the template. HTTP client blocks the synchronous HTTP response until the first step persist.
- 
-### Test Data 
-Test publisher and subscriber can be used to develop and test workflows. Test publisher may include a `data` type to 
-send it directly to test subscriber dispatcher with acknowledgement in the template. 
 
-Example snippets from `example/joinResistanceRecovery.yaml` template.
-```yaml
-produceParams:
-  type: "rebelDispatch"
-  data: ['luke', 'han', 'leia']
-  client:
-    type: test # test client produces directly to the test subscriber dispatcher
-subscribeParams: #parameters for subscribing to an event
-  source: cloudEvent
-  type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
-  to: /${saveRebelWorkflow}
-  subscriberId: rebelArmy
-  initialPosition: latest
-  parallelism: 1
-  acks: [] # if the acks are present in client: type: test, then the subscriber will be storing acknowledgement in this field
+### Test Client Durability
+To develop and test workflows with the test client adding `acks` field will enable test acknowledgements in the client. Messages processed by 
+the workflow will be added to the `acks` array.
+```
   client:
     type: test
+    data: ['obi-wan'] # test subscriber may include test data to run without a producer 
+    acks: [] # if the acks are present in client: type: test, then the subscriber will be storing acknowledgement in this field
 ```
-## Pulsar
+
+### Pulsar Client Durability
 Pulsar pub/sub relies on server side acknowledgement, similar to the test data. On failure or restart, the subscriber 
 will continue from the next unacknowledged message, and will skip steps already completed in the restored workflow 
 snapshot.
 
-## Kafka
+### Kafka Client Durability
 Kafka can rely on the consumer group commited offset. For parallelism greater than 1, the subscriber will be storing 
 all unacknowledged messages and calculating the lowest offset to be commited. A combination of snapshotted stated and 
-kafka server side consumer offset helps to minimize double-processing of already processed steps. 
+kafka server side consumer offset helps to minimize double-processing of already processed steps.
 
 ## Workflow Step Logs
 The `$serial` and `$parallel` functions accept an array of object called "steps". A step is nothing but an object with
@@ -338,7 +357,7 @@ The id is used as a log key. The logs are stored inside each step.
   }
 }
 ```
-When the step completes, its invocation log is removed. 
+When a step completes, its invocation log is removed. 
 ```json
 {
   "out": "${ $serial([f1, f2])}",
@@ -355,7 +374,7 @@ When the step completes, its invocation log is removed.
 The `$serial` and `$parallel` functions understand the logs. When a template is restored from a snapshot, `$serial` and 
 `$parallel` use these logs to skip completed steps and resume their work at the last incomplete step in every invocation log.
 
-## snapshots
+## Workflow snapshots
 Snapshots save the state of a stated template, repeatedly as it runs. Snapshotting allows a Stated Workflow to be stopped
 non-gracefully, and restored from the snapshot. The step logs allow invocations to restart where they left off.  
 
@@ -436,6 +455,59 @@ get all 3 of them there.
   {
     "name": "Leia Organa",
     "url": "https://www.swapi.tech/api/planets/2"
+  }
+]
+```
+
+## Explicit Acknowledgement
+The `ack` function can be used to acknowledge the message in the subscriber. Providing in the client configuration `explicitAck: true` will enable 
+the explicit acknowledgement in the subscriber. The `ack` function should be called at the end of the subscriber workflow invocation to acknowledge the message.
+```yaml
+start: "${( $subscribe(subscribeParams); $publish(publishParams) )}"
+subscribeParams: #parameters for subscribing to a http request
+  to: ../${func}
+  type: "rebel"
+  parallelism: 2
+  source: "cloudEvent"
+  client:
+    explicitAck: true
+    acks: []
+    type: dispatcher
+publishParams:
+  type: "rebel"
+  source: "cloudEvent"
+  client:
+    type: test
+    data: [{type: "rebel", name: "luke"},{type: "rebel", name: "han"},{type: "rebel", name: "leia"}]
+func: "/${ function($data){( $console.log('got: ' & $data); $forked('/input',$data); )} }"
+input: null
+process: |
+  ${( 
+    $console.log('processing: ' & $$.input); 
+    $$.input != null ? ( 
+      $joined('/results/-', $$.input);
+      $ack($$.input)
+    ) 
+    : 0 
+  )}
+results: []
+report: "${( $console.log('result added: ' & $$.results) )}"
+```
+
+```yaml ["$count(data)=3"]
+> .init -f "example/explicitAck.yaml" --tail "/results until $~>$count=3"
+[
+  {
+    "type": "rebel",
+    "name": "luke"
+  },
+  {
+    "type": "rebel",
+    "name": "han"
+  },
+  {
+    "type": "rebel",
+    "name": "leia"
   }
 ]
 ```

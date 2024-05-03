@@ -2,12 +2,14 @@ start$: $subscribe(subscribeParams)
 name: nozzleWork
 subscribeParams: #parameters for subscribing to a cloud event
   source: cloudEvent
-  testData: "${ [1].([{'messageId': $id(), 'name': 'nozzleTime', 'order':$}]) }"
   type: 'my-topic'
   filter$: function($e){ $e.name='nozzleTime' }
   to: ../${myWorkflow$}
   parallelism: 2
   subscriberId: ../${name}
+  client:
+    type: test
+    testData: "${ [1].([{'messageId': $id(), 'name': 'nozzleTime', 'order':$}]) }"
 myWorkflow$: |
   function($e){(
     $e ~> $serial(

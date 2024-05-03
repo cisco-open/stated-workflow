@@ -26,8 +26,10 @@ export class WorkflowDispatcher {
         this.parallelism = parallelism || 1;
         this.subscriberId = subscriberId;
         this.type = type;
+        this.explicitAck = subscribeParams.client?.explicitAck; // if true, requires using explicit ack function
         this.queue = [];
         this.dataAckCallbacks = new Map();
+        this.waitQueue = [];
         this.active = 0;
         this.promises = [];
         this.batchMode = false;
@@ -74,6 +76,34 @@ export class WorkflowDispatcher {
             console.log(`No subscribers found for type ${type}`);
         }
     }
+    /**/
+    // this function is only used from test publisher
+    async addBatchToAllSubscribersWithAck(type, clientParams = {}, ackFunc) {
+        const promises = [];
+        for (let data of clientParams.data) {
+            type = data.type || type;
+            const keysSet = this.dispatchers.get(type);
+            if (keysSet) {
+                for (let key of keysSet) {
+                    const dispatcher = this.dispatcherObjects.get(key);
+                    if (Array.isArray(clientParams.acks) && clientParams.acks.includes(data)) {
+                        console.debug(`Skipping already acknowledged test data: ${StatedREPL.stringify(data)}`);
+                    } else {
+                        promises.push(dispatcher.addToQueue(data, ackFunc));
+                    }
+                }
+            } else {
+                console.log(`No subscribers found for type ${type}`);
+            }
+        }
+        try {
+            console.log("Waiting for all promises to resolve");
+            return await Promise.all(promises);
+        } catch (error) {
+            console.error("Error processing events: ", error);
+            return {"status": "failure", "error": error.message};
+        }
+    }
 
     async dispatchToAllSubscribers(type, data, dataAckCallback) {
         const keysSet = this.dispatchers.get(type);
@@ -107,14 +137,19 @@ export class WorkflowDispatcher {
             promise.catch(error => {
                 console.error("Error executing workflow:", error);
             }).finally(() => {
-                this.active--;
+                if (!this.explicitAck) {
+                    this.active--;
+                }
                 if (this.batchMode) {
                     this.batchCount--;
                 }
                 const index = this.promises.indexOf(promise);
                 if (index > -1) {
                     this.promises.splice(index, 1);
-                    if (this.dataAckCallbacks.get(eventData)) {
+                    if (this.explicitAck) {
+                        // explicitAck means that the workflow will invoke ack() function to acknowledge the invocation
+                        console.log(`ExplicitAck is enabled, skipping dataAckCallback for ${StatedREPL.stringify(eventData)} in _dispatch`);
+                    } else if (this.dataAckCallbacks.get(eventData)) {
                         const dataAckCallback = this.dataAckCallbacks.get(eventData);
 
                         // promisify the callback function, in case it is a sync one
@@ -129,7 +164,7 @@ export class WorkflowDispatcher {
                     }
                 }
                 this._dispatch();
-                });
+            });
 
             this.promises.push(promise);
         }
@@ -154,6 +189,12 @@ export class WorkflowDispatcher {
         }
     }
 
+    waitForAck() {
+        return new Promise(resolve => {
+            this.waitQueue.push(resolve);
+        });
+    }
+
     /**
      *
      * @param data - event data to be added to the queue
@@ -176,9 +217,19 @@ export class WorkflowDispatcher {
                     this._dispatch(); // Attempt to dispatch the next task
                 } else {
                     // If parallelism limit is reached, wait for any active task to complete
+
                     try {
                         this._logActivity("backpressure", true);
-                        await Promise.race(this.promises);
+                        //
+                        if (this.explicitAck) {
+                            // tryAddToQueue was called to add data to the queue, but the queue is full (active >= parallelism)
+                            // so we need to wait for the queue to have space before trying to add the data again.
+                            // with the blocking system call invocation, it was possible to wait for the promise to resolve
+                            // however in this use-case we need to wait for the queue to have space before trying to add the data again.
+                            await this.waitForAck();
+                        } else {
+                            await Promise.race(this.promises);
+                        }
                         // Once a task completes, try adding to the queue again
                         tryAddToQueue();
                     } catch (error) {
@@ -208,7 +259,7 @@ export class WorkflowDispatcher {
         if (Array.isArray(testData)) {
             this.batchCount += testData.length;
             for(let i=0;i<testData.length;i++){
-                if (Array.isArray(this.subscribeParams.acks) && this.subscribeParams.acks.includes(testData[i])) {
+                if (this.subscribeParams.client !== undefined && Array.isArray(this.subscribeParams.client.acks) && this.subscribeParams.client.acks.includes(testData[i])) {
                     console.debug(`Skipping already acknowledged test data: ${testData[i]}`);
                 } else {
                     await this.addToQueue(testData[i]);

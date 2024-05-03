@@ -3,10 +3,10 @@ name: testConcurrentFetch
 subscribeParams: #parameters for subscribing to a cloud event
   to: ../${downloader$}
   parallelism: 5
-  testData: ${[1..10]}
   source: cloudEvent
   client:
     type: test
+    testData: ${[1..10]}
 
 downloader$: |
   function($noop){

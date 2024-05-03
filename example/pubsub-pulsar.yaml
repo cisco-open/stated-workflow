@@ -1,9 +1,9 @@
 # producer will be sending some test data
 produceParams:
   type: "my-topic"
-  data: ['luke', 'han', 'leia']
   client:
     type: pulsar
+    data: ['luke', 'han', 'leia']
 # the subscriber's 'to' function will be called on each received event
 subscribeParams: #parameters for subscribing to an event
   source: cloudEvent

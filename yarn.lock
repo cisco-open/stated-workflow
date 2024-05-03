@@ -2952,9 +2952,9 @@ stack-utils@^2.0.3:
     escape-string-regexp "^2.0.0"
 
 stated-js@^0.1.20:
-  version "0.1.20"
-  resolved "https://registry.npmjs.org/stated-js/-/stated-js-0.1.20.tgz"
-  integrity sha512-jN2c3mKxqiEKr0h/TSqwfWQs0nL8AOZUDzCZt7Awo88j68EeAUBXDYr3xPA7UHIatV0UV5+J0TmxUsEbFccXJw==
+  version "0.1.23"
+  resolved "https://registry.yarnpkg.com/stated-js/-/stated-js-0.1.23.tgz#b2526a7bb1cb6cbf59a6bbb0da8dbdbfe71542ab"
+  integrity sha512-r8ntZm4hHY0AVhlapAVAi+eqGJZM8oDTtrR29n9FEslbdFO4gFCyeIPWNe6H3/TcH6KNmqUBFiXu4wo/AEZlng==
   dependencies:
     chalk "^5.3.0"
     flatbuffers "^23.5.26"
