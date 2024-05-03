@@ -29,6 +29,7 @@ export class WorkflowDispatcher {
         this.explicitAck = subscribeParams.client?.explicitAck; // if true, requires using explicit ack function
         this.queue = [];
         this.dataAckCallbacks = new Map();
+        this.waitQueue = [];
         this.active = 0;
         this.promises = [];
         this.batchMode = false;
@@ -188,6 +189,12 @@ export class WorkflowDispatcher {
         }
     }
 
+    waitForAck() {
+        return new Promise(resolve => {
+            this.waitQueue.push(resolve);
+        });
+    }
+
     /**
      *
      * @param data - event data to be added to the queue
@@ -210,9 +217,19 @@ export class WorkflowDispatcher {
                     this._dispatch(); // Attempt to dispatch the next task
                 } else {
                     // If parallelism limit is reached, wait for any active task to complete
+
                     try {
                         this._logActivity("backpressure", true);
-                        await Promise.race(this.promises);
+                        //
+                        if (this.explicitAck) {
+                            // tryAddToQueue was called to add data to the queue, but the queue is full (active >= parallelism)
+                            // so we need to wait for the queue to have space before trying to add the data again.
+                            // with the blocking system call invocation, it was possible to wait for the promise to resolve
+                            // however in this use-case we need to wait for the queue to have space before trying to add the data again.
+                            await this.waitForAck();
+                        } else {
+                            await Promise.race(this.promises);
+                        }
                         // Once a task completes, try adding to the queue again
                         tryAddToQueue();
                     } catch (error) {

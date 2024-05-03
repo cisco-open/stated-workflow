@@ -142,11 +142,15 @@ export class StatedWorkflow {
         const dispatcherType = this.workflowDispatcher.dispatchers.get(data.type);
         for (let t of dispatcherType) {
             const dispatcher = this.workflowDispatcher.dispatcherObjects.get(t);
-            const ackCallback = dispatcher.dataAckCallbacks.get(data);
+            const ackCallback = dispatcher.dataAckCallbacks?.get(data);
             if (ackCallback) {
                 ackCallback(data);
                 dispatcher.dataAckCallbacks.delete(data);
-                if (dispatcher.active > 0) dispatcher.active--;
+            }
+            if (dispatcher.active > 0) dispatcher.active--;
+            if (dispatcher.preQueue.length > 0) {
+                const next = dispatcher.preQueue.shift();
+                next();
             }
         }
 
