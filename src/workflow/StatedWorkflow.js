@@ -525,6 +525,43 @@ export class StatedWorkflow {
         });
     }
 
+    // subscribeTest is a test function that is used to test the workflow without a real subscription
+    //
+    // it can operate in two modes
+    // 1. If client.testData is provided, it will be added to the dispatcher and awaited processing
+    // 2. If test publisher is provided, it will be used to publish data to the dispatcher
+    // additional configuration:
+    // - If client.acks is provided, it will be used to acknowledge the data
+    async subscribeTest(subscriptionParams, subscribeParamsJsonPointer) {
+        const {client:clientParams = {}} = subscriptionParams;
+        let testDataAckFunctionGenerator;
+        if (Array.isArray(clientParams.acks)) {
+            testDataAckFunctionGenerator = (data) => {
+                return (async () => {
+                    if (Array.isArray(clientParams.acks)) {
+                        console.debug(`acknowledging data: ${StatedREPL.stringify(data)}`);
+                        await this.templateProcessor.setData(subscribeParamsJsonPointer + '/client/acks/-',data);
+                    }
+                }).bind(this);
+            };
+        }
+
+        this.logger.debug(`No 'real' subscription created because client.type='test' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
+
+        const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams)
+        if (clientParams.explicitAck) {
+            this.workflowDispatcher.explicitAck = true; // ensure that the dispatcher knows that we are using explicit acks
+        }
+        dispatcher.testDataAckFunctionGenerator = testDataAckFunctionGenerator;
+
+        // testData may contain some canned data to be used without a publisher.
+        if (clientParams.type === "test" && clientParams.testData !== undefined) {
+            this.logger.debug(`No 'real' subscription created because testData provided for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
+            await dispatcher.addBatch(clientParams.testData);
+            await dispatcher.drainBatch(); // in test mode we wanna actually wait for all the test events to process
+        }
+    }
+
     async subscribeCloudEvent(subscriptionParams, subscribeParamsJsonPointer) {
         const {client:clientParams={type:'test'}, to} = subscriptionParams;
         //to-do fixme do validation of subscriptionParams
@@ -536,37 +573,8 @@ export class StatedWorkflow {
 
         const {type:clientType} = clientParams;
 
-        // testData may contain some canned data to be used without a publisher.
-        if (clientParams.type === "test" && clientParams.testData !== undefined) {
-            this.logger.debug(`No 'real' subscription created because testData provided for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
-            const testDataAckFunctionGenerator = ((data) => {
-                return async () => {
-                    // we check if subscriptionParams.acks is an array to enable acks. If the array is missing, acks
-                    // are not enabled and we do not need to do anything.
-                    if (clientParams !== undefined && Array.isArray(clientParams.acks)) {
-                        await this.templateProcessor.setData(subscribeParamsJsonPointer + '/client/acks/-',data);
-                    }
-                }
-            }).bind(this);
-            const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams, testDataAckFunctionGenerator);
-
-            await dispatcher.addBatch(clientParams.testData);
-            await dispatcher.drainBatch(); // in test mode we wanna actually wait for all the test events to process
-            return;
-        }
-
         if(clientParams.type === "test"){
-            this.logger.debug(`No 'real' subscription created because client.type='test' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
-            const testDataAckFunctionGenerator = (data) => {
-                return (async () => {
-                    if (Array.isArray(clientParams.acks)) {
-                        console.debug(`acknowledging data: ${StatedREPL.stringify(data)}`);
-                        await this.templateProcessor.setData(subscribeParamsJsonPointer + '/client/acks/-',data);
-                    }
-                }).bind(this);
-            };
-            // validates that we have a dispatcher created for this subscriptionParams.
-            this.workflowDispatcher.getDispatcher(subscriptionParams, testDataAckFunctionGenerator);
+            await this.subscribeTest(subscriptionParams, subscribeParamsJsonPointer);
         } else if (clientType === 'dispatcher') {
             this.logger.debug(`No 'real' subscription created because client.type='dispatcher' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
             this.workflowDispatcher.getDispatcher(subscriptionParams);
