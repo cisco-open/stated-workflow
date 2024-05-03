@@ -90,7 +90,7 @@ export class StatedWorkflow {
         this.templateProcessor.functionGenerators.set("parallel", this.parallelGenerator.bind(this));
         this.templateProcessor.functionGenerators.set("recoverStep", this.recoverStepGenerator.bind(this));
         this.templateProcessor.functionGenerators.set("subscribe", this.subscribeGenerator.bind(this));
-        this.templateProcessor.logLevel = logLevel.DEBUG; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
+        this.templateProcessor.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
         this.hasChanged = true;
         this.changeListener = ()=>{this.hasChanged=true};
         this.snapshotInterval = null;
@@ -139,17 +139,16 @@ export class StatedWorkflow {
     //
     async ack(data) {
         console.log(`acknowledging data: ${StatedREPL.stringify(data)}`);
-/*
-        // const dispatcherType = this.workflowDispatcher.dispatchers.get(data.type);
-        // for (let t of dispatcherType) {
-        //     const dispatcher = this.workflowDispatcher.dispatcherObjects.get(t);
-        //     const ackCallback = dispatcher.dataAckCallbacks.get(data);
-        //     if (ackCallback) {
-        //         ackCallback(data);
-        //         dispatcher.dataAckCallbacks.delete(data);
-        //     }
-        // }
-*/
+        const dispatcherType = this.workflowDispatcher.dispatchers.get(data.type);
+        for (let t of dispatcherType) {
+            const dispatcher = this.workflowDispatcher.dispatcherObjects.get(t);
+            const ackCallback = dispatcher.dataAckCallbacks.get(data);
+            if (ackCallback) {
+                ackCallback(data);
+                dispatcher.dataAckCallbacks.delete(data);
+                if (dispatcher.active > 0) dispatcher.active--;
+            }
+        }
 
     }
 

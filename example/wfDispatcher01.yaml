@@ -4,8 +4,9 @@ subscribeParams: #parameters for subscribing to a http request
   type: "rebel"
   parallelism: 2
   source: "cloudEvent"
-  explicitAck: true
   client:
+    explicitAck: true
+    acks: []
     type: dispatcher
 publishParams:
   type: "rebel"

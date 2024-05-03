@@ -19,14 +19,14 @@ import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 // given parallelism. Tracks the number of active events and the number of events in the queue.
 export class WorkflowDispatcher {
     constructor(subscribeParams, testDataAckFunctionGenerator) {
-        const {to: workflowFunction, parallelism, type, subscriberId, explicitAck} = subscribeParams;
+        const {to: workflowFunction, parallelism, type, subscriberId} = subscribeParams;
         this.subscribeParams = subscribeParams;
         this.testDataAckFunctionGenerator = testDataAckFunctionGenerator;
         this.workflowFunction = workflowFunction;
         this.parallelism = parallelism || 1;
         this.subscriberId = subscriberId;
         this.type = type;
-        this.explicitAck = explicitAck; // if true, requires using explicit ack function
+        this.explicitAck = subscribeParams.client?.explicitAck; // if true, requires using explicit ack function
         this.queue = [];
         this.dataAckCallbacks = new Map();
         this.active = 0;
@@ -136,7 +136,9 @@ export class WorkflowDispatcher {
             promise.catch(error => {
                 console.error("Error executing workflow:", error);
             }).finally(() => {
-                this.active--;
+                if (!this.explicitAck) {
+                    this.active--;
+                }
                 if (this.batchMode) {
                     this.batchCount--;
                 }
@@ -161,7 +163,7 @@ export class WorkflowDispatcher {
                     }
                 }
                 this._dispatch();
-                });
+            });
 
             this.promises.push(promise);
         }
