@@ -459,6 +459,59 @@ get all 3 of them there.
 ]
 ```
 
+## Explicit Acknowledgement
+The `ack` function can be used to acknowledge the message in the subscriber. Providing in the client configuration `explicitAck: true` will enable 
+the explicit acknowledgement in the subscriber. The `ack` function should be called at the end of the subscriber workflow invocation to acknowledge the message.
+```yaml
+start: "${( $subscribe(subscribeParams); $publish(publishParams) )}"
+subscribeParams: #parameters for subscribing to a http request
+  to: ../${func}
+  type: "rebel"
+  parallelism: 2
+  source: "cloudEvent"
+  client:
+    explicitAck: true
+    acks: []
+    type: dispatcher
+publishParams:
+  type: "rebel"
+  source: "cloudEvent"
+  client:
+    type: test
+    data: [{type: "rebel", name: "luke"},{type: "rebel", name: "han"},{type: "rebel", name: "leia"}]
+func: "/${ function($data){( $console.log('got: ' & $data); $forked('/input',$data); )} }"
+input: null
+process: |
+  ${( 
+    $console.log('processing: ' & $$.input); 
+    $$.input != null ? ( 
+      $joined('/results/-', $$.input);
+      $ack($$.input)
+    ) 
+    : 0 
+  )}
+results: []
+report: "${( $console.log('result added: ' & $$.results) )}"
+```
+
+```yaml ["$count(data)=3"]
+> .init -f "example/explicitAck.yaml" --tail "/results until $~>$count=3"
+[
+  {
+    "type": "rebel",
+    "name": "luke"
+  },
+  {
+    "type": "rebel",
+    "name": "han"
+  },
+  {
+    "type": "rebel",
+    "name": "leia"
+  }
+]
+```
+
 # retries
 Each step can provide an optional boolean function `shouldRetry`. On a workflow invocation failure the function will be
 called with an invocation log passed as an argument. If the function returns true, the function will be retried.

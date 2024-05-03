@@ -1,0 +1,32 @@
+start: "${( $subscribe(subscribeParams); $publish(publishParams) )}"
+subscribeParams: #parameters for subscribing to a http request
+  to: ../${func}
+  type: "rebel"
+  parallelism: 2
+  source: "cloudEvent"
+  client:
+    explicitAck: true
+    acks: []
+    type: dispatcher
+publishParams:
+  type: "rebel"
+  source: "cloudEvent"
+  client:
+    type: test
+    data: [{type: "rebel", name: "luke"},{type: "rebel", name: "han"},{type: "rebel", name: "leia"}]
+func: "/${ function($data){( $console.log('got: ' & $data); $forked('/input',$data); )} }"
+input: null
+process: |
+  ${( 
+    $console.log('processing: ' & $$.input); 
+    $$.input != null ? ( 
+      $console.log('non-null input: ' & $$.input); 
+      $sleep($random()*1);
+      $joined('/results/-', $$.input);
+      $ack($$.input); 
+      $$.input) 
+    : 0 
+  )}
+results: []
+report: "${( $console.log('result added: ' & $$.results) )}"
+

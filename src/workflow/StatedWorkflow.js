@@ -148,8 +148,8 @@ export class StatedWorkflow {
                 dispatcher.dataAckCallbacks.delete(data);
             }
             if (dispatcher.active > 0) dispatcher.active--;
-            if (dispatcher.preQueue.length > 0) {
-                const next = dispatcher.preQueue.shift();
+            if (dispatcher.waitQueue.length > 0) {
+                const next = dispatcher.waitQueue.shift();
                 next();
             }
         }
