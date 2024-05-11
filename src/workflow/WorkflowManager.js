@@ -6,15 +6,29 @@ import {WorkflowMetrics} from "./WorkflowMeters.js";
 
 import fs from "fs";
 import util from "util";
+import {SnapshotManager} from "./SnapshotManager.js";
 const mkdir = util.promisify(fs.mkdir);
 
-// WorkflowManager.js.js
 export class WorkflowManager {
-    constructor() {
+    constructor(options = {}) {
         this.workflows = {};
         this.dispatchersByType = {};
         this.workflowMetrics = new WorkflowMetrics();
         this.statePath = './.state';
+        this.snapshot = new SnapshotManager(options.snapshot)
+    }
+
+    async initialize() {
+        await this.snapshot.load();
+        for (const snapshot of this.snapshot.snapshots) {
+            try {
+                console.log(`Restoring workflow ${StatedREPL.stringify(snapshot)}`);
+                // await this.restoreWorkflow(snapshot.snapshot);
+            } catch (error) {
+                console.error(`Error restoring workflow ${StatedREPL.stringify(snapshot)}: ${error}`);
+            }
+        }
+
     }
 
     async createTypesMap(sw) {
@@ -35,7 +49,11 @@ export class WorkflowManager {
         const workflowId = WorkflowManager.generateUniqueId();
         const sw = await StatedWorkflow.newWorkflow(template, context,
             {cbmon: this.workflowMetrics.monitorCallback(workflowId), ackOnSnapshot: true});
-        sw.templateProcessor.options = {'snapshot': {'snapshotIntervalSeconds': 1, path: `${this.statePath}/${workflowId}.json`}};
+        sw.templateProcessor.options = {'snapshot': {
+                snapshotIntervalSeconds: 1,
+                storage: 'knowledge',
+                id: workflowId
+        }};
         await this.ensureStatePathDir();
         this.workflows[workflowId] = sw;
         await sw.templateProcessor.initialize(template)
@@ -134,14 +152,18 @@ export class WorkflowManager {
 
     }
 
-    async getWorkflowSnapshot(workflowId) {
+    async getWorkflowSnapshot(workflowId, storage) {
         console.log(`Reading snapshot object with ID ${workflowId}`);
 
+        if (storage === 'knowledge') {
+            const snapshot = await SnapshotManager.readFromKnowledge(workflowId);
+            return snapshot;
+        }
         const snapshotContent = fs.readFileSync(`${this.statePath}/${workflowId}.json`, 'utf8');
         return JSON.parse(snapshotContent);
     }
 
-    async restoreWorkflow(workflowId) {
+    async restoreWorkflowFromFile(workflowId) {
         const snapshotContent = fs.readFileSync(`${this.statePath}/${workflowId}.json`, 'utf8');
         const snapshot = JSON.parse(snapshotContent);
 
@@ -151,9 +173,14 @@ export class WorkflowManager {
             console.log(`Closing ${workflowId} workflow`);
             await this.workflows[workflowId].close();
         }
+
+        return this.restoreWorkflow(snapshot);
+    }
+
+    async restoreWorkflow(snapshot, workflowId) {
         await TemplateProcessor.prepareSnapshotInPlace(snapshot);
         const sw = await StatedWorkflow.newWorkflow(snapshot.template);
-        this.workflows[workflowId] = sw;
+        this.workflows[workflowId || WorkflowManager.generateUniqueId()] = sw;
         sw.templateProcessor.options = snapshot.options;
         await sw.templateProcessor.initialize(snapshot.template, '/', snapshot.output);
     }

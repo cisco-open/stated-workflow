@@ -23,7 +23,7 @@ import Step from "./Step.js";
 import {TemplateUtils} from "./utils/TemplateUtils.js";
 import {WorkflowPersistence} from "./WorkflowPersistence.js";
 import {Delay} from "../test/TestTools.js"
-import {Snapshot} from "./Snapshot.js";
+import {SnapshotManager} from "./SnapshotManager.js";
 import {PulsarClientMock} from "../test/PulsarMock.js";
 import {SchemaRegistry} from "@kafkajs/confluent-schema-registry";
 import LZ4 from "kafkajs-lz4";
@@ -108,7 +108,7 @@ export class StatedWorkflow {
                 const {seconds = 1} = snapshotOpts;
                 this.snapshotInterval = setInterval(async ()=>{
                     if(this.hasChanged){
-                        await Snapshot.write(this.templateProcessor);
+                        await SnapshotManager.write(this.templateProcessor);
                         // we can acknowledge callbacks after persisting templateProcessor
                         if (workflowContext.ackOnSnapshot === true && this.workflowDispatcher) await this.workflowDispatcher.acknowledgeCallbacks();
                         this.hasChanged = false; //changeListener will alter this if the template changes so we are not permanently blocking snapshots

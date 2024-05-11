@@ -3,11 +3,21 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import { WorkflowManager } from "./src/workflow/WorkflowManager.js";
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
+import minimist from 'minimist';
 
 const app = express();
 app.use(bodyParser.json());
 
-const workflowManager = new WorkflowManager();
+
+const args = minimist(process.argv.slice(2));
+
+let snapshotOptions = undefined;
+if (args.storage) {
+    snapshotOptions = {snapshot: {storage: args.storage}};
+};
+const workflowManager = new WorkflowManager(snapshotOptions);
+await workflowManager.initialize();
+
 
 app.get('/', (req, res) => {
     res.json({ status: 'OK' });
@@ -33,7 +43,7 @@ app.post('/', async (req, res) => {
     }
 });
 
-app.post('/workflow', async (req, res) => {
+app.post('/workflow', async (req/**/, res) => {
     try {
         const workflowId = await workflowManager.createWorkflow(req.body);
         res.json({ workflowId, status: 'Started' });
@@ -48,7 +58,7 @@ app.get('/workflow', (req, res  ) => {
 });
 
 app.get('/workflow/:workflowId', (req, res) => {
-    const workflowId = req.params.workflowId;
+    const workflowId = req.params.workflowId;/**/
     const workflow = workflowManager.getWorkflow(workflowId);
     if (workflow) {
         res.json(workflow.templateProcessor.output);
@@ -102,7 +112,7 @@ app.get('/restore/:workflowId', (req, res) => {
     const workflowId = req.params.workflowId;
     console.log(`Received GET /restore/${workflowId}`);
     try {
-        res.json(workflowManager.getWorkflowSnapshot(workflowId));
+        res.json(workflowManager.getWorkflowSnapshot(workflowId, storage));
     } catch (error) {
         console.error(`Error in GET /restore/${workflowId}`, error);
         res.status(500).send({'error': error.toString()});
@@ -114,7 +124,7 @@ app.post('/restore/:workflowId', async (req, res) => {
     const workflowId = req.params.workflowId;
     console.log(`Received POST /restore/${workflowId} with data:`, req.body);
     try {
-        await workflowManager.restoreWorkflow(workflowId, req.body);
+        await workflowManager.restoreWorkflowFromFile(workflowId, req.body);
         res.json({ workflowId, status: 'restored' });
     } catch (error) {
         console.error(`Error in POST /workflow/${workflowId}`, error);
@@ -124,6 +134,8 @@ app.post('/restore/:workflowId', async (req, res) => {
 
 app.listen(8080, () => {
     console.log('Server running on port 8080');
+}).on('error', (error) => {
+    console.error('Error starting server:', error);
 });
 
 app.post('/event', async (req, res) => {

@@ -22,7 +22,6 @@ process: |
     $$.input != null ? ( 
       $console.log('non-null input: ' & $$.input); 
       $sleep($random()*1);
-      $joined('/results/-', $$.input);
       $ack($$.input); 
       $$.input) 
     : 0 
