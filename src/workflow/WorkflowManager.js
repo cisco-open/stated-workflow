@@ -10,12 +10,16 @@ import {SnapshotManager} from "./SnapshotManager.js";
 const mkdir = util.promisify(fs.mkdir);
 
 export class WorkflowManager {
-    constructor(options = {}) {
+
+    constructor(options = {'snapshot': {
+            storage: 'fs',
+        }}) {
         this.workflows = {};
         this.dispatchersByType = {};
+        this.options = options;
         this.workflowMetrics = new WorkflowMetrics();
         this.statePath = './.state';
-        this.snapshot = new SnapshotManager(options.snapshot)
+        this.snapshot = new SnapshotManager(this.options.snapshot)
     }
 
     async initialize() {
@@ -49,11 +53,11 @@ export class WorkflowManager {
         const workflowId = WorkflowManager.generateUniqueId();
         const sw = await StatedWorkflow.newWorkflow(template, context,
             {cbmon: this.workflowMetrics.monitorCallback(workflowId), ackOnSnapshot: true});
-        sw.templateProcessor.options = {'snapshot': {
-                snapshotIntervalSeconds: 1,
-                storage: 'knowledge',
-                id: workflowId
-        }};
+        this.options.workflowId = workflowId;
+        if (!this.options.snapshotIntervalSeconds) {
+            this.options.snapshotIntervalSeconds = 1;
+        }
+        sw.templateProcessor.options = this.options;
         await this.ensureStatePathDir();
         this.workflows[workflowId] = sw;
         await sw.templateProcessor.initialize(template)
