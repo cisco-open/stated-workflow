@@ -3,10 +3,20 @@ import StatedREPL from 'stated-js/dist/src/StatedREPL.js'
 import TemplateProcessor from 'stated-js/dist/src/TemplateProcessor.js'
 import {StatedWorkflow} from "./src/workflow/StatedWorkflow.js";
 import {WorkflowDispatcher} from "./src/workflow/WorkflowDispatcher.js";
+import minimist from 'minimist';
+
 (async () => {
     //starts a single-user REPL session in its own dedicated process therefore replacing
     //the static DEFAULT_FUNCTIONS won't have side effects
-    const statedWorkflow = await StatedWorkflow.newWorkflow()
+
+    const args = minimist(process.argv.slice(2));
+    const defaultOpts = {
+        snapshot: {
+            storage: 'fs',
+        }
+    };
+
+    const statedWorkflow = await StatedWorkflow.newWorkflow(undefined, undefined, defaultOpts);
     const {templateProcessor:tp} = statedWorkflow;
     const repl = new StatedREPL(tp);
     // FIXME: This is a workaround and probably should better be set in StatedWorkflow.newWorkflow()

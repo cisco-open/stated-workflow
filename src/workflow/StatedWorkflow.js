@@ -335,6 +335,9 @@ export class StatedWorkflow {
         this.logger.debug(`subscribing ${StatedREPL.stringify(source)}`);
 
         const subscribeOptionsJsonPointer = Array.isArray(resolvedJsonPointers) && resolvedJsonPointers.length > 0 ? resolvedJsonPointers[0] : undefined;
+        if (tp && tp.out(subscribeOptionsJsonPointer) !== undefined) {
+            subscribeOptions = tp.out(subscribeOptionsJsonPointer);
+        }
         if(!this.workflowDispatcher) {
             this.workflowDispatcher = new WorkflowDispatcher(subscribeOptions);
         }

@@ -16,6 +16,38 @@ import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import {StatedWorkflow} from "../workflow/StatedWorkflow.js";
 import {WorkflowDispatcher} from "../workflow/WorkflowDispatcher.js";
 
+
+// basic test of workflow functions available in the repl.
+test("restore debugging", async () => {
+  const originalCmdLineArgsStr = process.argv.slice(2).join(" ");
+  try {
+    process.argv = ["node", "stated-workflow.js"];
+    const defaultOpts = {
+      snapshot: {
+        storage: 'fs',
+      }
+    };
+    const statedWorkflow = await StatedWorkflow.newWorkflow(undefined, undefined, defaultOpts);
+    let {templateProcessor:tp} = statedWorkflow;
+    const repl = new StatedREPL(tp);
+
+    statedWorkflow.workflowDispatcher = new WorkflowDispatcher({});
+    repl.cliCore.onInit = statedWorkflow.workflowDispatcher.clear.bind(statedWorkflow.workflowDispatcher);
+
+    await repl.cliCore.init('.restore -f "example/resistanceSnapshot.json"', true);
+    tp = repl.cliCore.templateProcessor;
+    while (tp.output.stop$ !== 'missionAccomplished') {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    console.log(tp.output);
+  } catch (e) {
+    console.log(e);
+    throw(e);
+  } finally {
+    process.argv = originalCmdLineArgsStr;
+  }
+})
+
 // basic test of workflow functions available in the repl.
 test.skip("debug", async () => {
   const originalCmdLineArgsStr = process.argv.slice(2).join(" ");

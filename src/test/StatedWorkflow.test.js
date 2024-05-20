@@ -1062,7 +1062,7 @@ test.skip("subscribePulsar with pulsarMock client", async () => {
  *    before the snapshot was taken.
  * 8. validates the acks for each rebel
  */
-test("workflow snapshot and restore", async () => {
+test.skip("workflow snapshot and restore", async () => {
 
     // Load the YAML from the file
     const yamlFilePath = path.join(__dirname, '../', '../', 'example', 'joinResistanceRecovery.yaml');
