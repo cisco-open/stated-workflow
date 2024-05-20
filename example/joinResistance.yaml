@@ -4,24 +4,24 @@ produceParams:
   type: "my-topic"
   client:
     type: test
-    data: ${['luke', 'han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge'].('https://swapi.tech/api/people/?search='&$)}
+    data: ${['han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge']}
 # the subscriber's 'to' function will be called on each received event
 subscribeParams: #parameters for subscribing to an event
   source: cloudEvent
   type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
-  to: /${joinResistance}
+  to: /${ function($rebel) { $forked( "/rebel", $rebel) } }
   subscriberId: rebelArmy
   initialPosition: latest
-  parallelism: 1
+  parallelism: 2
   client:
     type: test
+    acks: []
+rebel: "luke"
 joinResistance:  |
-  /${ 
-    function($url){(
-        $rebel := $fetch($url).json().results[0].name; 
-        $set( "/rebelForces/-", $rebel) /* append rebel to rebelForces */
-    )}  
-  }
+  /${( 
+      $details := rebel.$fetch('https://swapi.dev/api/people/?search='&$).json().results[0].name;
+      $joined( "/rebelForces/-", $details);
+    )}
 # starts producer function
 send$: $publish(produceParams)
 # starts consumer function

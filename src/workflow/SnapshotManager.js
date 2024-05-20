@@ -36,7 +36,7 @@ export class SnapshotManager {
                 console.error(`Failed to save snapshot to ${path}:`, error);
                 throw error;
             }
-        } if (storage === "knowledge") {
+        } else if (storage === "knowledge") {
             await SnapshotManager.writeToKnowledge(snapshotStr);
         } else {
             tp.logger.info('Storage method not supported.');

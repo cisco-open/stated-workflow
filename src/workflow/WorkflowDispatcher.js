@@ -76,7 +76,7 @@ export class WorkflowDispatcher {
             console.log(`No subscribers found for type ${type}`);
         }
     }
-    /**/
+
     // this function is only used from test publisher
     async addBatchToAllSubscribersWithAck(type, clientParams = {}, ackFunc) {
         const promises = [];

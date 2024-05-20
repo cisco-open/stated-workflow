@@ -2,168 +2,92 @@
   "template": {
     "start": "${ (produceParams.data; $millis()) }",
     "produceParams": {
-      "type": "rebelDispatch",
+      "type": "my-topic",
       "client": {
         "type": "test",
-        "data": [
-          "luke",
-          "han",
-          "leia"
-        ]
+        "data": "${['han', 'leia', 'R2-D2', 'Owen', 'Biggs', 'Obi-Wan', 'Anakin', 'Chewbacca', 'Wedge']}"
       }
     },
     "subscribeParams": {
       "source": "cloudEvent",
       "type": "/${ produceParams.type }",
-      "to": "/${saveRebelWorkflow}",
+      "to": "/${ function($rebel) { $forked( \"/rebel\", $rebel) } }",
       "subscriberId": "rebelArmy",
       "initialPosition": "latest",
-      "parallelism": 1,
-      "acks": [],
+      "parallelism": 2,
       "client": {
-        "type": "test"
+        "type": "test",
+        "acks": []
       }
     },
-    "saveRebelWorkflow": {
-      "function": "/${ \n  function($rebel){ \n    $rebel ~> $serial(\n      [fetchRebel, saveRebel],\n      {'workflowInvocation': $rebel} \n    ) }  }\n"
-    },
-    "fetchRebel": {
-      "function": "/${ \n  function($rebel){(\n    $console.debug('fetchRebel input: ' & $rebel);\n    $r := $rebel.$fetch('https://swapi.tech/api/people/?search='&$).json().results[0];\n    $console.debug('fetchRebel fetched: ' & $r);  \n    $set('/fetchLog/-',$rebel);\n    $console.debug('logged fetch: ' & $r);\n    $r;\n  )}  \n}\n"
-    },
-    "saveRebel": {
-      "function": "/${ \n  function($rebel){(\n    $console.debug('saveRebel input: ' & $rebel);\n    ($count(rebels) = 1 and simulateFailure)?(\n      $set('/simulateFailure', false); \n      $console.log('sleep forever on : ' & $rebel);\n      $sleep(1000000);\n    );\n    $rebel ? $set('/rebels/-',{'name':$rebel.name, 'url':$rebel.homeworld});\n    $console.debug('saveRebel saved: ' & {'name':$rebel.name, 'url':$rebel.homeworld});\n  )}  \n}\n"
-    },
+    "rebel": "luke",
+    "joinResistance": "/${( \n    $sleep($random() * 1000);\n    $details := rebel.$fetch('https://swapi.dev/api/people/?search='&$).json().results[0].name;\n    $joined( \"/rebelForces/-\", $details);\n  )}\n",
     "send$": "$publish(produceParams)",
     "recv$": "$subscribe(subscribeParams)",
-    "rebels": [],
-    "fetchLog": [],
-    "simulateFailure": true,
-    "runtime": "${ (rebelForces; \"Rebel forces assembled in \" & $string($millis()-start) & \" ms\")}"
+    "rebelForces": []
   },
   "output": {
-    "start": 1709667624225,
+    "start": 1716236982234,
     "produceParams": {
-      "type": "rebelDispatch",
+      "type": "my-topic",
       "client": {
         "type": "test",
         "data": [
-          "luke",
           "han",
-          "leia"
+          "leia",
+          "R2-D2",
+          "Owen",
+          "Biggs",
+          "Obi-Wan",
+          "Anakin",
+          "Chewbacca",
+          "Wedge"
         ]
       }
     },
     "subscribeParams": {
       "source": "cloudEvent",
-      "type": "rebelDispatch",
-      "to": {
-        "function": "{function:}"
-      },
+      "type": "my-topic",
+      "to": "{function:}",
       "subscriberId": "rebelArmy",
       "initialPosition": "latest",
-      "parallelism": 1,
-      "acks": [
-        "luke"
-      ],
+      "parallelism": 2,
       "client": {
-        "type": "test"
+        "type": "test",
+        "acks": [
+          "han",
+          "leia",
+          "R2-D2",
+          "Owen",
+          "Biggs",
+          "Obi-Wan",
+          "Anakin",
+          "Chewbacca",
+          "Wedge"
+        ]
       }
     },
-    "saveRebelWorkflow": {
-      "function": "{function:}"
-    },
-    "fetchRebel": {
-      "function": "{function:}",
-      "log": {
-        "han": {
-          "start": {
-            "timestamp": 1709667625060,
-            "args": "han"
-          },
-          "end": {
-            "timestamp": 1709667625619,
-            "out": {
-              "name": "Han Solo",
-              "height": "180",
-              "mass": "80",
-              "hair_color": "brown",
-              "skin_color": "fair",
-              "eye_color": "brown",
-              "birth_year": "29BBY",
-              "gender": "male",
-              "homeworld": "https://swapi.tech/api/planets/22/",
-              "films": [
-                "https://swapi.tech/api/films/1/",
-                "https://swapi.tech/api/films/2/",
-                "https://swapi.tech/api/films/3/"
-              ],
-              "species": [],
-              "vehicles": [],
-              "starships": [
-                "https://swapi.tech/api/starships/10/",
-                "https://swapi.tech/api/starships/22/"
-              ],
-              "created": "2014-12-10T16:49:14.582000Z",
-              "edited": "2014-12-20T21:17:50.334000Z",
-              "url": "https://swapi.tech/api/people/14/"
-            }
-          }
-        }
-      }
-    },
-    "saveRebel": {
-      "function": "{function:}",
-      "log": {
-        "han": {
-          "start": {
-            "timestamp": 1709667625619,
-            "args": {
-              "name": "Han Solo",
-              "height": "180",
-              "mass": "80",
-              "hair_color": "brown",
-              "skin_color": "fair",
-              "eye_color": "brown",
-              "birth_year": "29BBY",
-              "gender": "male",
-              "homeworld": "https://swapi.tech/api/planets/22/",
-              "films": [
-                "https://swapi.tech/api/films/1/",
-                "https://swapi.tech/api/films/2/",
-                "https://swapi.tech/api/films/3/"
-              ],
-              "species": [],
-              "vehicles": [],
-              "starships": [
-                "https://swapi.tech/api/starships/10/",
-                "https://swapi.tech/api/starships/22/"
-              ],
-              "created": "2014-12-10T16:49:14.582000Z",
-              "edited": "2014-12-20T21:17:50.334000Z",
-              "url": "https://swapi.tech/api/people/14/"
-            }
-          }
-        }
-      }
-    },
+    "rebel": "luke",
+    "joinResistance": null,
     "send$": "done",
     "recv$": "listening clientType=test ... ",
-    "rebels": [
-      {
-        "name": "Luke Skywalker",
-        "url": "https://swapi.tech/api/planets/1/"
-      }
-    ],
-    "fetchLog": [
-      "luke",
-      "han"
-    ],
-    "simulateFailure": false,
-    "runtime": "Rebel forces assembled in 0 ms"
+    "rebelForces": [
+      "Luke Skywalker",
+      "R2-D2",
+      "Obi-Wan Kenobi",
+      "Owen Lars",
+      "Han Solo",
+      "Anakin Skywalker",
+      "Leia Organa",
+      "Biggs Darklighter",
+      "Chewbacca",
+      "Wedge Antilles"
+    ]
   },
   "options": {
     "snapshot": {
       "seconds": 1
-    }
+    },
+    "importPath": "/Users/sesergee/projects/sandbox/workflows/stated-workflow"
   }
 }

@@ -5,51 +5,39 @@ produceParams:
   client:
     type: test # test client produces directly to the test subscriber dispatcher
     data: ['luke', 'han', 'leia']
+#    data: "${ ['luke', 'han', 'leia'].({name:$, type: /type}) }"
 # the subscriber's 'to' function will be called on each received event
 subscribeParams: #parameters for subscribing to an event
   source: cloudEvent
   type: /${ produceParams.type } # subscribe to the same topic as we are publishing to test events
-  to: /${saveRebelWorkflow}
+  to: /${ function($cloudEvent) { $forked( "/rebel", $cloudEvent) }}
   subscriberId: rebelArmy
   initialPosition: latest
   parallelism: 1
   client:
     type: test
     acks: []
-saveRebelWorkflow:
-  function: | 
-    /${ 
-      function($rebel){ 
-        $rebel ~> $serial(
-          [fetchRebel, saveRebel],
-          {'workflowInvocation': $rebel} 
-        ) }  }
-fetchRebel:
-  function: | 
-    /${ 
-      function($rebel){(
-        $console.debug('fetchRebel input: ' & $rebel);
-        $r := $rebel.$fetch('https://swapi.tech/api/people/?name='&$).json().result[0].properties;
-        $console.debug('fetchRebel fetched: ' & $r);  
-        $set('/fetchLog/-',$rebel);
-        $console.debug('logged fetch: ' & $r);
-        $r;
-      )}  
-    }
-saveRebel:
-  function: | 
-    /${ 
-      function($rebel){(
-        $console.debug('saveRebel input: ' & $rebel);
-        ($count(rebels) = 1 and simulateFailure)?(
-          $set('/simulateFailure', false); 
-          $console.log('sleep forever on : ' & $rebel);
-          $sleep(1000000);
-        );
-        $rebel ? $set('/rebels/-',{'name':$rebel.name, 'url':$rebel.homeworld});
-        $console.debug('saveRebel saved: ' & {'name':$rebel.name, 'url':$rebel.homeworld});
-      )}  
-    }
+input: null
+fetchRebel: |
+  /${( 
+    $console.debug('fetchRebel input: ' & input);
+    $r := input.$fetch('https://swapi.tech/api/people/?name='&$).json().result[0].properties;
+    $console.debug('fetchRebel fetched: ' & $r);  
+    $set('/fetchLog/-',$rebel);
+    $console.debug('logged fetch: ' & $r);
+    $r;
+  )}
+saveRebel: |
+  /${(
+    $console.debug('saveRebel input: ' & fetchRebel);
+    ($count(rebels) = 1 and simulateFailure)?(
+      $set('/simulateFailure', false); 
+      $console.log('sleep forever on : ' & fetchRebel);
+      $sleep(1000000);
+    );
+    fetchRebel ? $set('/rebels/-',{'name':$rebel.name, 'url':$rebel.homeworld});
+    $console.debug('saveRebel saved: ' & {'name':$rebel.name, 'url':$rebel.homeworld});
+  )}
 # starts producer function
 send$: $publish(produceParams)
 # starts consumer function

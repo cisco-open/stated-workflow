@@ -6,7 +6,7 @@
     * [Installation](#installation)
     * [Running the REPL](#running-the-repl)
 * [Why Not Ordinary Stated Templates?](#why-not-ordinary-stated-templates)
-* [Stated Workflow Pipelines](#stated-workflow-pipelines)
+* [Stated Workflow Concurrency](#stated-workflow-concurrency)
   * [Concurrent, Event Driven, Non-blocking](#concurrent-event-driven-non-blocking)
   * [Atomic State Updates](#atomic-state-updates)
   * [Pure Function Pipelines - $serial and $parallel](#pure-function-pipelines---serial-and-parallel)
@@ -20,7 +20,7 @@
     * [Kafka Client Durability](#kafka-client-durability)
   * [Workflow Step Logs](#workflow-step-logs)
   * [Workflow snapshots](#workflow-snapshots)
-* [retries](#retries)
+  * [Explicit Acknowledgement](#explicit-acknowledgement)
 * [Workflow APIs](#workflow-apis)
 <!-- TOC -->
 
@@ -81,9 +81,9 @@ Ordinary [stated templates](https://github.com/cisco-open/stated?tab=readme-ov-f
 Stated flattens the DAG and executes it as a sequence of expressions called the `plan`. The example below illustrates how a plan executes a sequence of REST calls and transformations in an ordinary Stated
 template. 
 ```json
-> .init -f "example/homeworld.json"
+> .init -f "example/homeworld.yaml"
 {
-  "lukePersonDetails": "${ $fetch('https://swapi.tech/api/people/?name=luke').json().result[0].properties}",
+  "lukePersonDetails": "${ $fetch('https://swapi.dev/api/people/?name=luke').json().results[0] }",
   "lukeHomeworldURL": "${ lukePersonDetails.homeworld }",
   "homeworldDetails": "${ $fetch(lukeHomeworldURL).json() }",
   "homeworldName": "${ homeworldDetails.name }"
@@ -105,20 +105,39 @@ running I/O operations, however, will bottleneck the template. If the template e
 the work where it left off. We can see that for "workflows", which implies lots of I/O, and hence longer runtimes, we 
 need a way to address these concerns.
 
-# Stated Workflow Pipelines
+# High-level design of Stated Workflows
+[Stated Workflow High-level diagram](https://raw.githubusercontent.com/zhirafovod/shtuff/main/images/stated-worlkflows/stated-workflow-high-level.jpeg). 
+Stated Workflows extends stated templates processor to add notion of Cloud Events, Pub/Sub functions, Durability and Scalability.
+
+# Stated Workflow Concurrency
+Stated Workflow leverages the [Stated Concurrency forked/joined model](https://github.com/cisco-open/stated?tab=readme-ov-file#concurrency) to fork serial execution pipelines into asynchronous parallel executions. 
+
+Forked executions may be considered as parallel contexts, which are joined on "joined" function. The example below shows how to use the forked/joined framework to run a workflow in parallel.
+```yaml
+startTime$: $millis()
+data: ${(startTime$;['luke', 'han', 'leia', 'chewbacca', 'darth', 'ben', 'c-3po', 'yoda'].($forked('/name',$)))}
+name: obi
+personDetails: ${ $fetch('https://swapi.tech/api/people/?name='&name).json().result[0]}
+homeworldURL: ${ personDetails.properties.homeworld}
+homeworldDetails: ${ $fetch(homeworldURL).json().result }
+homeworldName: ${ $joined('/homeworlds/-', homeworldDetailч]s.properties.name)}
+homeworlds: []
+totalTime$: $string($millis()-startTime$) & ' ms'
+```
+The difference from the serial execution of homeworld.yaml is that the execution of forked plans runs non-blocking and asynchronous in parallel until it "joined" to the ROOT plan.   
+![forked execution](https://raw.githubusercontent.com/zhirafovod/shtuff/main/images/stated-worlkflows/homeworlds-forked.jpeg)
+
 Stated Workflows solves these problems in order to provide a suitable runtime for long-running, I/O heavy workflows:
- * _**Concurrent, Event Driven, Non-blocking**_ - Stated Workflows provide specific support for `$serial` and `$parallel` execution pipelines that can 
-   be mixed together and safely run in parallel. Unlike an ordinary expression `plan`, `$serial` and `$parallel` are pipelined
-   and nonblocking. As events arrive they can directly enter a `$serial` or `$parallel` without waiting. 
- * _**Atomic State Updates**_ - An atomic state update operator allows concurrent pipelies to avoid Lost Updates.
- * _**Durability**_ - Pipeline Functions (`$serial` and `parallel`) work with `--options={"snapshot":{...opts...}}` to 
-   snapshot their state to various stores. Stated Workflows can be started from a snapshot, hence restoring all pipeline
-   functions to their state at the time of the snapshot.
+ * _**Atomic State Updates**_ - An atomic state update operator "joined" allows concurrent "forked" pipelies to avoid Lost Updates.
+ * _**Durability**_ - Stated Workflows uses snapshots to write their state to various persistence stores. Stated Workflows can be started from a snapshot, hence restoring all workflow invocations to their state at the time of the snapshot.
  * _**Pub/Sub Connectors**_ - Stated Workflows provide direct access to `$publish` and `subscribe` functions that can 
-     dispatch events into execution pipelines with any desired parallelism. A simple change to the subscriber configuration
+     dispatch events into workflow with a desired parallelism. A simple change to the subscriber configuration
      allows your workflow to operate against Kafka, Pulsar, and other real-world messaging systems.
 
 ## Concurrent, Event Driven, Non-blocking
+Stated is a NodeJS framework, leveraging NodeJS v8 engine's concurrency model to efficiently run I/O-heavy workloads asynchronously.
+![NodeJS v8 engine's concurrency model](https://raw.githubusercontent.com/zhirafovod/shtuff/main/images/stated-worlkflows/node-v8-concurrency.jpeg)
+
 Stated-Workflows provides a set of functions that allow you to integrate with cloud events, consuming and producing from
 Kafka or Pulsar message buses, as well as HTTP. Publishers and subscribers can be initialized with test data. This example,
 `joinResistance.yaml`, generates URLS for members of the resistance, as test data. The data URLs are then published as 
@@ -245,15 +264,6 @@ Started tailing... Press Ctrl+C to stop.
 This explains why you should use the "dash syntax", like `/rebelForces/-` to append an element to an array which is 
 a safe operation to perform concurrently.
 
-## Pure Function Pipelines - $serial and $parallel
-A tried and true strategy for avoiding concurrent state mutation is to use pure functions like this, that pipeline the
-output of function to the input to the next. If it is necessary to update shared state, it can be done at the end of the
-pipeline, or at any point in between using atomic state mutations, like this.
- ```json
-function($x){ $x ~> f1 ~> f2 ~> f3 ~> function($x){$set('/saveResult/-', $x) } }
-```
-This pipeline can be concurrently dispatched safely. 
-
 # Pub/Sub Clients Configuration
 Stated Workflow comes with built-in HTTP, Pulsar, Kafka, Dispatcher and Test clients for cloudEvent subscribe command. Each client
 implements its own durability model.
@@ -286,14 +296,9 @@ subscribeParams: #parameters for subscribing to an event
 When subscriber client type is set to `dispatcher` or `test`, it will be running the workflow and expecting an external process to add data. 
 
 # Durability
-Stated Workflows provides a `$serial` and a `$parallel` function that should be used when you want to run continuous 
-workflow with data coming from a HTTP or cloudEvent sources. Each workflow invocation input and step processing logs are 
-persisted in the template in the beginning of step invocation and in the end. When the workflow is finished, the logs 
-are removed. Periodic snapshots include TemplateProcessor template, output and options, and can be used to recover 
-workflow processing from the last snapshotted state. 
+``
 
-StatedREPL `restore` command can be used to recover the template execution from a snapshot. 
-
+Stated Template Processor can be extended by adding custom callbacks run on data change or on an interval. Stated Workflow uses this feature to implement durabilty by persisting the state of the workflow to a snapshot file.
 ## Pub/Sub durability models
 Pub/Sub clients implement its own durability model. Pulsar and Kafka use server side acknowledgement to ensure that the message is not lost. Test client uses a simple 
 acknowledgement in the template. HTTP client blocks the synchronous HTTP response until the first step persist.
@@ -318,144 +323,98 @@ Kafka can rely on the consumer group commited offset. For parallelism greater th
 all unacknowledged messages and calculating the lowest offset to be commited. A combination of snapshotted stated and 
 kafka server side consumer offset helps to minimize double-processing of already processed steps.
 
-## Workflow Step Logs
-The `$serial` and `$parallel` functions accept an array of object called "steps". A step is nothing but an object with
-a field named 'function'. A durable workflow is formed by passing an array of steps to `$serial` or `$parallel`, like this:
-```json
-{
-  "out": "${ 'luke' ~> $serial([f1, f2])}",
-  "f1": {
-    "function": "${ function($in){ $in & ' skywalker' } }"
-  },
-  "f2": {
-    "function": "${ function($in){ $in ~> $uppercase } }"
-  }  
-}
-```
-`$serial` and `$parallel` generate a unique invocation id like `2023-11-14-1699922094477-8e85`, each time they are invoked. 
-The id is used as a log key. The logs are stored inside each step. 
-```json
-{
-  "out": "${ $serial([f1, f2])}",
-  "f1": {
-    "function": "${ function($in){ $in + 1 } }",
-    "log": {
-      "2023-11-14-1699922094477-8e85": {
-        "start": {
-          "timestamp": 1699922094477,
-          "args": "luke"
-        },
-        "end": {
-          "timestamp": 1699922095809,
-          "out": "luke skywalker"
-        }
-      }
-    },
-    "f2": {
-      "function": "${ function($in){ $in * 2 } }"
-    }
-  }
-}
-```
-When a step completes, its invocation log is removed. 
-```json
-{
-  "out": "${ $serial([f1, f2])}",
-  "f1": {
-    "function": "${ function($in){ $in + 1 } }",
-    "log": {}
-   },
-  "f2": {
-    "function": "${ function($in){ $in * 2 } }",
-    "log": {}
-  }
-}
-```
-The `$serial` and `$parallel` functions understand the logs. When a template is restored from a snapshot, `$serial` and 
-`$parallel` use these logs to skip completed steps and resume their work at the last incomplete step in every invocation log.
-
 ## Workflow snapshots
 Snapshots save the state of a stated template, repeatedly as it runs. Snapshotting allows a Stated Workflow to be stopped
 non-gracefully, and restored from the snapshot. The step logs allow invocations to restart where they left off.  
 
-`example/joinResistanceRecovery.yaml` shows a workflow with 2 serial steps - `fetchRebel` and `saveRebel`. The `saveRebel` step is design to 
-fail after processing the first rebel to demonstrate how snapshot, restore, and step logs work. 
+`example/joinResistanceRecovery.yaml` shows a workflow with a simple workflow template, which fetches a rebel detail and join it to rebelForces array.
 
-The `--options={"snapshot":{"seconds":1}}` option causes a snapshot to be saved to`defaultSnapshot.json` once a second 
-(use `path` to change the snapshot file location, i.e. 
-`--options={"snapshot":{"seconds":1, "path":"./example/resistanceSnapshot.json"}}`).  
 
-Below command will start the workflow and tail the output until `simulateFailure` expression will be set to false.
-```json ["$count(data.rebels)=1"]
-> .init -f "example/joinResistanceRecovery.yaml" --options={"snapshot":{"seconds":1}} --tail "/ until $$.simulateFailure=false"
+The `--options={"snapshot":{"seconds":1, "path":"./resistanceSnapshot.json"}}` option causes a snapshot to be saved to`./defaultSnapshot.json` file once a second, and only when there is a change in the template state.
+Storage and path can be configured in the options `--options={"snapshot":{"seconds":1, "path":"./mySnapshot.json", "storage": "fs"}}`
+
+```json ["$count(data.rebelForces)=10"]
+> .init -f "example/joinResistance.yaml" --options={"snapshot":{"seconds":1}} --tail "/ until $.rebelForces~>$count=10"
 {
-  "start": "${ (produceParams.data; $millis()) }",
+  "start": 1716238794169,
   "produceParams": {
-    "type": "rebelDispatch",
-    "data": [
-      "luke",
-      "han",
-      "leia"
-    ],
+    "type": "my-topic",
     "client": {
-      "type": "test"
+      "type": "test",
+      "data": [
+        "han",
+        "leia",
+        "R2-D2",
+        "Owen",
+        "Biggs",
+        "Obi-Wan",
+        "Anakin",
+        "Chewbacca",
+        "Wedge"
+      ]
     }
   },
   "subscribeParams": {
     "source": "cloudEvent",
-    "type": "/${ produceParams.type }",
-    "to": "/${saveRebelWorkflow}",
+    "type": "my-topic",
+    "to": "{function:}",
     "subscriberId": "rebelArmy",
     "initialPosition": "latest",
-    "parallelism": 1,
-    "acks": [],
+    "parallelism": 2,
     "client": {
-      "type": "test"
+      "type": "test",
+      "acks": [
+        "han",
+        "leia",
+        "R2-D2",
+        "Owen",
+        "Biggs",
+        "Obi-Wan",
+        "Anakin",
+        "Chewbacca",
+        "Wedge"
+      ]
     }
   },
-  "saveRebelWorkflow": {
-    "function": "/${ \n  function($rebel){ \n    $rebel ~> $serial(\n      [fetchRebel, saveRebel],\n      {'workflowInvocation': $rebel} \n    ) }  }\n"
-  },
-  "fetchRebel": {
-    "function": "/${ \n  function($rebel){(\n    $console.debug('fetchRebel input: ' & $rebel);\n    $r := $rebel.$fetch('https://swapi.tech/api/people/?name='&$).json().result[0].properties;\n    $console.debug('fetchRebel fetched: ' & $r);  \n    $set('/fetchLog/-',$rebel);\n    $console.debug('logged fetch: ' & $r);\n    $r;\n  )}  \n}\n"
-  },
-  "saveRebel": {
-    "function": "/${ \n  function($rebel){(\n    $console.debug('saveRebel input: ' & $rebel);\n    ($count(rebels) = 1 and simulateFailure)?(\n      $set('/simulateFailure', false); \n      $console.log('sleep forever on : ' & $rebel);\n      $sleep(1000000);\n    );\n    $rebel ? $set('/rebels/-',{'name':$rebel.name, 'url':$rebel.homeworld});\n    $console.debug('saveRebel saved: ' & {'name':$rebel.name, 'url':$rebel.homeworld});\n  )}  \n}\n"
-  },
-  "send$": "$publish(produceParams)",
-  "recv$": "$subscribe(subscribeParams)",
-  "rebels": [],
-  "fetchLog": [],
-  "simulateFailure": true,
-  "runtime": "${ (rebelForces; \"Rebel forces assembled in \" & $string($millis()-start) & \" ms\")}"
+  "rebel": "luke",
+  "joinResistance": null,
+  "send$": "done",
+  "recv$": "listening clientType=test ... ",
+  "rebelForces": [
+    "Luke Skywalker",
+    "Leia Organa",
+    "Owen Lars",
+    "Chewbacca",
+    "Anakin Skywalker",
+    "Biggs Darklighter",
+    "R2-D2",
+    "Wedge Antilles",
+    "Han Solo",
+    "Obi-Wan Kenobi"
+  ],
+  "runtime": "Rebel forces assembled in 728 ms"
 }
 ```
 The snapshot can be viewed with the `cat` command:
 ```shell
-cat defaultSnapshot.json
+cat ./resistanceSnapshot.json
 ```
 
-On restore from the snapshot, the workflow will skip the first acknowledged data for the first rebel `luke`, skip 
-complete logs of the first step `fetchRebel` and start from the second step `saveRebel` for `han`, and run both step 
-for the last rebel `leia` in our test data. 
-
-The below example shows how to restore the workflow from the snapshot, and will be tailing the `/rebels` output until we 
-get all 3 of them there. 
-```json ["$count(data)=3"]
-> .restore -f "example/resistanceSnapshot.json" --tail "/rebels until $~>$count=3"
+On restore from the snapshot, the workflow will restart exactly where it left off.
+```json ["$count(data)=10"]
+ .restore -f "example/resistanceSnapshot.json" --tail "/rebelForces until $~>$count=10"
 [
-  {
-    "name": "Luke Skywalker",
-    "url": "https://www.swapi.tech/api/planets/1"
-  },
-  {
-    "name": "Han Solo",
-    "url": "https://www.swapi.tech/api/planets/22"
-  },
-  {
-    "name": "Leia Organa",
-    "url": "https://www.swapi.tech/api/planets/2"
-  }
+  "Luke Skywalker",
+  "R2-D2",
+  "Obi-Wan Kenobi",
+  "Owen Lars",
+  "Han Solo",
+  "Anakin Skywalker",
+  "Leia Organa",
+  "Biggs Darklighter",
+  "Chewbacca",
+  "Wedge Antilles",
+  "Luke Skywalker"
 ]
 ```
 
@@ -512,35 +471,6 @@ report: "${( $console.log('result added: ' & $$.results) )}"
 ]
 ```
 
-# retries
-Each step can provide an optional boolean function `shouldRetry`. On a workflow invocation failure the function will be
-called with an invocation log passed as an argument. If the function returns true, the function will be retried.
-The invocatiopn log contains a `retryCount` field that can be used to limit the number of retries.
-
-The following example shows how to use the `shouldRetry` function to retry a step 4 times before failing.
-```json
-> .init -f example/homeworlds-steps-with-retry.json --options={"keepLogs":true}
-{
-  "output": "${   ['luke']~>$map(workflow) }",
-  "workflow": "${ function($person){$person~>$serial(steps)} }",
-  "connectionError": true,
-  "steps": [
-    {
-      "function": "${  function($person){$fetch('https://swapi.tech/api/people/?name='& $person).json().result[0].properties}   }"
-    },
-    {
-      "function": "${  function($personDetail){$personDetail.homeworld }  }"
-    },
-    {
-      "function": "/${ function($homeworldURL){ ($url := connectionError ? $homeworldURL & '--broken--' : $homeworldURL ; $set('/connectionError', $not(connectionError)); $fetch($url).json(); ) }  }",
-      "shouldRetry": "${  function($log){ $log.end ? false : $log.retryCount < 4 }  }"
-    },
-    {
-      "function": "${  function($homeworldDetail){$homeworldDetail.name }  }"
-    }
-  ]
-}
-```
 
 # Workflow APIs
 [README.API.md](README.API.md) provides a REST API to manage the workflow. The API can be used to start, stop, and view 
