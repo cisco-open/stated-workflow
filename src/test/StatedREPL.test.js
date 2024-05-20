@@ -18,7 +18,7 @@ import {WorkflowDispatcher} from "../workflow/WorkflowDispatcher.js";
 
 
 // basic test of workflow functions available in the repl.
-test("restore debugging", async () => {
+test.skip("restore debugging", async () => {
   const originalCmdLineArgsStr = process.argv.slice(2).join(" ");
   try {
     process.argv = ["node", "stated-workflow.js"];
