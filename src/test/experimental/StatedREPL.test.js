@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
-import {StatedWorkflow} from "../workflow/StatedWorkflow.js";
-import {WorkflowDispatcher} from "../workflow/WorkflowDispatcher.js";
+import {StatedWorkflow} from "../../workflow/StatedWorkflow.js";
+import {WorkflowDispatcher} from "../../workflow/WorkflowDispatcher.js";
 
 
 // basic test of workflow functions available in the repl.

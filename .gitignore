@@ -142,3 +142,11 @@ dist
 
 # Internal state storage
 .state
+
+# temporary folkders
+dumpster
+example/experimental
+
+# test arftifacts
+SnapshotAndRecoverForWorkflowTest.json
+defaultSnapshot.json

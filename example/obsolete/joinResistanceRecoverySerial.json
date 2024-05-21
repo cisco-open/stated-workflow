@@ -1,0 +1,41 @@
+{
+  "start": "${ (produceParams.data; $millis()) }",
+  "produceParams": {
+    "type": "rebelDispatch",
+    "client": {
+      "type": "test",
+      "data": [
+        "luke",
+        "han",
+        "leia"
+      ]
+    }
+  },
+  "subscribeParams": {
+    "source": "cloudEvent",
+    "type": "/${ produceParams.type }",
+    "to": "/${saveRebelWorkflow}",
+    "subscriberId": "rebelArmy",
+    "initialPosition": "latest",
+    "parallelism": 1,
+    "client": {
+      "type": "test",
+      "acks": []
+    }
+  },
+  "saveRebelWorkflow": {
+    "function": "/${ \n  function($rebel){ \n    $rebel ~> $serial(\n      [fetchRebel, saveRebel],\n      {'workflowInvocation': $rebel} \n    ) }  }\n"
+  },
+  "fetchRebel": {
+    "function": "/${ \n  function($rebel){(\n    $console.debug('fetchRebel input: ' & $rebel);\n    $r := $rebel.$fetch('https://swapi.tech/api/people/?name='&$).json().result[0].properties;\n    $console.debug('fetchRebel fetched: ' & $r);  \n    $set('/fetchLog/-',$rebel);\n    $console.debug('logged fetch: ' & $r);\n    $r;\n  )}  \n}\n"
+  },
+  "saveRebel": {
+    "function": "/${ \n  function($rebel){(\n    $console.debug('saveRebel input: ' & $rebel);\n    ($count(rebels) = 1 and simulateFailure)?(\n      $set('/simulateFailure', false); \n      $console.log('sleep forever on : ' & $rebel);\n      $sleep(1000000);\n    );\n    $rebel ? $set('/rebels/-',{'name':$rebel.name, 'url':$rebel.homeworld});\n    $console.debug('saveRebel saved: ' & {'name':$rebel.name, 'url':$rebel.homeworld});\n  )}  \n}\n"
+  },
+  "send$": "$publish(produceParams)",
+  "recv$": "$subscribe(subscribeParams)",
+  "rebels": [],
+  "fetchLog": [],
+  "simulateFailure": true,
+  "runtime": "${ (rebelForces; \"Rebel forces assembled in \" & $string($millis()-start) & \" ms\")}"
+}
