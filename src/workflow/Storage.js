@@ -8,12 +8,56 @@ const mkdir = util.promisify(fs.mkdir);
 
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 
-export class Storage {
+/**
+ * Storage interface
+ */
+export class iStorage {
 
+    constructor(options) {}
 
+    /**
+     * Initialize the storage
+     * @returns {Promise<void>}
+     */
+    async init() {}
+
+    /**
+     * Store an object of a type
+     * @param {Object.<string, Object.<string, Object>>} data - The data to store, mapped by type and id.
+     * @returns {Promise<void>}
+     * @throws {TypeError} If the data parameter is not an object.
+     */
+    async write(data) {}
+
+    /**
+     * Load all object of a type
+     * @param type
+     * @returns {Promise<[Object]>}
+     */
+    readAll(type) {}
+
+    /**
+     * Load an object of a type
+     * @param type
+     * @param id
+     * @returns {Promise<Object>}
+     */
+    read(type, id) {}
+
+}
+
+export function createStorage(options = {'type': 'fs'}) {
+    if (options.type === 'fs') {
+        return new FSStorage(options);
+    } else {
+        throw new Error(`Unsupported storage type: ${options.type}`);
+    }
+}
+
+export class FSStorage extends iStorage {
     constructor(options) {
-        this.basePath = params.basePath || path.join(process.cwd(), '.state');
-        this.workflowName = `${params.workflowName}.json` || 'workflow.json';
+        super(options);
+        this.basePath = options.basePath || path.join(process.cwd(), '.state');
     }
 
     async init() {
@@ -35,12 +79,24 @@ export class Storage {
         }
     }
 
-    filePath() {
-        return path.join(this.basePath, this.workflowName);
-    }
     // store the log for a workflow invocation
-    async persist(tp) {
-        await writeFile(this.filePath(), StatedREPL.stringify(tp.output));
+    async write(data) {
+        if (typeof data !== 'object' || data === null) {
+            throw new TypeError('The data parameter must be an object.');
+        }
+
+        for (const [type, items] of Object.entries(data)) {
+            const dirPath = path.join(this.basePath, type);
+            for (const [id, obj] of Object.entries(items)) {
+                const filePath = path.join(dirPath, `${id}.json`);
+
+                // Ensure the directory exists
+                await fs.mkdir(dirPath, { recursive: true });
+
+                // Write the object to a file
+                await fs.writeFile(filePath, JSON.stringify(obj, null, 2), 'utf8');
+            }
+        }
     }
 
 

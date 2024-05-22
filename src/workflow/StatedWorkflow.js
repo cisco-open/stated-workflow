@@ -20,7 +20,7 @@ import Pulsar from 'pulsar-client';
 import winston from "winston";
 import {WorkflowDispatcher} from "./WorkflowDispatcher.js";
 import {TemplateUtils} from "./utils/TemplateUtils.js";
-import {Storage} from "./Storage.js";
+import {createStorage} from "./Storage.js";
 import {Delay} from "../test/TestTools.js"
 import {SnapshotManager} from "./SnapshotManager.js";
 import {PulsarClientMock} from "../test/PulsarMock.js";
