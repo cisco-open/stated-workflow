@@ -587,7 +587,7 @@ test("recover incomplete workflow - step 1 is incomplete - should rerun steps 1 
  *  1. start docker-compose
  *      docker-compose -f docker/docker-compose.yaml up -d
  *  2. run the tests with ENABLE_INTEGRATION_TESTS set to "true"
- *      ENABLE_INTEGRATION_TESTS=true yarn test StatedWorkflow.test.js
+ *      ENABLE_INTEGRATION_TESTS=true yarn test StatedWorkflow.obsoleteTests.js
  */
 if (process.env.ENABLE_INTEGRATION_TESTS === "true") {
     test("Pulsar consumer integration test", async () => {
@@ -1074,3 +1074,4 @@ if (process.env.ENABLE_API_INTEGRATION_TESTS === "true") {
     }, 5000);
 
 }
+
