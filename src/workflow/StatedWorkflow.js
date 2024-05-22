@@ -21,7 +21,7 @@ import winston from "winston";
 import {WorkflowDispatcher} from "./WorkflowDispatcher.js";
 import Step from "./Step.js";
 import {TemplateUtils} from "./utils/TemplateUtils.js";
-import {WorkflowPersistence} from "./WorkflowPersistence.js";
+import {Storage} from "./Storage.js";
 import {Delay} from "../test/TestTools.js"
 import {SnapshotManager} from "./SnapshotManager.js";
 import {PulsarClientMock} from "../test/PulsarMock.js";
@@ -157,10 +157,10 @@ export class StatedWorkflow {
     }
 
     setWorkflowPersistence() {
-        const persistence = new WorkflowPersistence({workflowName: this.templateProcessor.input.name});
+        const storage = new Storage({workflowName: this.templateProcessor.input.name});
         const cbFn = async (data, jsonPtr, removed) => {
             try {
-                await persistence.persist(this.templateProcessor);
+                await storage.persist(this.templateProcessor);
             } catch (error) {
                 console.error(`Error persisting workflow state: ${error}`);
             }

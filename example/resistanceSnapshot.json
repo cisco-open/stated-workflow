@@ -1,6 +1,6 @@
 {
   "template": {
-    "start": "${ (produceParams.data; $millis()) }",
+    "start": "${ (produceParams.client.data; $millis()) }",
     "produceParams": {
       "type": "my-topic",
       "client": {

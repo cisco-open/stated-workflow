@@ -1,5 +1,5 @@
 {
-  "start": "${ (produceParams.data; $millis()) }",
+  "start": "${ (produceParams.client.data; $millis()) }",
   "produceParams": {
     "type": "rebelDispatch",
     "client": {

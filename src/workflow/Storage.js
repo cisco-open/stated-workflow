@@ -8,7 +8,7 @@ const mkdir = util.promisify(fs.mkdir);
 
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 
-export class WorkflowPersistence {
+export class Storage {
 
 
     constructor(params) {

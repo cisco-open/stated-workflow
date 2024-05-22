@@ -72,7 +72,7 @@ The REPL will launch, allowing you to interact with the stated-js library. In or
 
 For example you can enter this command in the REPL:
 ```bash 
-> .init -f "example/homeworld.json"
+> .init -f "example/homeworld.yaml"
 ```
 
 # Why Not Ordinary Stated Templates?
@@ -145,7 +145,7 @@ events and dispatched to a subscriber with a settable `parallelism` factor. The 
 the Star Wars character's full name from the REST response.
 
 ```yaml
-start: ${ (produceParams.data; $millis()) } #record start time, after test dataset has been computed
+start: ${ (produceParams.client.data; $millis()) } #record start time, after test dataset has been computed
 # producer will be sending some test data
 produceParams:
   type: "my-topic"
