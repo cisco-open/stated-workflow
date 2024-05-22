@@ -156,19 +156,18 @@ export class StatedWorkflow {
 
     }
 
-    setWorkflowPersistence() {
-        const storage = new Storage({workflowName: this.templateProcessor.input.name});
-        const cbFn = async (data, jsonPtr, removed) => {
-            try {
-                await storage.persist(this.templateProcessor);
-            } catch (error) {
-                console.error(`Error persisting workflow state: ${error}`);
-            }
-        }
-        this.templateProcessor.removeDataChangeCallback('/');
-        this.templateProcessor.setDataChangeCallback('/',cbFn);
-
-    }
+    // setWorkflowPersistence() {
+    //     const storage = new Storage({workflowName: this.templateProcessor.input.name});
+    //     const cbFn = async (data, jsonPtr, removed) => {
+    //         try {
+    //             await storage.persist(this.templateProcessor);
+    //         } catch (error) {
+    //             console.error(`Error persisting workflow state: ${error}`);
+    //         }
+    //     }
+    //     this.templateProcessor.removeDataChangeCallback('/');
+    //     this.templateProcessor.setDataChangeCallback('/',cbFn);
+    // }
 
     async logFunctionInvocation(stage, args, result, error = null, log) {
         const logMessage = {

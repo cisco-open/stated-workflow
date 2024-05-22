@@ -11,7 +11,7 @@ import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 export class Storage {
 
 
-    constructor(params) {
+    constructor(options) {
         this.basePath = params.basePath || path.join(process.cwd(), '.state');
         this.workflowName = `${params.workflowName}.json` || 'workflow.json';
     }

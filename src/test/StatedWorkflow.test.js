@@ -96,8 +96,7 @@ test("workflow perf", async () => {
     const initWorkflowTimeMs = Date.now() - initWorkflowStart; // time taken to init workflow
     console.log("Initialize workflow: " + (initWorkflowTimeMs) + "ms");
     expect(initWorkflowTimeMs).toBeLessThan(6000); // usually takes ~800ms, but providing some safety here
-    expect(Object.keys(tp.output.step1.log).length).toEqual(300);
-    expect(Object.keys(tp.output.step2.log).length).toEqual(300);
+    expect(Object.keys(tp.output.nozzles).length).toEqual(1001);
 }, 10000);
 
 test("downloaders", async () => {
