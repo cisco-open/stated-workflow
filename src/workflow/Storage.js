@@ -3,6 +3,7 @@ import path from 'path';
 import util from 'util';
 
 const readFile = util.promisify(fs.readFile);
+const readdir = util.promisify(fs.readdir);
 const writeFile = util.promisify(fs.writeFile);
 const mkdir = util.promisify(fs.mkdir);
 
@@ -64,22 +65,16 @@ export class FSStorage extends iStorage {
         await this.ensureDirectoryExists(this.basePath);
     }
 
-    /**
-     * Ensure the directory exists, creating it if necessary
-     * @param {string} dir - the directory to ensure exists
-     */
     async ensureDirectoryExists(dir) {
         try {
             await mkdir(dir, { recursive: true });
         } catch (error) {
-            // if the file exists, we can continue without error
             if (error.code !== 'EEXIST') {
                 throw error;
             }
         }
     }
 
-    // store the log for a workflow invocation
     async write(data) {
         if (typeof data !== 'object' || data === null) {
             throw new TypeError('The data parameter must be an object.');
@@ -90,29 +85,41 @@ export class FSStorage extends iStorage {
             for (const [id, obj] of Object.entries(items)) {
                 const filePath = path.join(dirPath, `${id}.json`);
 
-                // Ensure the directory exists
-                await fs.mkdir(dirPath, { recursive: true });
-
-                // Write the object to a file
-                await fs.writeFile(filePath, StatedREPL.stringify(obj, null, 2), 'utf8');
+                try {
+                    await mkdir(dirPath, { recursive: true });
+                    await writeFile(filePath, StatedREPL.stringify(obj, null, 2), 'utf8');
+                } catch (error) {
+                    console.error(`Error writing data to file ${filePath}:`, error);
+                    throw error;
+                }
             }
         }
     }
 
     async readAll(type) {
         const dirPath = path.join(this.basePath, type);
-        const files = await fs.readdir(dirPath);
-        const promises = files.map(async (file) => {
-            const filePath = path.join(dirPath, file);
-            const data = await fs.readFile(filePath, 'utf8');
-            return JSON.parse(data);
-        });
-        return await Promise.all(promises);
+        try {
+            const files = await readdir(dirPath);
+            const promises = files.map(async (file) => {
+                const filePath = path.join(dirPath, file);
+                const data = await readFile(filePath, 'utf8');
+                return JSON.parse(data);
+            });
+            return await Promise.all(promises);
+        } catch (error) {
+            console.error(`Error reading all data from directory ${dirPath}:`, error);
+            throw error;
+        }
     }
 
     async read(type, id) {
         const filePath = path.join(this.basePath, type, `${id}.json`);
-        const data = await fs.readFile(filePath, 'utf8');
-        return JSON.parse(data);
+        try {
+            const data = await readFile(filePath, 'utf8');
+            return JSON.parse(data);
+        } catch (error) {
+            console.error(`Error reading data from file ${filePath}:`, error);
+            throw error;
+        }
     }
 }

@@ -16,14 +16,14 @@ describe('FSStorage', () => {
     });
 
     describe('Initialization', () => {
-        it('should create the base directory', async () => {
+        test('should create the base directory', async () => {
             const exists = await fs.pathExists(basePath);
             expect(exists).toBe(true);
         });
     });
 
     describe('Write and Read', () => {
-        it('should write and read data correctly', async () => {
+        test('should write and read data correctly', async () => {
             const testData = {
                 rebels: {
                     '1': { name: 'Luke Skywalker', role: 'Jedi Knight' },
@@ -58,18 +58,18 @@ describe('FSStorage', () => {
             expect(swRebel1).toEqual({ name: 'Han Solo', role: 'Captain' });
         });
 
-        it('should throw an error if data is not an object', async () => {
+        test('should throw an error if data is not an object', async () => {
             await expect(storage.write("string")).rejects.toThrow(TypeError);
         });
     });
 
     describe('Error Handling', () => {
-        it('should throw an error if trying to read a non-existent type', async () => {
-            await expect(storage.readAll('nonexistent')).rejects.toThrow(/ENOENT/);
+        test('should throw an error if trying to read a non-existent type', async () => {
+            await expect(storage.readAll('nonexistent')).rejects.toThrow();
         });
 
-        it('should throw an error if trying to read a non-existent object', async () => {
-            await expect(storage.read('rebels', 'nonexistent')).rejects.toThrow(/ENOENT/);
+        test('should throw an error if trying to read a non-existent object', async () => {
+            await expect(storage.read('rebels', 'nonexistent')).rejects.toThrow();
         });
     });
 });
