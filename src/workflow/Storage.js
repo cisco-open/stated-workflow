@@ -25,7 +25,7 @@ export class iStorage {
      * Store an object of a type
      * @param {Object.<string, Object.<string, Object>>} data - The data to store, mapped by type and id.
      * @returns {Promise<void>}
-     * @throws {TypeError} If the data parameter is not an object.
+     * @throws {TypeError|Error} If the data parameter is not an object.
      */
     async write(data) {}
 
@@ -42,7 +42,7 @@ export class iStorage {
      * @param id
      * @returns {Promise<Object>}
      */
-    read(type, id) {}
+    async read(type, id) {}
 
 }
 
@@ -94,22 +94,25 @@ export class FSStorage extends iStorage {
                 await fs.mkdir(dirPath, { recursive: true });
 
                 // Write the object to a file
-                await fs.writeFile(filePath, JSON.stringify(obj, null, 2), 'utf8');
+                await fs.writeFile(filePath, StatedREPL.stringify(obj, null, 2), 'utf8');
             }
         }
     }
 
+    async readAll(type) {
+        const dirPath = path.join(this.basePath, type);
+        const files = await fs.readdir(dirPath);
+        const promises = files.map(async (file) => {
+            const filePath = path.join(dirPath, file);
+            const data = await fs.readFile(filePath, 'utf8');
+            return JSON.parse(data);
+        });
+        return await Promise.all(promises);
+    }
 
-    async restore() {
-        try {
-            const template = JSON.parse(await readFile(this.filePath()));
-        } catch (error) {
-            if (error.code === 'ENOENT') {
-                console.log(`No previous state found at ${this.filePath()}`);
-            } else {
-                console.log(`Error reading state from ${this.filePath()}, error: ${error}`);
-                throw error;
-            }
-        }
+    async read(type, id) {
+        const filePath = path.join(this.basePath, type, `${id}.json`);
+        const data = await fs.readFile(filePath, 'utf8');
+        return JSON.parse(data);
     }
 }
