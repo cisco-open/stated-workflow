@@ -1,9 +1,11 @@
 import { promises as fs } from 'fs';
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
+import {createStorage} from "./Storage.js";
 
 export class SnapshotManager {
 
-    constructor(options = {storage: 'fs', state: "./.state"}) {
+    constructor(options = {storage: 'fs', state: "./.state"}, storage) {
+        this.storage = storage || createStorage(options);
         this.options = options;
         this.snapshots = [];
     }
@@ -12,14 +14,15 @@ export class SnapshotManager {
         if (this.options.storage === 'knowledge') {
             this.snapshots = await SnapshotManager.loadFromKnowledge();
         } else if (this.options.storage === 'fs') {
-            await this.loadFromFS();
+            this.snapshots = await this.loadFromStorage();
+            // await this.loadFromFS();
         } else {
             throw new Error('Storage method not supported.');
         }
         return this.snapshots;
     }
 
-    static async write(tp) {
+    async write(tp, workflowId) {
         const {snapshot: snapshotOpts} = tp.options;
         if(!snapshotOpts){
             tp.logger.debug("no --snapshot options defined, skipping snapshot");
@@ -30,7 +33,7 @@ export class SnapshotManager {
 
         if (storage === "fs") {
             try {
-                await fs.writeFile(path, snapshotStr);
+                await this.storage.write({'snapshot': {[workflowId || Math.random().toString(36).substr(2, 9)]: snapshotStr}});
                 tp.logger.info(`Snapshot saved to ${path}`);
             } catch (error) {
                 console.error(`Failed to save snapshot to ${path}:`, error);
@@ -286,6 +289,10 @@ export class SnapshotManager {
                 console.error(`Failed to parse snapshot ${file}:`, error);
             }
         }
+    }
+
+    async loadFromStorage() {
+        return await this.storage.readAll('snapshots');
     }
 
     static async readFromKnowledge(workflowId) {

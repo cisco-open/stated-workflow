@@ -19,9 +19,8 @@ import express from 'express';
 import Pulsar from 'pulsar-client';
 import winston from "winston";
 import {WorkflowDispatcher} from "./WorkflowDispatcher.js";
-import Step from "./Step.js";
 import {TemplateUtils} from "./utils/TemplateUtils.js";
-import {WorkflowPersistence} from "./WorkflowPersistence.js";
+import {createStorage} from "./Storage.js";
 import {Delay} from "../test/TestTools.js"
 import {SnapshotManager} from "./SnapshotManager.js";
 import {PulsarClientMock} from "../test/PulsarMock.js";
@@ -38,7 +37,7 @@ const {Kafka, KafkaConfig, CompressionTypes, CompressionCodecs, logLevel} = kafk
 export class StatedWorkflow {
     // static express = require('express');
 
-    constructor(template, context, workflowContext = {}){
+    constructor(template, context, workflowContext = {}, storage){
         this.logger = winston.createLogger({
             format: winston.format.json(),
             transports: [
@@ -66,6 +65,10 @@ export class StatedWorkflow {
             workflowInvocationLatencies: [],
         };
 
+        this.snapshotOpts = context.snapshot || {storage: 'fs', basePath: './.state'}
+        this.storage = storage || createStorage(this.snapshotOpts);
+        this.snapshotManager = new SnapshotManager(this.snapshotOpts, this.storage);
+
         // create metrics provider
         this.workflowMetrics = new WorkflowMetrics();
 
@@ -80,15 +83,12 @@ export class StatedWorkflow {
                 "publish": this.publish.bind(this),
                 "logFunctionInvocation": this.logFunctionInvocation.bind(this),
                 "workflow": this.workflow.bind(this),
-                "recover": this.recover.bind(this),
+                // "recover": this.recover.bind(this),
                 "sleep": Delay.start,
                 "ack": this.ack.bind(this),
             }
         };
         this.templateProcessor = new TemplateProcessor(template, context);
-        this.templateProcessor.functionGenerators.set("serial", this.serialGenerator.bind(this));
-        this.templateProcessor.functionGenerators.set("parallel", this.parallelGenerator.bind(this));
-        this.templateProcessor.functionGenerators.set("recoverStep", this.recoverStepGenerator.bind(this));
         this.templateProcessor.functionGenerators.set("subscribe", this.subscribeGenerator.bind(this));
         this.templateProcessor.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
         this.hasChanged = true;
@@ -108,7 +108,7 @@ export class StatedWorkflow {
                 const {seconds = 1} = snapshotOpts;
                 this.snapshotInterval = setInterval(async ()=>{
                     if(this.hasChanged){
-                        await SnapshotManager.write(this.templateProcessor);
+                        await this.snapshotManager.write(this.templateProcessor, workflowContext.id);
                         // we can acknowledge callbacks after persisting templateProcessor
                         if (workflowContext.ackOnSnapshot === true && this.workflowDispatcher) await this.workflowDispatcher.acknowledgeCallbacks();
                         this.hasChanged = false; //changeListener will alter this if the template changes so we are not permanently blocking snapshots
@@ -156,19 +156,18 @@ export class StatedWorkflow {
 
     }
 
-    setWorkflowPersistence() {
-        const persistence = new WorkflowPersistence({workflowName: this.templateProcessor.input.name});
-        const cbFn = async (data, jsonPtr, removed) => {
-            try {
-                await persistence.persist(this.templateProcessor);
-            } catch (error) {
-                console.error(`Error persisting workflow state: ${error}`);
-            }
-        }
-        this.templateProcessor.removeDataChangeCallback('/');
-        this.templateProcessor.setDataChangeCallback('/',cbFn);
-
-    }
+    // setWorkflowPersistence() {
+    //     const storage = new Storage({workflowName: this.templateProcessor.input.name});
+    //     const cbFn = async (data, jsonPtr, removed) => {
+    //         try {
+    //             await storage.persist(this.templateProcessor);
+    //         } catch (error) {
+    //             console.error(`Error persisting workflow state: ${error}`);
+    //         }
+    //     }
+    //     this.templateProcessor.removeDataChangeCallback('/');
+    //     this.templateProcessor.setDataChangeCallback('/',cbFn);
+    // }
 
     async logFunctionInvocation(stage, args, result, error = null, log) {
         const logMessage = {
@@ -631,98 +630,6 @@ export class StatedWorkflow {
 
     }
 
-    async serialGenerator(metaInf, tp) {
-        return async (input, steps, context) => {
-
-            const resolvedJsonPointers = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp,   'serial'); //fixme todo we should avoid doing this for every jsonata evaluation
-            TemplateUtils.validateStepPointers(resolvedJsonPointers, steps, metaInf, 'serial');
-
-            return this.serial(input, steps, context, resolvedJsonPointers, tp);
-        }
-    }
-
-    async serial(input, stepJsons, context={}, resolvedJsonPointers = {}, tp = undefined) {
-        let {workflowInvocation} = context;
-
-        let workflowStart = new Date().getTime();
-
-        if (workflowInvocation === undefined) {
-            workflowInvocation = StatedWorkflow.generateDateAndTimeBasedID();
-        }
-
-        if (input === '__recover__' && stepJsons?.[0]) {
-            const step = new Step(stepJsons[0], resolvedJsonPointers?.[0], tp);
-            for  (let workflowInvocation of step.log.getInvocations()){
-                await this.serial(undefined, stepJsons, {workflowInvocation}, resolvedJsonPointers, tp);
-            }
-            return;
-        }
-
-        let currentInput = input;
-        const steps = [];
-        for (let i = 0; i < stepJsons.length; i++) {
-            const step = new Step(stepJsons[i], resolvedJsonPointers?.[i], tp);
-            steps.push(step);
-            currentInput = await this.runStep(workflowInvocation, step, currentInput);
-            if (currentInput !== undefined && currentInput.error) {
-                this.workflowMetrics.workflowInvocationFailuresCounter.add(1, {workflowInvocation});
-                return currentInput;
-            }
-        }
-
-        // metrics
-        this.workflowMetrics.workflowInvocationsCounter.add(1, {workflowInvocation});
-        this.workflowMetrics.workflowInvocationLatency.record(new Date().getTime() - workflowStart, {workflowInvocation});
-
-        //we do not need to await this. Deletion can happen async
-        if (!tp.options.keepLogs) StatedWorkflow.deleteStepsLogs(workflowInvocation, steps)
-            .catch(e=>this.templateProcessor.logger.error(`failed to delete completed log with invocation id '${workflowInvocation}'`));
-
-        return currentInput;
-    }
-
-
-    async parallelGenerator(metaInf, tp) {
-        let parallelDeps = {};
-        return async (input, steps, context) => {
-
-            const resolvedJsonPointers = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'parallel'); //fixme todo we should avoid doing this for every jsonata evaluation
-            TemplateUtils.validateStepPointers(resolvedJsonPointers, steps, metaInf, 'parallel');
-
-            return this.parallel(input, steps, context, resolvedJsonPointers, tp);
-        }
-    }
-
-    // This function is called by the template processor to execute an array of steps in parallel
-    async parallel(input, stepJsons, context = {}, resolvedJsonPointers = {}, tp = undefined) {
-        let {workflowInvocation} = context;
-
-        if (workflowInvocation === undefined) {
-            workflowInvocation = StatedWorkflow.generateDateAndTimeBasedID();
-        }
-
-        let promises = [];
-        for (let i = 0; i < stepJsons.length; i++) {
-            let step = new Step(stepJsons[i], resolvedJsonPointers?.[i], tp);
-            const promise = this.runStep(workflowInvocation, step, input)
-              .then(result => {
-                  // step.output.results.push(result);
-                  return result;
-              })
-              .catch(error => {
-                  // step.output.errors.push(error);
-                  return error;
-              });
-            promises.push(promise);
-        }
-
-        let result = await Promise.all(promises);
-
-        if (!tp.options.keepLogs) await StatedWorkflow.deleteStepsLogs(workflowInvocation, steps);
-
-        return result;
-    }
-
     static async deleteStepsLogs(workflowInvocation, steps){
         await Promise.all(steps.map(s=>s.deleteLogs(workflowInvocation)));
     }
@@ -746,40 +653,6 @@ export class StatedWorkflow {
         );
     }
 
-    async recoverStepGenerator(metaInf, tp) {
-        let parallelDeps = {};
-        return async (step, context) => {
-            const resolvedJsonPointers = await TemplateUtils.resolveEachStepToOneLocationInTemplate(metaInf, tp, 'recoverStep'); //fixme todo we should avoid doing this for every jsonata evaluation
-            TemplateUtils.validateStepPointers(resolvedJsonPointers, [step], metaInf, 'recoverStep');
-            return this.recoverStep(step, context, resolvedJsonPointers?.[0], tp);
-        }
-    }
-
-
-    async recoverStep(stepJson, context, resolvedJsonPointer, tp){
-        let step = new Step(stepJson, resolvedJsonPointer, tp);
-        for  (let workflowInvocation of step.log.getInvocations()){
-            await this.runStep(workflowInvocation, step);
-        }
-    }
-
-    async recover(to) {
-        return await to('__recover__');
-    }
-
-    async runStep(workflowInvocation, step, input){
-
-        const {instruction, event:loggedEvent} = step.log.getCourseOfAction(workflowInvocation);
-        if(instruction === "START"){
-            return await step.run(workflowInvocation, input);
-        }else if (instruction === "RESTART"){
-            return await step.run(workflowInvocation, loggedEvent.args);
-        } else if(instruction === "SKIP"){
-            return loggedEvent.out;
-        }else{
-            throw new Error(`unknown courseOfAction: ${instruction}`);
-        }
-    }
 
     async executeStep(step, input, currentLog, stepRecord) {
         /*

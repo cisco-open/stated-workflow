@@ -3,6 +3,7 @@ import { StatedWorkflow } from "./StatedWorkflow.js";
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
 import TemplateProcessor from "stated-js";
 import {WorkflowMetrics} from "./WorkflowMeters.js";
+import {createStorage} from "./Storage.js";
 
 import fs from "fs";
 import util from "util";
@@ -19,7 +20,8 @@ export class WorkflowManager {
         this.options = options;
         this.workflowMetrics = new WorkflowMetrics();
         this.statePath = './.state';
-        this.snapshot = new SnapshotManager(this.options.snapshot)
+        this.storage = createStorage(this.options.snapshot);
+        this.snapshot = new SnapshotManager(this.options.snapshot, this.storage);
     }
 
     async initialize() {

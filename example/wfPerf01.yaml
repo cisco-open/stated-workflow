@@ -3,20 +3,14 @@ name: nozzleWork
 subscribeParams: #parameters for subscribing to a cloud event
   type: sys:cron
   filter$: function($e){ $e.name='nozzleTime' }
-  to: ../${myWorkflow$}
+  to: /${ function($input) { $forked( "/nozzle", $input) } }
   parallelism: 8
   source: cloudEvent
   client:
     type: test
-    testData: "${  [1..300].({'name': 'nozzleTime', 'order':$})  }"
-
-myWorkflow$: |
-  function($e){
-      $e ~> $serial([step1, step2]) 
-  }
-step1:
-  name: primeTheNozzle
-  function: ${function($e){ ($e~>|$|{'primed':true}|)  }}
-step2:
-  name: sprayTheNozzle
-  function: ${function($e){ $e~>|$|{'sprayed':true}|  }}
+    testData: "${  [1..1000].({'name': 'nozzleTime', 'order':$})  }"
+nozzle: {'name': 'defaultNozzle', 'order': 0}
+step1: /${nozzle~>|$|{'primed':true}|}
+step2: /${step1~>|$|{'sprayed':true}|}
+step3: /${$joined("/nozzles/-", step2)}
+nozzles: []
