@@ -47,8 +47,8 @@ export class iStorage {
 
 }
 
-export function createStorage(options = {'type': 'fs'}) {
-    if (options.type === 'fs') {
+export function createStorage(options = {'storage': 'fs', "basePath": './.state'}) {
+    if (options.storage === 'fs') {
         return new FSStorage(options);
     } else {
         throw new Error(`Unsupported storage type: ${options.type}`);

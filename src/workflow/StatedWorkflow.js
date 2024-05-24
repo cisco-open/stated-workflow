@@ -37,7 +37,7 @@ const {Kafka, KafkaConfig, CompressionTypes, CompressionCodecs, logLevel} = kafk
 export class StatedWorkflow {
     // static express = require('express');
 
-    constructor(template, context, workflowContext = {}){
+    constructor(template, context, workflowContext = {}, storage){
         this.logger = winston.createLogger({
             format: winston.format.json(),
             transports: [
@@ -64,6 +64,10 @@ export class StatedWorkflow {
             // For latency, you might want to keep individual records or a summary
             workflowInvocationLatencies: [],
         };
+
+        this.snapshotOpts = context.snapshot || {storage: 'fs', basePath: './.state'}
+        this.storage = storage || createStorage(this.snapshotOpts);
+        this.snapshotManager = new SnapshotManager(this.snapshotOpts, this.storage);
 
         // create metrics provider
         this.workflowMetrics = new WorkflowMetrics();
@@ -104,7 +108,7 @@ export class StatedWorkflow {
                 const {seconds = 1} = snapshotOpts;
                 this.snapshotInterval = setInterval(async ()=>{
                     if(this.hasChanged){
-                        await SnapshotManager.write(this.templateProcessor);
+                        await this.snapshotManager.write(this.templateProcessor, workflowContext.id);
                         // we can acknowledge callbacks after persisting templateProcessor
                         if (workflowContext.ackOnSnapshot === true && this.workflowDispatcher) await this.workflowDispatcher.acknowledgeCallbacks();
                         this.hasChanged = false; //changeListener will alter this if the template changes so we are not permanently blocking snapshots

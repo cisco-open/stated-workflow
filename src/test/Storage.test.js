@@ -7,7 +7,7 @@ describe('FSStorage', () => {
     let storage;
 
     beforeAll(async () => {
-        storage = createStorage({ type: 'fs', basePath });
+        storage = createStorage({ storage: 'fs', basePath });
         await storage.init();
     });
 
