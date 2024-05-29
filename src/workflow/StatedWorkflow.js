@@ -68,10 +68,6 @@ export class StatedWorkflow {
         this.snapshotOpts = context.snapshot || {storage: 'fs', basePath: './.state'}
         this.storage = storage || createStorage(this.snapshotOpts);
         this.snapshotManager = new SnapshotManager(this.snapshotOpts, this.storage);
-
-        // create metrics provider
-        this.workflowMetrics = new WorkflowMetrics();
-
         this.consumers = new Map(); //key is type, value is pulsar consumer
         this.dispatchers = new Map(); //key is type, value Set of WorkflowDispatcher
 
@@ -82,8 +78,6 @@ export class StatedWorkflow {
                 "onHttp": this.onHttp.bind(this),
                 "publish": this.publish.bind(this),
                 "logFunctionInvocation": this.logFunctionInvocation.bind(this),
-                // "workflow": this.workflow.bind(this),
-                // "recover": this.rexcover.bind(this),
                 "sleep": Delay.start,
                 "ack": this.ack.bind(this),
             }
@@ -138,7 +132,7 @@ export class StatedWorkflow {
 
     //
     async ack(data) {
-        this.logger.debug(`acknowledging data: ${StatedREPL.stringify(data)}`);
+        this.templateProcessor.logger.debug(`acknowledging data: ${StatedREPL.stringify(data)}`);
         const dispatcherType = this.workflowDispatcher.dispatchers.get(data.type);
         for (let t of dispatcherType) {
             const dispatcher = this.workflowDispatcher.dispatcherObjects.get(t);
@@ -579,23 +573,23 @@ export class StatedWorkflow {
         if(clientParams.type === "test"){
             await this.subscribeTest(subscriptionParams, subscribeParamsJsonPointer);
         } else if (clientType === 'dispatcher') {
-            this.logger.debug(`No 'real' subscription created because client.type='dispatcher' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
+            this.templateProcessor.logger.debug(`No 'real' subscription created because client.type='dispatcher' set for subscription params ${StatedREPL.stringify(subscriptionParams)}`);
             this.workflowDispatcher.getDispatcher(subscriptionParams);
         } else if (clientType === 'http') {
             this.onHttp(subscriptionParams);
         } else if (clientType === 'cop') {
-            this.logger.debug(`subscribing to cop cloud event sources ${clientParams}`)
+            this.templateProcessor.logger.debug(`subscribing to cop cloud event sources ${clientParams}`)
             this.subscribeCOPKafka(subscriptionParams);
         }else if (clientType === 'kafka') {
-            this.logger.debug(`subscribing to kafka using ${clientParams}`)
+            this.templateProcessor.logger.debug(`subscribing to kafka using ${clientParams}`)
             this.createKafkaClient(clientParams);
             this.subscribeKafka(subscriptionParams);
         }else if(clientType === 'pulsar') {
-            this.logger.debug(`subscribing to pulsar (default) using ${clientParams}`)
+            this.templateProcessor.logger.debug(`subscribing to pulsar (default) using ${clientParams}`)
             this.createPulsarClient(clientParams);
             this.subscribePulsar(subscriptionParams);
         }else if(clientType === 'pulsarMock'){
-            this.logger.debug(`subscribing to pulsarMock using ${clientParams}`)
+            this.templateProcessor.logger.debug(`subscribing to pulsarMock using ${clientParams}`)
             this.createPulsarClientMock(clientParams);
             this.subscribePulsar(subscriptionParams);
         }else{
@@ -610,7 +604,7 @@ export class StatedWorkflow {
         this.app = express();
         this.app.use(express.json());
         this.app.listen(this.port, () => {
-            this.logger.log(`Server started on http://localhost:${StatedWorkflow.port}`);
+            this.templateProcessor.logger.log(`Server started on http://localhost:${StatedWorkflow.port}`);
         });
         // Path = /workflow/:workflowId
         // workflowIdToWorkflowDispatcher
@@ -618,7 +612,7 @@ export class StatedWorkflow {
         if (subscriptionParams.subscriberId === undefined) subscriptionParams.subscriberId = 'default-subscriberId';
         const dispatcher = this.workflowDispatcher.getDispatcher(subscriptionParams);
         this.app.all('*', async (req, res) => {
-            this.logger.debug("Received HTTP request: ", req.body, req.method, req.url);
+            this.templateProcessor.logger.debug("Received HTTP request: ", req.body, req.method, req.url);
             // Push the request and response objects to the dispatch queue to be handled by callback
             await dispatcher.addToQueue(req.body, ()=>{ res.send("sucess")});
         });
@@ -666,6 +660,5 @@ export class StatedWorkflow {
             this.logger.error("Error closing workflow dispatcher:", error);
         }
         clearInterval(this.snapshotInterval);
-        await this.workflowMetrics.shutdown();
     }
 }
