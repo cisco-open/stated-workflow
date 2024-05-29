@@ -150,19 +150,6 @@ export class StatedWorkflow {
 
     }
 
-    // setWorkflowPersistence() {
-    //     const storage = new Storage({workflowName: this.templateProcessor.input.name});
-    //     const cbFn = async (data, jsonPtr, removed) => {
-    //         try {
-    //             await storage.persist(this.templateProcessor);
-    //         } catch (error) {
-    //             console.error(`Error persisting workflow state: ${error}`);
-    //         }
-    //     }
-    //     this.templateProcessor.removeDataChangeCallback('/');
-    //     this.templateProcessor.setDataChangeCallback('/',cbFn);
-    // }
-
     async logFunctionInvocation(stage, args, result, error = null, log) {
         const logMessage = {
             context: stage.name,
@@ -373,7 +360,7 @@ export class StatedWorkflow {
                         const messageDataStr = message.getData().toString();
                         messageData = JSON.parse(messageDataStr);
                     } catch (error) {
-                        console.error("unable to parse data to json:", error);
+                        this.templateProcessor.logger.error("unable to parse data to json:", error);
                         // TODO - should we acknowledge the message here?
                         continue;
                     }
@@ -390,7 +377,7 @@ export class StatedWorkflow {
                         break;
                     }
                 } catch (error) {
-                    console.error("Error receiving or dispatching message:", error);
+                    this.templateProcessor.logger.error("Error receiving or dispatching message:", error);
                 } finally {
                     if (this.pulsarClient === undefined) {
                         break;
@@ -401,7 +388,7 @@ export class StatedWorkflow {
             try {
                 await consumer.close();
             } catch (error) {
-                console.error("Error closing consumer:", error);
+                this.templateProcessor.logger.error("Error closing consumer:", error);
             }
         })();
     }
@@ -503,14 +490,7 @@ export class StatedWorkflow {
                 } catch (error) {
                     this.logger.error("Unable to parse data to JSON:", error);
                 }
-                const ackFunction = async (data) => {
-                    // TODO: make the below code working
-                    // const currentOffset = this.templateProcessor.output(subscribeParamsJsonPointer + 'offset',);
-                    // if (currentOffset < message.offset + 1) {
-                    //   await consumer.commitOffsets([{ topic, partition, offset: message.offset + 1 }]);
-                    //   this.templateProcessor.setData(subscribeParamsJsonPointer + 'offset', message.offset + 1;
-                    // }
-                }
+
                 this.workflowDispatcher.dispatchToAllSubscribers(type, data, dataAckCallback);
 
     
@@ -648,10 +628,7 @@ export class StatedWorkflow {
         this.templateProcessor.removeDataChangeCallback(this.changeListener);
 
         // TODO: check if consumers can be closed without client
-        // for (let consumer of StatedWorkflow.consumers.values()) {
-        //     console.log(consumer);
-        //     await consumer.disconnect();
-        // }
+
         try {
             if (this.workflowDispatcher) await this.workflowDispatcher.clear();
             if (this.templateProcessor) await this.templateProcessor.close();
