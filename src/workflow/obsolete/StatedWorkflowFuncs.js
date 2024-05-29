@@ -25,7 +25,7 @@ export class StatedWorkflowFuncs {
         let workflowStart = new Date().getTime();
 
         if (workflowInvocation === undefined) {
-            workflowInvocation = StatedWorkflow.generateDateAndTimeBasedID();
+            workflowInvocation = generateDateAndTimeBasedID();
         }
 
         if (input === '__recover__' && stepJsons?.[0]) {
@@ -53,7 +53,7 @@ export class StatedWorkflowFuncs {
         this.workflowMetrics.workflowInvocationLatency.record(new Date().getTime() - workflowStart, {workflowInvocation});
 
         //we do not need to await this. Deletion can happen async
-        if (!tp.options.keepLogs) StatedWorkflow.deleteStepsLogs(workflowInvocation, steps)
+        if (!tp.options.keepLogs) deleteStepsLogs(workflowInvocation, steps)
             .catch(e=>this.templateProcessor.logger.error(`failed to delete completed log with invocation id '${workflowInvocation}'`));
 
         return currentInput;
@@ -76,7 +76,7 @@ export class StatedWorkflowFuncs {
         let {workflowInvocation} = context;
 
         if (workflowInvocation === undefined) {
-            workflowInvocation = StatedWorkflow.generateDateAndTimeBasedID();
+            workflowInvocation = generateDateAndTimeBasedID();
         }
 
         let promises = [];
@@ -96,7 +96,7 @@ export class StatedWorkflowFuncs {
 
         let result = await Promise.all(promises);
 
-        if (!tp.options.keepLogs) await StatedWorkflow.deleteStepsLogs(workflowInvocation, steps);
+        if (!tp.options.keepLogs) await deleteStepsLogs(workflowInvocation, steps);
 
         return result;
     }
@@ -136,4 +136,115 @@ export class StatedWorkflowFuncs {
             throw new Error(`unknown courseOfAction: ${instruction}`);
         }
     }
+
+    async workflow(input, steps, options={}) {
+        const {name: workflowName, log} = options;
+        let {id} = options;
+
+        if (log === undefined) {
+            throw new Error('log is missing from options');
+        }
+
+        if (id === undefined) {
+            id = generateUniqueId();
+            options.id = id;
+        }
+
+        initializeLog(log, workflowName, id);
+
+        let currentInput = input;
+        let serialOrdinal = 0;
+        for (let step of steps) {
+            const stepRecord = {invocationId: id, workflowName, stepName: step.name, serialOrdinal, branchType:"SERIAL"};
+            currentInput = await this.executeStep(step, currentInput, log[workflowName][id], stepRecord);
+            serialOrdinal++;
+            if (step.next) this.workflow(currentInput, step.next, options);
+        }
+
+        //this.finalizeLog(log[workflowName][id]);
+        //this.ensureRetention(log[workflowName]);
+
+        return currentInput;
+    }
+
+
+    static async deleteStepsLogs(workflowInvocation, steps){
+        await Promise.all(steps.map(s=>s.deleteLogs(workflowInvocation)));
+    }
+
+
+    // ensures that the log object has the right structure for the workflow invocation
+    static initializeLog(log, workflowName, id) {
+        if (!log[workflowName]) log[workflowName] = {};
+        if (!log[workflowName][id]) log[workflowName][id] = {
+            info: {
+                start: new Date().getTime(),
+                status: 'in-progress'
+            },
+            execution: {}
+        };
+    }
+
+
+
+    async executeStep(step, input, currentLog, stepRecord) {
+        /*
+        const stepLog = {
+            step: step.name,
+            start: new Date().getTime(),
+            args: [input]
+        };
+
+        */
+
+        if (currentLog.execution[stepRecord.stepName]?.out) {
+            console.log(`step ${step.name} has been already executed. Skipping`);
+            return currentLog.execution[stepRecord.stepName].out;
+        }
+        stepRecord["start"] = new Date().getTime();
+        stepRecord["args"] = input;
+
+        // we need to pass invocation id to the step expression
+        step.workflowInvocation = stepRecord.workflowInvocation;
+
+        try {
+            const result = await step.function.apply(this, [input]);
+            stepRecord.end = new Date().getTime();
+            stepRecord.out = result;
+            currentLog.execution[stepRecord.stepName] = stepRecord;
+            persistLogRecord(stepRecord);
+            return result;
+        } catch (error) {
+            stepRecord.end = new Date().getTime();
+            stepRecord.error = {message: error.message};
+            currentLog.info.status = 'failed';
+            currentLog.execution[stepRecord.stepName] = stepRecord;
+            persistLogRecord(stepRecord);
+            throw error;
+        }
+    }
+    finalizeLog(currentLog) {
+        currentLog.info.end = new Date().getTime();
+        if (currentLog.info.status !== 'failed') {
+            currentLog.info.status = 'succeeded';
+        }
+    }
+
+    ensureRetention(workflowLogs) {
+        const maxLogs = 100;
+        const sortedKeys = Object.keys(workflowLogs).sort((a, b) => workflowLogs[b].info.start - workflowLogs[a].info.start);
+        while (sortedKeys.length > maxLogs) {
+            const oldestKey = sortedKeys.pop();
+            delete workflowLogs[oldestKey];
+        }
+    }
+
+    static async persistLogRecord(stepRecord) {
+        this.publish(
+            {'type': stepRecord.workflowName, 'data': stepRecord},
+            {type:'pulsar', params: {serviceUrl: 'pulsar://localhost:6650'}}
+        );
+    }
+
+
 }
