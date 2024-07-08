@@ -14,7 +14,6 @@
 // limitations under the License.
 import TemplateProcessor from "stated-js/dist/src/TemplateProcessor.js";
 import StatedREPL from "stated-js/dist/src/StatedREPL.js";
-import {WorkflowMetrics} from "./WorkflowMeters.js";
 import express from 'express';
 import Pulsar from 'pulsar-client';
 import winston from "winston";
@@ -29,6 +28,7 @@ import LZ4 from "kafkajs-lz4";
 
 // workaround for kafkajs issue
 import kafkaPkg from 'kafkajs';
+import {Collector} from "opentelemetry-js-collector/src/server.js";
 const {Kafka, KafkaConfig, CompressionTypes, CompressionCodecs, logLevel} = kafkaPkg;
 
 
@@ -187,7 +187,7 @@ export class StatedWorkflow {
 
     createPulsarClient(params) {
         if (this.pulsarClient) return;
-    
+
         this.pulsarClient = new Pulsar.Client({
             serviceUrl: 'pulsar://localhost:6650',
         });
@@ -458,28 +458,28 @@ export class StatedWorkflow {
 
         // Make sure a dispatcher exists for the combination of type and subscriberId
         this.workflowDispatcher.getDispatcher(subscriptionParams);
-    
+
         // Check if a consumer already exists for the given subscription
         if (this.consumers.has(type)) {
             this.logger.debug(`Kafka subscriber already started. Bail.`);
             return; // Bail, we are already consuming and dispatching this type
         }
-    
+
         const consumer = this.kafkaClient.consumer({ groupId: type });
-    
+
         try {
             await consumer.connect();
             await consumer.subscribe({ topic: type, fromBeginning: true });
-  
+
         } catch (e) {
             this.logger.debug(`Kafka subscriber - failed, e: ${e}`);
         }
         this.logger.debug(`Kafka subscriber - subscribed.`);
-    
+
         // Store the consumer in the map
         this.consumers.set(type, consumer);
         let countdown = maxConsume;
-    
+
         await consumer.run({
             eachMessage: async ({ topic, partition, message }) => {
                 let data;
@@ -493,7 +493,7 @@ export class StatedWorkflow {
 
                 this.workflowDispatcher.dispatchToAllSubscribers(type, data, dataAckCallback);
 
-    
+
                 if (countdown && --countdown === 0) {
                     // Disconnect the consumer if maxConsume messages have been processed
                     await consumer.disconnect();
@@ -557,6 +557,8 @@ export class StatedWorkflow {
             this.workflowDispatcher.getDispatcher(subscriptionParams);
         } else if (clientType === 'http') {
             this.onHttp(subscriptionParams);
+        } else if (clientType === 'grpc') {
+            this.onGrpc(subscriptionParams);
         } else if (clientType === 'cop') {
             this.templateProcessor.logger.debug(`subscribing to cop cloud event sources ${clientParams}`)
             this.subscribeCOPKafka(subscriptionParams);
@@ -598,6 +600,15 @@ export class StatedWorkflow {
         });
 
         return "listening http ..."
+
+    }
+
+
+    async onGrpc(subscriptionParams) {
+        this.collector = new Collector();
+        await this.collector.init()
+        await this.collector.run();
+        return "listening grpc ..."
 
     }
 
