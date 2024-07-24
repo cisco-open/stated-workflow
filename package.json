@@ -43,7 +43,7 @@
     "fs-extra": "^11.2.0",
     "kafkajs": "^2.2.4",
     "kafkajs-lz4": "^1.2.1",
-    "opentelemetry-js-collector": "^0.0.3",
+    "opentelemetry-js-collector": "file:.yalc/opentelemetry-js-collector",
     "pulsar-client": "^1.9.0",
     "stated-js": "^0.1.23"
   },

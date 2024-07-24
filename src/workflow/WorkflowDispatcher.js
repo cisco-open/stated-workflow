@@ -134,7 +134,46 @@ export class WorkflowDispatcher {
             } else {
                 promise = this.workflowFunction(eventData);
             }
-            promise.catch(error => {
+            promise.then(
+                (result) => {
+                    if (this.explicitAck) {
+                        // explicitAck means that the workflow will invoke ack() function to acknowledge the invocation
+                        console.log(`ExplicitAck is enabled, skipping dataAckCallback for ${StatedREPL.stringify(eventData)} in _dispatch`);
+                    } else if (this.dataAckCallbacks.get(eventData)) {
+                        const dataAckCallback = this.dataAckCallbacks.get(eventData);
+
+                        // promisify the callback function, in case it is a sync one
+                        const callbackPromise = Promise.resolve().then(() => {
+                            dataAckCallback(eventData, result);
+                        });
+                        callbackPromise.catch(error => {
+                            console.error(`Error calling dataAckCallback ${dataAckCallback}, error: ${error}`);
+                        });
+
+                        delete this.dataAckCallbacks.get(eventData);
+                    }
+                },
+                (error) => {
+                    console.error(`Error executing workflow: ${error} for event data: ${StatedREPL.stringify(eventData)}`);
+                    if (this.explicitAck) {
+                        // explicitAck means that the workflow will invoke ack() function to acknowledge the invocation
+                        console.log(`ExplicitAck is enabled, skipping dataAckCallback for ${StatedREPL.stringify(eventData)} in _dispatch`);
+                    } else if (this.dataAckCallbacks.get(eventData)) {
+                        const dataAckCallback = this.dataAckCallbacks.get(eventData);
+
+                        // promisify the callback function, in case it is a sync one
+                        const callbackPromise = Promise.resolve().then(() => {
+                            dataAckCallback(eventData, error);
+                        });
+                        callbackPromise.catch(error => {
+                            console.error(`Error calling dataAckCallback ${dataAckCallback}, error: ${error}`);
+                        });
+
+                        delete this.dataAckCallbacks.get(eventData);
+                    }
+                }
+
+            ).catch(error => {
                 console.error("Error executing workflow:", error);
             }).finally(() => {
                 if (!this.explicitAck) {
@@ -146,22 +185,6 @@ export class WorkflowDispatcher {
                 const index = this.promises.indexOf(promise);
                 if (index > -1) {
                     this.promises.splice(index, 1);
-                    if (this.explicitAck) {
-                        // explicitAck means that the workflow will invoke ack() function to acknowledge the invocation
-                        console.log(`ExplicitAck is enabled, skipping dataAckCallback for ${StatedREPL.stringify(eventData)} in _dispatch`);
-                    } else if (this.dataAckCallbacks.get(eventData)) {
-                        const dataAckCallback = this.dataAckCallbacks.get(eventData);
-
-                        // promisify the callback function, in case it is a sync one
-                        const callbackPromise = Promise.resolve().then(() => {
-                            dataAckCallback(eventData);
-                        });
-                        callbackPromise.catch(error => {
-                            console.error(`Error calling dataAckCallback ${dataAckCallback}, error: ${error}`);
-                        });
-
-                        delete this.dataAckCallbacks.get(eventData);
-                    }
                 }
                 this._dispatch();
             });

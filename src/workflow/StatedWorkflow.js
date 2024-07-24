@@ -84,7 +84,7 @@ export class StatedWorkflow {
         };
         this.templateProcessor = new TemplateProcessor(template, context);
         this.templateProcessor.functionGenerators.set("subscribe", this.subscribeGenerator.bind(this));
-        this.templateProcessor.logLevel = logLevel.ERROR; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
+        this.templateProcessor.logLevel = "error"; //log level must be ERROR by default. Do not commit code that sets this to DEBUG as a default
         this.hasChanged = true;
         this.changeListener = ()=>{this.hasChanged=true};
         this.snapshotInterval = null;
@@ -586,7 +586,7 @@ export class StatedWorkflow {
         this.app = express();
         this.app.use(express.json());
         this.app.listen(this.port, () => {
-            this.templateProcessor.logger.log(`Server started on http://localhost:${StatedWorkflow.port}`);
+            this.templateProcessor.logger.info(`Server started on http://localhost:${StatedWorkflow.port}`);
         });
         // Path = /workflow/:workflowId
         // workflowIdToWorkflowDispatcher
@@ -596,7 +596,10 @@ export class StatedWorkflow {
         this.app.all('*', async (req, res) => {
             this.templateProcessor.logger.debug("Received HTTP request: ", req.body, req.method, req.url);
             // Push the request and response objects to the dispatch queue to be handled by callback
-            await dispatcher.addToQueue(req.body, ()=>{ res.send("sucess")});
+            await dispatcher.addToQueue(req.body, (data, result)=>{ res.send({
+                data: data,
+                result: result
+            })});
         });
 
         return "listening http ..."

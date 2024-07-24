@@ -1,13 +1,13 @@
 start$: $subscribe(subscribeParams)
 subscribeParams: #parameters for subscribing to a http request
-  to: ../${myWebLambda$}
+  to: ../${myWebLambda}
   parallelism: 2
   source: cloudEvent
   client:
     type: http
 
-myWebLambda$: |
-  function($con){
-      $con.res.send("Hello Stated Lambda")
-      
-  }
+myWebLambda: |
+  ${ function($requestBody) {(
+      $console.log("received request", $requestBody);
+      "Hello Stated Lambda";
+  )}}
